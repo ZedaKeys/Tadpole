@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Brand tokens */
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-hover: #1a1a1a;
+  --surface-active: #222222;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.1);
+  --accent: #a855f7;
+  --accent-hover: #9333ea;
+  --accent-muted: rgba(168, 85, 247, 0.12);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.5);
+  --text-muted: rgba(255, 255, 255, 0.25);
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+
+  /* Rarity colors */
+  --rarity-common: #9ca3af;
+  --rarity-uncommon: #22c55e;
+  --rarity-rare: #3b82f6;
+  --rarity-very-rare: #a855f7;
+  --rarity-legendary: #f59e0b;
+
+  /* School colors */
+  --school-abjuration: #f59e0b;
+  --school-conjuration: #3b82f6;
+  --school-divination: #a855f7;
+  --school-enchantment: #ec4899;
+  --school-evocation: #ef4444;
+  --school-illusion: #6366f1;
+  --school-necromancy: #22c55e;
+  --school-transmutation: #14b8a6;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px; /* Prevent iOS zoom on input focus */
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  min-height: 100dvh;
+}
+
+/* Safe area padding for iOS */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Touch target minimum */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 2px;
+}
+
+/* Spoiler blur */
+.spoiler-blur {
+  filter: blur(6px);
+  user-select: none;
+  transition: filter 0.3s ease;
+  cursor: pointer;
+}
+
+.spoiler-blur:hover {
+  filter: blur(4px);
+}
+
+.spoiler-revealed {
+  filter: none;
+  user-select: auto;
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Monospace for numbers */
+.font-mono-num {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
