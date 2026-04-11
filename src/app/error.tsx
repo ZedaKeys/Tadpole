@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { APP_NAME } from '@/lib/version';
+import { reportError } from '@/lib/error-reporter';
 
 export default function GlobalError({
   error,
@@ -9,6 +11,18 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Report the error when the boundary catches it
+  useEffect(() => {
+    try {
+      reportError(error, {
+        source: 'app',
+        metadata: { digest: error?.digest },
+      });
+    } catch {
+      // Never let error reporting crash the error boundary
+    }
+  }, [error]);
+
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-lg mx-auto w-full text-center">
       {/* Error icon */}

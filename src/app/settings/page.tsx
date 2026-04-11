@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { ArrowLeft, Download, Upload, Trash2, Shield, Heart, Star } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, Download, Upload, Trash2, Shield, Heart, Star, AlertTriangle, Clipboard, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useSpoilerMode } from '@/hooks/useSpoilerMode';
 import { useFavorites } from '@/hooks/useFavorites';
 import { APP_NAME, VERSION, DISCLAIMER } from '@/lib/version';
 import { safeGet, safeRemove } from '@/lib/storage';
+import { ErrorReporter } from '@/lib/error-reporter';
 import { AppShell } from '@/components/layout/AppShell';
 import type { SpoilerMode } from '@/types';
 
@@ -22,7 +23,17 @@ export default function SettingsPage() {
   const { favorites: itemFavs } = useFavorites('items');
   const { favorites: companionFavs } = useFavorites('companions');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [errors, setErrors] = useState<ReturnType<typeof ErrorReporter.getLocalErrors>>([]);
+  const [copySuccess, setCopySuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const refreshErrors = useCallback(() => {
+    setErrors(ErrorReporter.getLocalErrors().slice(0, 10));
+  }, []);
+
+  useEffect(() => {
+    refreshErrors();
+  }, [refreshErrors]);
 
   const handleExport = () => {
     const data = {
@@ -86,6 +97,43 @@ export default function SettingsPage() {
     setShowClearConfirm(false);
     // Reload to reset state
     window.location.reload();
+  };
+
+  const handleClearErrors = () => {
+    ErrorReporter.clearLocalErrors();
+    refreshErrors();
+  };
+
+  const handleCopyErrors = async () => {
+    try {
+      const text = ErrorReporter.getFormattedErrors();
+      await navigator.clipboard.writeText(text);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
+      // Clipboard API might not be available
+      try {
+        const text = ErrorReporter.getFormattedErrors();
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } catch {
+        // Silently fail
+      }
+    }
+  };
+
+  const handleOpenGitHubIssue = () => {
+    const body = `## Error Report\n\nApp version: ${VERSION}\nDate: ${new Date().toISOString()}\n\n### Errors\n\n\`\`\`\n${ErrorReporter.getFormattedErrors()}\n\`\`\``;
+    const url = `https://github.com/user/tadpole/issues/new?title=${encodeURIComponent('[Error Report]')}&body=${encodeURIComponent(body)}`;
+    window.open(url, '_blank', 'noopener');
   };
 
   const sectionStyle: React.CSSProperties = {
@@ -290,6 +338,113 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Error Log */}
+      <div style={sectionStyle}>
+        <label style={labelStyle}>
+          <AlertTriangle size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+          Error Log
+          {errors.length > 0 && (
+            <span style={{
+              background: 'var(--danger)',
+              color: '#fff',
+              borderRadius: 10,
+              padding: '1px 7px',
+              fontSize: '0.7rem',
+              marginLeft: 8,
+              fontWeight: 700,
+            }}>
+              {errors.length}
+            </span>
+          )}
+        </label>
+
+        {errors.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: '8px 0' }}>
+            No errors recorded. Everything looks good!
+          </p>
+        ) : (
+          <div style={{ marginBottom: 12 }}>
+            {errors.map((err) => (
+              <div
+                key={err.id}
+                style={{
+                  padding: '8px 10px',
+                  borderBottom: '1px solid var(--border)',
+                  fontSize: '0.8rem',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{
+                    color: 'var(--danger)',
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                  }}>
+                    {err.source}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                    {new Date(err.timestamp).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ color: 'var(--text-primary)', fontSize: '0.8rem', lineHeight: 1.4, wordBreak: 'break-word' }}>
+                  {err.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {errors.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleCopyErrors}
+              className="touch-target rounded-lg px-3 py-2 flex items-center gap-2"
+              style={{
+                background: 'var(--surface-active)',
+                border: '1px solid var(--border)',
+                color: copySuccess ? 'var(--success)' : 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+              }}
+            >
+              <Clipboard size={14} />
+              {copySuccess ? 'Copied!' : 'Copy Errors'}
+            </button>
+
+            <button
+              onClick={handleOpenGitHubIssue}
+              className="touch-target rounded-lg px-3 py-2 flex items-center gap-2"
+              style={{
+                background: 'var(--surface-active)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+              }}
+            >
+              <ExternalLink size={14} />
+              Report Issue
+            </button>
+
+            <button
+              onClick={handleClearErrors}
+              className="touch-target rounded-lg px-3 py-2 flex items-center gap-2"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--danger)',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+              }}
+            >
+              <Trash2 size={14} />
+              Clear Log
+            </button>
+          </div>
+        )}
       </div>
 
       {/* App info */}

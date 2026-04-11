@@ -11,6 +11,90 @@ const os = require('os');
 const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
+const BRIDGE_VERSION = '0.1.0';
+const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
+const ERROR_LOG_FILE = path.join(__dirname, 'bridge-error.log');
+
+// ---------------------------------------------------------------------------
+// Error logging & reporting
+// ---------------------------------------------------------------------------
+const errorReportTimestamps = [];
+const ERROR_RATE_LIMIT_PER_MINUTE = 10;
+
+function reportBridgeError(message, stack, extra = {}) {
+  try {
+    const now = Date.now();
+    // Rate limit
+    const recent = errorReportTimestamps.filter(t => now - t < 60000);
+    if (recent.length >= ERROR_RATE_LIMIT_PER_MINUTE) return;
+    errorReportTimestamps.length = 0;
+    errorReportTimestamps.push(...recent, now);
+
+    const record = {
+      source: 'bridge',
+      message: String(message || 'Unknown error'),
+      stack: stack ? String(stack) : undefined,
+      url: `bridge://port:${PORT}`,
+      userAgent: `TadpoleBridge/${BRIDGE_VERSION} (${os.type()} ${os.release()})`,
+      metadata: { ...extra, pid: process.pid, uptime: process.uptime() },
+      version: BRIDGE_VERSION,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Log locally
+    const logLine = `[${record.timestamp}] [ERROR] ${record.message}${record.stack ? '\n  ' + record.stack.split('\n').slice(0, 5).join('\n  ') : ''}\n`;
+    try {
+      fs.appendFileSync(ERROR_LOG_FILE, logLine);
+      // Keep error log under 1MB
+      try {
+        const stat = fs.statSync(ERROR_LOG_FILE);
+        if (stat.size > 1024 * 1024) {
+          const content = fs.readFileSync(ERROR_LOG_FILE, 'utf8');
+          const lines = content.split('\n');
+          fs.writeFileSync(ERROR_LOG_FILE, lines.slice(-500).join('\n'));
+        }
+      } catch {}
+    } catch {}
+
+    // Report to PocketBase (fire and forget, 3s timeout)
+    const postData = JSON.stringify(record);
+    const url = new URL(PB_ERROR_ENDPOINT);
+    const req = http.request({
+      hostname: url.hostname,
+      port: 443,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 3000,
+    }, () => {});
+    req.on('error', () => {}); // silently fail
+    req.on('timeout', () => { req.destroy(); });
+    req.write(postData);
+    req.end();
+  } catch {
+    // Never let error reporting crash the server
+  }
+}
+
+// Wrap a function with error catching that reports
+function safeWrap(fn, label) {
+  return function (...args) {
+    try {
+      const result = fn.apply(this, args);
+      if (result && typeof result.catch === 'function') {
+        return result.catch(err => {
+          reportBridgeError(`${label}: ${err?.message || err}`, err?.stack, { args: args.map(a => typeof a) });
+        });
+      }
+      return result;
+    } catch (err) {
+      reportBridgeError(`${label}: ${err?.message || err}`, err?.stack);
+    }
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Express app + status page
@@ -35,10 +119,10 @@ const stateHistory = [];          // rolling buffer of last 100 snapshots
 const eventLog = [];              // recent detected events
 
 // JSON status endpoint for DeckyLoader plugin & programmatic consumers
-app.get('/status', (req, res) => {
+app.get('/status', safeWrap((req, res) => {
   res.json({
     name: 'Tadpole Bridge Server',
-    version: '0.1.0',
+    version: BRIDGE_VERSION,
     uptime: process.uptime(),
     stateFile: STATE_FILE,
     commandFile: COMMAND_FILE,
@@ -48,7 +132,7 @@ app.get('/status', (req, res) => {
     recentEvents: eventLog.slice(-20),
     historyLength: stateHistory.length,
   });
-});
+}, 'GET /status'));
 
 app.get('/', (req, res) => {
   const status = {
@@ -209,7 +293,8 @@ function readStateFile() {
     const raw = fs.readFileSync(STATE_FILE, 'utf8');
     if (!raw.trim()) return null;
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    reportBridgeError(`readStateFile: ${err.message}`, err.stack, { file: STATE_FILE });
     return null;
   }
 }
@@ -275,6 +360,7 @@ function startStateWatcher() {
     console.log(`[watcher] Watching directory: ${dir} for ${path.basename(STATE_FILE)}`);
   } catch (err) {
     console.error(`[watcher] Failed to watch ${dir}:`, err.message);
+    reportBridgeError(`startStateWatcher: ${err.message}`, err.stack, { dir });
     // Fallback: poll every 2 seconds
     console.log('[watcher] Falling back to polling every 2s');
     setInterval(processStateUpdate, 2000);
@@ -307,6 +393,7 @@ function writeCommand(command) {
     return true;
   } catch (err) {
     console.error('[commands] Error writing command:', err.message);
+    reportBridgeError(`writeCommand: ${err.message}`, err.stack, { commandFile: COMMAND_FILE });
     return false;
   }
 }
@@ -353,6 +440,7 @@ wss.on('connection', (ws, req) => {
       }
     } catch (err) {
       console.error('[ws] Invalid message:', err.message);
+      reportBridgeError(`ws message handler: ${err.message}`, err.stack, { clientIp });
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
     }
   });
@@ -364,6 +452,7 @@ wss.on('connection', (ws, req) => {
 
   ws.on('error', (err) => {
     console.error(`[ws] Error (${clientIp}):`, err.message);
+    reportBridgeError(`ws error: ${err.message}`, err.stack, { clientIp });
   });
 });
 
@@ -406,10 +495,12 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('🐸  Tadpole Bridge Server');
   console.log('────────────────────────────────────────');
+  console.log(`   Version:  ${BRIDGE_VERSION}`);
   console.log(`   HTTP:     http://${lanIp}:${PORT}`);
   console.log(`   WebSocket: ws://${lanIp}:${PORT}/ws`);
   console.log(`   State:    ${STATE_FILE}`);
   console.log(`   Commands: ${COMMAND_FILE}`);
+  console.log(`   ErrorLog: ${ERROR_LOG_FILE}`);
   console.log('────────────────────────────────────────');
   console.log('   Waiting for phone apps to connect...');
   console.log('');
@@ -470,3 +561,18 @@ function gracefulShutdown(signal) {
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// ---------------------------------------------------------------------------
+// Global error handlers — report uncaught errors to PocketBase
+// ---------------------------------------------------------------------------
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  reportBridgeError(`uncaughtException: ${err.message}`, err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  console.error('[unhandledRejection]', msg);
+  reportBridgeError(`unhandledRejection: ${msg}`, stack);
+});

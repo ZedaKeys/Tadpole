@@ -12,6 +12,10 @@ import json
 import signal
 import socket
 import http.client
+import traceback
+import datetime
+import urllib.request
+import urllib.error
 
 import decky
 
@@ -29,6 +33,95 @@ STATE_FILE = "/tmp/tadpole_state.json"
 # Bridge process handle
 _bridge_process = None
 _bridge_port = 3456
+
+# Error reporting
+PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
+PLUGIN_VERSION = "0.1.0"
+_error_report_timestamps = []
+ERROR_RATE_LIMIT_PER_MINUTE = 10
+
+
+def _error_log_path():
+    """Return path for the error log file."""
+    log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')
+    os.makedirs(log_dir, exist_ok=True)
+    return os.path.join(log_dir, "tadpole-error.log")
+
+
+def _report_plugin_error(message, stack=None, extra=None):
+    """Report an error to PocketBase and local log file. Never raises."""
+    global _error_report_timestamps
+    try:
+        now = datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000
+        # Rate limit
+        _error_report_timestamps = [t for t in _error_report_timestamps if now - t < 60000]
+        if len(_error_report_timestamps) >= ERROR_RATE_LIMIT_PER_MINUTE:
+            return
+        _error_report_timestamps.append(now)
+
+        record = {
+            "source": "decky-plugin",
+            "message": str(message or "Unknown error"),
+            "stack": str(stack) if stack else "",
+            "url": f"decky-plugin://port:{_bridge_port}",
+            "userAgent": f"TadpoleDeckyPlugin/{PLUGIN_VERSION}",
+            "metadata": extra or {},
+            "version": PLUGIN_VERSION,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+
+        # Log locally
+        log_line = f"[{record['timestamp']}] [ERROR] {record['message']}"
+        if stack:
+            log_line += f"\n  {stack[:500]}"
+        log_line += "\n"
+        try:
+            with open(_error_log_path(), "a") as f:
+                f.write(log_line)
+            # Rotate if over 1MB
+            try:
+                if os.path.getsize(_error_log_path()) > 1024 * 1024:
+                    with open(_error_log_path(), "r") as f:
+                        lines = f.readlines()
+                    with open(_error_log_path(), "w") as f:
+                        f.writelines(lines[-500:])
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Report to PocketBase (fire and forget, 3s timeout)
+        try:
+            data = json.dumps(record).encode("utf-8")
+            req = urllib.request.Request(
+                PB_ERROR_ENDPOINT,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=3)
+        except Exception:
+            pass  # Silently fail if PocketBase is unreachable
+    except Exception:
+        pass  # Never let error reporting crash the plugin
+
+
+def _safe_call(func):
+    """Decorator that wraps an async method with error reporting."""
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            tb = traceback.format_exc()
+            decky.logger.error(f"{func.__name__} failed: {e}")
+            _report_plugin_error(
+                f"{func.__name__}: {e}",
+                stack=tb,
+                extra={"args": str(args)[:200]},
+            )
+            raise  # Re-raise so the frontend still sees the error
+    wrapper.__name__ = func.__name__
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +236,7 @@ class Plugin:
         """Lifecycle: called when the plugin is loaded."""
         global _bridge_port
         decky.logger.info("Tadpole BG3 Companion plugin loaded")
+        decky.logger.info(f"Plugin version: {PLUGIN_VERSION}")
 
         # Load saved port setting
         try:
@@ -154,6 +248,7 @@ class Plugin:
                         _bridge_port = saved["port"]
         except Exception as e:
             decky.logger.warn(f"Could not load settings: {e}")
+            _report_plugin_error(f"load settings: {e}", stack=traceback.format_exc())
 
     async def _unload(self):
         """Lifecycle: called when the plugin is unloaded."""
@@ -180,114 +275,120 @@ class Plugin:
 
     async def get_status(self) -> dict:
         """Return the current bridge + game status."""
-        global _bridge_port, _bridge_process
+        try:
+            global _bridge_port, _bridge_process
 
-        # Bug #10: Handle sleep/wake — if bridge was running but process died
-        # (e.g. after Steam Deck sleep), clean up the stale process handle
-        if _bridge_process is not None and _bridge_process.poll() is not None:
-            decky.logger.warn("Bridge process died (possibly from sleep/wake), cleaning up handle")
-            _bridge_process = None
+            # Bug #10: Handle sleep/wake — if bridge was running but process died
+            # (e.g. after Steam Deck sleep), clean up the stale process handle
+            if _bridge_process is not None and _bridge_process.poll() is not None:
+                decky.logger.warn("Bridge process died (possibly from sleep/wake), cleaning up handle")
+                _bridge_process = None
 
-        bridge_running = _is_bridge_running()
-        bg3_running = _is_bg3_running()
-        ip = _get_ip()
-        node_installed = _is_node_installed()
+            bridge_running = _is_bridge_running()
+            bg3_running = _is_bg3_running()
+            ip = _get_ip()
+            node_installed = _is_node_installed()
 
-        connected_clients = 0
-        game_state = None
-        recent_events = []
+            connected_clients = 0
+            game_state = None
+            recent_events = []
 
-        # Try to get live data from the bridge server HTTP endpoint
-        bridge_data = _fetch_bridge_status(_bridge_port)
-        if bridge_data:
-            connected_clients = bridge_data.get("connectedClients", 0)
-            game_state = bridge_data.get("currentState")
-            recent_events = bridge_data.get("recentEvents", [])
-        elif not bridge_running:
-            # Fallback: read state file directly (bridge not running)
-            game_state = _read_state_file()
+            # Try to get live data from the bridge server HTTP endpoint
+            bridge_data = _fetch_bridge_status(_bridge_port)
+            if bridge_data:
+                connected_clients = bridge_data.get("connectedClients", 0)
+                game_state = bridge_data.get("currentState")
+                recent_events = bridge_data.get("recentEvents", [])
+            elif not bridge_running:
+                # Fallback: read state file directly (bridge not running)
+                game_state = _read_state_file()
 
-        return {
-            "bridge_running": bridge_running,
-            "bg3_running": bg3_running,
-            "ip": ip,
-            "connected_clients": connected_clients,
-            "game_state": game_state,
-            "recent_events": recent_events,
-            "node_installed": node_installed,
-        }
+            return {
+                "bridge_running": bridge_running,
+                "bg3_running": bg3_running,
+                "ip": ip,
+                "connected_clients": connected_clients,
+                "game_state": game_state,
+                "recent_events": recent_events,
+                "node_installed": node_installed,
+            }
+        except Exception as e:
+            tb = traceback.format_exc()
+            decky.logger.error(f"get_status failed: {e}")
+            _report_plugin_error(f"get_status: {e}", stack=tb)
+            return {"error": str(e)}
 
     async def start_bridge(self, port: int = 3456, bridge_dir: str = "") -> dict:
         """Start the bridge server as a background process."""
-        global _bridge_process, _bridge_port
+        try:
+            global _bridge_process, _bridge_port
 
-        decky.logger.info(f"start_bridge called: port={port}, bridge_dir={bridge_dir}")
+            decky.logger.info(f"start_bridge called: port={port}, bridge_dir={bridge_dir}")
 
-        if _is_bridge_running():
-            return {"success": True, "message": "Bridge already running"}
+            if _is_bridge_running():
+                return {"success": True, "message": "Bridge already running"}
 
-        if not _is_node_installed():
-            return {
-                "success": False,
-                "message": "Node.js is not installed. Install it with: sudo pacman -S nodejs npm",
-            }
-
-        _bridge_port = port or 3456
-
-        # Resolve bridge script path
-        bridge_script = None
-        if bridge_dir:
-            bridge_script = os.path.join(bridge_dir, "server.js")
-        else:
-            # Search common locations
-            candidates = [
-                os.path.join(decky.DECKY_USER_HOME, "tadpole", "bridge", "server.js"),
-                os.path.join(decky.DECKY_PLUGIN_DIR, "bridge", "server.js"),
-                os.path.join(os.path.dirname(decky.DECKY_PLUGIN_DIR), "tadpole", "bridge", "server.js"),
-                os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
-                os.path.join(decky.DECKY_USER_HOME, ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
-                "/home/deck/tadpole/bridge/server.js",
-            ]
-            for candidate in candidates:
-                if os.path.exists(candidate):
-                    bridge_script = os.path.realpath(candidate)
-                    break
-
-        if not bridge_script or not os.path.exists(bridge_script):
-            return {
-                "success": False,
-                "message": f"Bridge server not found. Searched: {bridge_script}",
-            }
-
-        # Check node_modules, run npm install if needed
-        bridge_dir = os.path.dirname(bridge_script)
-        if not os.path.exists(os.path.join(bridge_dir, "node_modules")):
-            decky.logger.info("node_modules not found, running npm install...")
-            try:
-                subprocess.run(
-                    ["npm", "install", "--production"],
-                    cwd=bridge_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                )
-            except Exception as e:
+            if not _is_node_installed():
                 return {
                     "success": False,
-                    "message": f"npm install failed: {str(e)}",
+                    "message": "Node.js is not installed. Install it with: sudo pacman -S nodejs npm",
                 }
 
-        # Start the bridge
-        env = os.environ.copy()
-        env["PORT"] = str(_bridge_port)
+            _bridge_port = port or 3456
 
-        # Open log files for bridge server output
-        log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')
-        os.makedirs(log_dir, exist_ok=True)
-        stdout_log = open(os.path.join(log_dir, "tadpole-bridge-stdout.log"), "a")
-        stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
+            # Resolve bridge script path
+            bridge_script = None
+            if bridge_dir:
+                bridge_script = os.path.join(bridge_dir, "server.js")
+            else:
+                # Search common locations
+                candidates = [
+                    os.path.join(decky.DECKY_USER_HOME, "tadpole", "bridge", "server.js"),
+                    os.path.join(decky.DECKY_PLUGIN_DIR, "bridge", "server.js"),
+                    os.path.join(os.path.dirname(decky.DECKY_PLUGIN_DIR), "tadpole", "bridge", "server.js"),
+                    os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
+                    os.path.join(decky.DECKY_USER_HOME, ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
+                    "/home/deck/tadpole/bridge/server.js",
+                ]
+                for candidate in candidates:
+                    if os.path.exists(candidate):
+                        bridge_script = os.path.realpath(candidate)
+                        break
 
-        try:
+            if not bridge_script or not os.path.exists(bridge_script):
+                return {
+                    "success": False,
+                    "message": f"Bridge server not found. Searched: {bridge_script}",
+                }
+
+            # Check node_modules, run npm install if needed
+            bridge_dir = os.path.dirname(bridge_script)
+            if not os.path.exists(os.path.join(bridge_dir, "node_modules")):
+                decky.logger.info("node_modules not found, running npm install...")
+                try:
+                    subprocess.run(
+                        ["npm", "install", "--production"],
+                        cwd=bridge_dir,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "message": f"npm install failed: {str(e)}",
+                    }
+
+            # Start the bridge
+            env = os.environ.copy()
+            env["PORT"] = str(_bridge_port)
+
+            # Open log files for bridge server output
+            log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')
+            os.makedirs(log_dir, exist_ok=True)
+            stdout_log = open(os.path.join(log_dir, "tadpole-bridge-stdout.log"), "a")
+            stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
+
             _bridge_process = subprocess.Popen(
                 ["node", bridge_script],
                 cwd=bridge_dir,
@@ -304,7 +405,9 @@ class Plugin:
                 "pid": _bridge_process.pid,
             }
         except Exception as e:
-            decky.logger.error(f"Failed to start bridge: {e}")
+            tb = traceback.format_exc()
+            decky.logger.error(f"start_bridge failed: {e}")
+            _report_plugin_error(f"start_bridge: {e}", stack=tb, extra={"port": port, "bridge_dir": bridge_dir})
             return {
                 "success": False,
                 "message": f"Failed to start bridge: {str(e)}",
@@ -316,11 +419,11 @@ class Plugin:
 
         decky.logger.info("stop_bridge called")
 
-        if not _is_bridge_running():
-            _bridge_process = None
-            return {"success": True, "message": "Bridge was not running"}
-
         try:
+            if not _is_bridge_running():
+                _bridge_process = None
+                return {"success": True, "message": "Bridge was not running"}
+
             pgid = os.getpgid(_bridge_process.pid)
             os.killpg(pgid, signal.SIGTERM)
 
@@ -334,6 +437,9 @@ class Plugin:
             decky.logger.info("Bridge stopped")
             return {"success": True, "message": "Bridge stopped"}
         except Exception as e:
+            tb = traceback.format_exc()
+            decky.logger.error(f"stop_bridge error: {e}")
+            _report_plugin_error(f"stop_bridge: {e}", stack=tb)
             try:
                 _bridge_process.kill()
             except Exception:
@@ -346,7 +452,11 @@ class Plugin:
 
     async def get_ip(self) -> dict:
         """Return the Steam Deck's LAN IP address."""
-        return {"ip": _get_ip()}
+        try:
+            return {"ip": _get_ip()}
+        except Exception as e:
+            _report_plugin_error(f"get_ip: {e}", stack=traceback.format_exc())
+            return {"ip": "localhost", "error": str(e)}
 
     async def get_settings(self) -> dict:
         """Load saved settings from Decky's settings directory."""
@@ -357,6 +467,7 @@ class Plugin:
                     return json.loads(f.read())
         except Exception as e:
             decky.logger.warn(f"Could not read settings: {e}")
+            _report_plugin_error(f"get_settings: {e}", stack=traceback.format_exc())
         return {}
 
     async def save_settings(self, settings: dict) -> dict:
@@ -372,5 +483,7 @@ class Plugin:
             decky.logger.info(f"Settings saved to {sp}")
             return {"success": True}
         except Exception as e:
+            tb = traceback.format_exc()
             decky.logger.error(f"Could not save settings: {e}")
+            _report_plugin_error(f"save_settings: {e}", stack=tb)
             return {"success": False, "message": str(e)}
