@@ -101,45 +101,88 @@ else
     log_info "You can set the bridge directory later in the plugin settings."
 fi
 
-# ── Step 4: Install plugin files ─────────────────────────────────────────────
+# ── Step 4: Check for pnpm ───────────────────────────────────────────────────
 echo ""
-log_info "Step 4: Installing plugin to DeckyLoader..."
+log_info "Step 4: Checking for pnpm..."
+
+if command -v pnpm &>/dev/null; then
+    PNPM_VER=$(pnpm --version 2>/dev/null || echo "unknown")
+    log_ok "pnpm ${PNPM_VER} found"
+else
+    log_warn "pnpm not found. Installing..."
+    npm install -g pnpm 2>/dev/null && log_ok "pnpm installed" || {
+        log_warn "Could not install pnpm. Plugin build may fail."
+    }
+fi
+
+# ── Step 5: Build the plugin ─────────────────────────────────────────────────
+echo ""
+log_info "Step 5: Building the DeckyLoader plugin..."
+
+cd "${SCRIPT_DIR}"
+
+if [[ -f "package.json" ]]; then
+    if command -v pnpm &>/dev/null; then
+        pnpm install 2>/dev/null && log_ok "Plugin dependencies installed" || log_warn "pnpm install had issues"
+        pnpm build 2>/dev/null && log_ok "Plugin built successfully" || log_warn "Plugin build had issues (dist/index.js may not be up to date)"
+    else
+        npm install 2>/dev/null && log_ok "Plugin dependencies installed" || log_warn "npm install had issues"
+        npm run build 2>/dev/null && log_ok "Plugin built successfully" || log_warn "Plugin build had issues"
+    fi
+else
+    log_warn "No package.json found. Skipping build step."
+fi
+
+# ── Step 6: Install plugin files ─────────────────────────────────────────────
+echo ""
+log_info "Step 6: Installing plugin to DeckyLoader..."
 
 mkdir -p "${DECKY_PLUGIN_DIR}"
 
-# Copy plugin files
+# Copy all plugin files
 cp "${SCRIPT_DIR}/plugin.json" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || log_warn "Could not copy plugin.json"
-cp "${SCRIPT_DIR}/index.tsx" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || log_warn "Could not copy index.tsx"
-
-# Copy backend
-mkdir -p "${DECKY_PLUGIN_DIR}/backend"
-cp "${SCRIPT_DIR}/backend/index.py" "${DECKY_PLUGIN_DIR}/backend/" 2>/dev/null || log_warn "Could not copy backend/index.py"
-
-# Copy package.json if present
+cp "${SCRIPT_DIR}/main.py" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || log_warn "Could not copy main.py"
 cp "${SCRIPT_DIR}/package.json" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
+
+# Copy dist if it exists
+if [[ -d "${SCRIPT_DIR}/dist" ]]; then
+    mkdir -p "${DECKY_PLUGIN_DIR}/dist"
+    cp -r "${SCRIPT_DIR}/dist/"* "${DECKY_PLUGIN_DIR}/dist/" 2>/dev/null || log_warn "Could not copy dist/"
+fi
+
+# Copy defaults if they exist
+if [[ -d "${SCRIPT_DIR}/defaults" ]]; then
+    cp -r "${SCRIPT_DIR}/defaults" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
+fi
+
+# Copy assets if they exist
+if [[ -d "${SCRIPT_DIR}/assets" ]]; then
+    cp -r "${SCRIPT_DIR}/assets" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
+fi
 
 log_ok "Plugin files installed to: ${DECKY_PLUGIN_DIR}"
 
-# ── Step 5: Set permissions ──────────────────────────────────────────────────
+# ── Step 7: Set permissions ──────────────────────────────────────────────────
 echo ""
-log_info "Step 5: Setting permissions..."
+log_info "Step 7: Setting permissions..."
 
 chmod 644 "${DECKY_PLUGIN_DIR}/plugin.json" 2>/dev/null || true
-chmod 644 "${DECKY_PLUGIN_DIR}/index.tsx" 2>/dev/null || true
-chmod 755 "${DECKY_PLUGIN_DIR}/backend" 2>/dev/null || true
-chmod 644 "${DECKY_PLUGIN_DIR}/backend/index.py" 2>/dev/null || true
+chmod 644 "${DECKY_PLUGIN_DIR}/main.py" 2>/dev/null || true
+
+if [[ -f "${DECKY_PLUGIN_DIR}/dist/index.js" ]]; then
+    chmod 644 "${DECKY_PLUGIN_DIR}/dist/index.js" 2>/dev/null || true
+fi
 
 log_ok "Permissions set"
 
-# ── Step 6: Verify installation ───────────────────────────────────────────────
+# ── Step 8: Verify installation ───────────────────────────────────────────────
 echo ""
-log_info "Step 6: Verifying installation..."
+log_info "Step 8: Verifying installation..."
 
 PLUGINS_OK=true
 
 [[ -f "${DECKY_PLUGIN_DIR}/plugin.json" ]] || { log_fail "plugin.json missing"; PLUGINS_OK=false; }
-[[ -f "${DECKY_PLUGIN_DIR}/index.tsx" ]] || { log_fail "index.tsx missing"; PLUGINS_OK=false; }
-[[ -f "${DECKY_PLUGIN_DIR}/backend/index.py" ]] || { log_fail "backend/index.py missing"; PLUGINS_OK=false; }
+[[ -f "${DECKY_PLUGIN_DIR}/main.py" ]] || { log_fail "main.py missing"; PLUGINS_OK=false; }
 
 if [[ "${PLUGINS_OK}" == "true" ]]; then
     log_ok "All plugin files verified"

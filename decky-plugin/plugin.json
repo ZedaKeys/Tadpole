@@ -3,8 +3,9 @@
   "author": "ZedaKeys",
   "flags": ["debug"],
   "api_version": 1,
-  "version": "0.1.0",
-  "description": "Live BG3 companion app - syncs your game to your phone via Tadpole",
-  "target": "System",
-  "main": "index.tsx"
+  "publish": {
+    "tags": ["bg3", "companion", "game", "utility"],
+    "description": "Live BG3 companion app - syncs your game to your phone via Tadpole bridge server",
+    "image": ""
+  }
 }

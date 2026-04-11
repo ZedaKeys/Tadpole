@@ -1,21 +1,53 @@
+import { definePlugin, callable } from "@decky/api";
 import {
-  definePlugin,
   PanelSection,
   PanelSectionRow,
+  ButtonItem,
   ToggleField,
   TextField,
-  ButtonItem,
   staticClasses,
-  ServerAPI,
-  Icons,
-  Router,
-} from "decky-frontend-lib";
+  Navigation,
+} from "@decky/ui";
 import { VFC, useState, useEffect, useCallback, useRef } from "react";
 import { FaFrog } from "react-icons/fa";
 
 // ---------------------------------------------------------------------------
+// Callable wrappers — each maps to a Python method on the Plugin class
+// ---------------------------------------------------------------------------
+
+const callGetStatus = callable<[], {
+  bridge_running: boolean;
+  bg3_running: boolean;
+  ip: string;
+  connected_clients: number;
+  game_state: BridgeGameState | null;
+  recent_events: { type: string; timestamp: number; detail?: string }[];
+  node_installed: boolean;
+}>("get_status");
+
+const callStartBridge = callable<[port: number, bridge_dir: string], {
+  success: boolean;
+  message: string;
+}>("start_bridge");
+
+const callStopBridge = callable<[], {
+  success: boolean;
+  message: string;
+}>("stop_bridge");
+
+const callGetIP = callable<[], { ip: string }>("get_ip");
+
+const callGetSettings = callable<[], PluginSettings>("get_settings");
+
+const callSaveSettings = callable<[settings: PluginSettings], {
+  success: boolean;
+  message?: string;
+}>("save_settings");
+
+// ---------------------------------------------------------------------------
 // Types — mirrors the bridge server's JSON state
 // ---------------------------------------------------------------------------
+
 interface PartyMember {
   guid?: string;
   name: string;
@@ -34,16 +66,6 @@ interface BridgeGameState {
   gold?: number;
 }
 
-interface BridgeStatus {
-  name: string;
-  version: string;
-  uptime: number;
-  connectedClients: number;
-  stateFileExists: boolean;
-  currentState: BridgeGameState | null;
-  recentEvents: { type: string; timestamp: number; detail?: string }[];
-}
-
 interface PluginSettings {
   port: number;
   autoStart: boolean;
@@ -53,6 +75,7 @@ interface PluginSettings {
 // ---------------------------------------------------------------------------
 // Default settings
 // ---------------------------------------------------------------------------
+
 const DEFAULT_SETTINGS: PluginSettings = {
   port: 3456,
   autoStart: true,
@@ -62,6 +85,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 // ---------------------------------------------------------------------------
 // Status dot component
 // ---------------------------------------------------------------------------
+
 const StatusDot: VFC<{ running: boolean }> = ({ running }) => (
   <span
     style={{
@@ -82,6 +106,7 @@ const StatusDot: VFC<{ running: boolean }> = ({ running }) => (
 // ---------------------------------------------------------------------------
 // HP Bar component
 // ---------------------------------------------------------------------------
+
 const HPBar: VFC<{ name: string; hp: number; maxHp: number }> = ({
   name,
   hp,
@@ -132,11 +157,11 @@ const HPBar: VFC<{ name: string; hp: number; maxHp: number }> = ({
 // ---------------------------------------------------------------------------
 // Main panel content
 // ---------------------------------------------------------------------------
+
 const TadpolePanel: VFC<{
-  serverAPI: ServerAPI;
   settings: PluginSettings;
   setSettings: (s: PluginSettings) => void;
-}> = ({ serverAPI, settings, setSettings }) => {
+}> = ({ settings, setSettings }) => {
   const [bridgeRunning, setBridgeRunning] = useState(false);
   const [bg3Running, setBg3Running] = useState(false);
   const [ip, setIp] = useState("...");
@@ -153,17 +178,7 @@ const TadpolePanel: VFC<{
   // ---- Fetch status from the Python backend ----
   const fetchStatus = useCallback(async () => {
     try {
-      const resp = await serverAPI.callPluginMethod("get_status", {});
-      const data = resp as {
-        bridge_running: boolean;
-        bg3_running: boolean;
-        ip: string;
-        connected_clients: number;
-        game_state: BridgeGameState | null;
-        recent_events: { type: string; timestamp: number; detail?: string }[];
-        node_installed: boolean;
-      };
-
+      const data = await callGetStatus();
       setBridgeRunning(data.bridge_running);
       setBg3Running(data.bg3_running);
       setIp(data.ip);
@@ -174,43 +189,37 @@ const TadpolePanel: VFC<{
     } catch (e) {
       // Backend not responding — keep last state
     }
-  }, [serverAPI]);
+  }, []);
 
   // ---- Start the bridge ----
   const startBridge = useCallback(async () => {
     setLoading(true);
     try {
-      await serverAPI.callPluginMethod("start_bridge", {
-        port: settings.port,
-        bridge_dir: settings.bridgeDir,
-      });
+      await callStartBridge(settings.port, settings.bridgeDir);
     } catch {}
     // Give the bridge a moment to start
     setTimeout(async () => {
       await fetchStatus();
       setLoading(false);
     }, 1500);
-  }, [serverAPI, settings, fetchStatus]);
+  }, [settings, fetchStatus]);
 
   // ---- Stop the bridge ----
   const stopBridge = useCallback(async () => {
     setLoading(true);
     try {
-      await serverAPI.callPluginMethod("stop_bridge", {});
+      await callStopBridge();
     } catch {}
     setTimeout(async () => {
       await fetchStatus();
       setLoading(false);
     }, 500);
-  }, [serverAPI, fetchStatus]);
+  }, [fetchStatus]);
 
-  // ---- Auto-start detection ----
+  // ---- Polling ----
   useEffect(() => {
     fetchStatus();
-
-    // Poll every 2 seconds
     pollRef.current = setInterval(fetchStatus, 2000);
-
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -480,39 +489,37 @@ const TadpolePanel: VFC<{
 };
 
 // ---------------------------------------------------------------------------
-// Plugin definition
+// Plugin definition — uses the official @decky/api definePlugin
 // ---------------------------------------------------------------------------
-export default definePlugin((serverAPI: ServerAPI) => {
-  // Persisted settings
+
+export default definePlugin(() => {
+  // Persisted settings — mutable closure variable
   let settings: PluginSettings = { ...DEFAULT_SETTINGS };
 
-  // Try to load saved settings
-  serverAPI
-    .callPluginMethod("get_settings", {})
+  // Load saved settings on init
+  callGetSettings()
     .then((saved) => {
-      const s = saved as PluginSettings | null;
-      if (s) settings = { ...DEFAULT_SETTINGS, ...s };
+      if (saved) settings = { ...DEFAULT_SETTINGS, ...saved };
     })
     .catch(() => {});
 
   const setSettings = (newSettings: PluginSettings) => {
     settings = newSettings;
-    serverAPI.callPluginMethod("save_settings", { settings }).catch(() => {});
+    callSaveSettings(settings).catch(() => {});
   };
 
   return {
-    title: <div className={staticClasses.Title}>Tadpole BG3 Companion</div>,
+    name: "Tadpole BG3 Companion",
+    titleView: (
+      <div className={staticClasses.Title}>Tadpole BG3 Companion</div>
+    ),
     content: (
-      <TadpolePanel
-        serverAPI={serverAPI}
-        settings={settings}
-        setSettings={setSettings}
-      />
+      <TadpolePanel settings={settings} setSettings={setSettings} />
     ),
     icon: <FaFrog />,
     onDismount: () => {
       // Optionally stop bridge on plugin unmount
-      // serverAPI.callPluginMethod("stop_bridge", {}).catch(() => {});
+      // callStopBridge().catch(() => {});
     },
   };
 });
