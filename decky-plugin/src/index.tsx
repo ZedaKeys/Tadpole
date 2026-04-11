@@ -1,4 +1,4 @@
-import { definePlugin, callable } from "@decky/api";
+import { definePlugin, callable, toaster } from "@decky/api";
 import {
   PanelSection,
   PanelSectionRow,
@@ -158,10 +158,8 @@ const HPBar: VFC<{ name: string; hp: number; maxHp: number }> = ({
 // Main panel content
 // ---------------------------------------------------------------------------
 
-const TadpolePanel: VFC<{
-  settings: PluginSettings;
-  setSettings: (s: PluginSettings) => void;
-}> = ({ settings, setSettings }) => {
+const TadpolePanel: VFC = () => {
+  const [settings, setSettings] = useState<PluginSettings>({ ...DEFAULT_SETTINGS });
   const [bridgeRunning, setBridgeRunning] = useState(false);
   const [bg3Running, setBg3Running] = useState(false);
   const [ip, setIp] = useState("...");
@@ -174,6 +172,18 @@ const TadpolePanel: VFC<{
   const [showSettings, setShowSettings] = useState(false);
   const [nodeMissing, setNodeMissing] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoStartAttemptedRef = useRef(false);
+
+  // ---- Load settings from backend on mount ----
+  useEffect(() => {
+    callGetSettings()
+      .then((saved) => {
+        if (saved && Object.keys(saved).length > 0) {
+          setSettings({ ...DEFAULT_SETTINGS, ...saved });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ---- Fetch status from the Python backend ----
   const fetchStatus = useCallback(async () => {
@@ -191,12 +201,25 @@ const TadpolePanel: VFC<{
     }
   }, []);
 
+  // ---- Persist settings when they change ----
+  const updateSettings = useCallback((newSettings: PluginSettings) => {
+    setSettings(newSettings);
+    callSaveSettings(newSettings).catch(() => {});
+  }, []);
+
   // ---- Start the bridge ----
   const startBridge = useCallback(async () => {
     setLoading(true);
     try {
-      await callStartBridge(settings.port, settings.bridgeDir);
-    } catch {}
+      const result = await callStartBridge(settings.port, settings.bridgeDir);
+      if (result.success) {
+        toaster.toast({ title: "Tadpole", body: result.message });
+      } else {
+        toaster.toast({ title: "Tadpole Error", body: result.message });
+      }
+    } catch {
+      toaster.toast({ title: "Tadpole Error", body: "Failed to start bridge" });
+    }
     // Give the bridge a moment to start
     setTimeout(async () => {
       await fetchStatus();
@@ -208,8 +231,13 @@ const TadpolePanel: VFC<{
   const stopBridge = useCallback(async () => {
     setLoading(true);
     try {
-      await callStopBridge();
-    } catch {}
+      const result = await callStopBridge();
+      if (result.success) {
+        toaster.toast({ title: "Tadpole", body: result.message });
+      }
+    } catch {
+      toaster.toast({ title: "Tadpole Error", body: "Failed to stop bridge" });
+    }
     setTimeout(async () => {
       await fetchStatus();
       setLoading(false);
@@ -225,12 +253,43 @@ const TadpolePanel: VFC<{
     };
   }, [fetchStatus]);
 
-  // ---- Auto-start bridge when BG3 launches ----
+  // ---- Auto-start bridge when BG3 launches (once) ----
   useEffect(() => {
+    if (autoStartAttemptedRef.current) return;
     if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing) {
+      autoStartAttemptedRef.current = true;
       startBridge();
     }
   }, [bg3Running, bridgeRunning, settings.autoStart, startBridge, nodeMissing]);
+
+  // ---- Toast notifications for important events ----
+  const prevClientsRef = useRef(0);
+  useEffect(() => {
+    // Phone connected/disconnected
+    if (connectedClients > prevClientsRef.current && prevClientsRef.current === 0) {
+      toaster.toast({ title: "Phone Connected", body: `A phone app is now connected (${connectedClients})` });
+    }
+    prevClientsRef.current = connectedClients;
+  }, [connectedClients]);
+
+  // Toast for critical game events from recentEvents
+  const prevEventsLenRef = useRef(0);
+  useEffect(() => {
+    if (recentEvents.length <= prevEventsLenRef.current) {
+      prevEventsLenRef.current = recentEvents.length;
+      return;
+    }
+    // Only toast the new events
+    const newEvents = recentEvents.slice(prevEventsLenRef.current);
+    for (const evt of newEvents) {
+      if (evt.type === "combat_started") {
+        toaster.toast({ title: "Combat!", body: "Combat has begun!" });
+      } else if (evt.type === "hp_critical") {
+        toaster.toast({ title: "HP Critical!", body: evt.detail || "A party member is critically low!" });
+      }
+    }
+    prevEventsLenRef.current = recentEvents.length;
+  }, [recentEvents]);
 
   // ---- Render ----
   return (
@@ -444,7 +503,7 @@ const TadpolePanel: VFC<{
             label="Auto-start with BG3"
             checked={settings.autoStart}
             onChange={(checked) =>
-              setSettings({ ...settings, autoStart: checked })
+              updateSettings({ ...settings, autoStart: checked })
             }
           />
         </PanelSectionRow>
@@ -458,7 +517,7 @@ const TadpolePanel: VFC<{
                 onChange={(val) => {
                   const num = parseInt(val, 10);
                   if (!isNaN(num) && num > 0 && num < 65536) {
-                    setSettings({ ...settings, port: num });
+                    updateSettings({ ...settings, port: num });
                   }
                 }}
               />
@@ -468,7 +527,7 @@ const TadpolePanel: VFC<{
                 label="Bridge Directory"
                 value={settings.bridgeDir}
                 onChange={(val) =>
-                  setSettings({ ...settings, bridgeDir: val })
+                  updateSettings({ ...settings, bridgeDir: val })
                 }
               />
             </PanelSectionRow>
@@ -493,29 +552,12 @@ const TadpolePanel: VFC<{
 // ---------------------------------------------------------------------------
 
 export default definePlugin(() => {
-  // Persisted settings — mutable closure variable
-  let settings: PluginSettings = { ...DEFAULT_SETTINGS };
-
-  // Load saved settings on init
-  callGetSettings()
-    .then((saved) => {
-      if (saved) settings = { ...DEFAULT_SETTINGS, ...saved };
-    })
-    .catch(() => {});
-
-  const setSettings = (newSettings: PluginSettings) => {
-    settings = newSettings;
-    callSaveSettings(settings).catch(() => {});
-  };
-
   return {
     name: "Tadpole BG3 Companion",
     titleView: (
       <div className={staticClasses.Title}>Tadpole BG3 Companion</div>
     ),
-    content: (
-      <TadpolePanel settings={settings} setSettings={setSettings} />
-    ),
+    content: <TadpolePanel />,
     icon: <FaFrog />,
     onDismount: () => {
       // Optionally stop bridge on plugin unmount

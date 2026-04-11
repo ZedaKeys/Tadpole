@@ -35,8 +35,8 @@ export class GameConnection {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'state_update' && data.state) {
-            this.currentState = data.state as GameState;
+          if (data.type === 'state' && data.data) {
+            this.currentState = data.data as GameState;
             this.stateCallbacks.forEach(cb => cb(this.currentState!));
           } else if (data.type === 'event') {
             this.eventCallbacks.forEach(cb => cb(data));

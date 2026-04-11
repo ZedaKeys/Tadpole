@@ -19,6 +19,11 @@ import decky
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+# State file path: The Lua mod writes to os.getenv("TEMP")/tadpole_state.json.
+# On Linux/Steam Deck, Proton typically maps Windows TEMP to /tmp on the host,
+# so /tmp/tadpole_state.json should match. The bridge server also uses os.tmpdir()
+# which resolves to /tmp on Linux. If you encounter issues, verify that the
+# Proton prefix maps TEMP correctly for your setup.
 STATE_FILE = "/tmp/tadpole_state.json"
 
 # Bridge process handle
@@ -49,15 +54,24 @@ def _get_ip():
 
 
 def _is_bg3_running():
-    """Check if Baldur's Gate 3 is currently running."""
+    """Check if Baldur's Gate 3 is currently running.
+
+    Uses specific process name patterns to avoid false positives.
+    The Steam AppID for BG3 is 1086940. On Linux/Proton, the process
+    is typically visible as a wine/proton process with that AppID.
+    """
     try:
+        # Check for the actual BG3 executable path (most specific)
         result = subprocess.run(
-            ["pgrep", "-f", "bg3"], capture_output=True, text=True, timeout=5
+            ["pgrep", "-f", "steamapps/common/Baldur"],
+            capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
             return True
+        # Fallback: check for Steam AppID in process args
         result2 = subprocess.run(
-            ["pgrep", "-f", "1086940"], capture_output=True, text=True, timeout=5
+            ["pgrep", "-f", "1086940"],
+            capture_output=True, text=True, timeout=5
         )
         return result2.returncode == 0
     except Exception:
@@ -115,7 +129,7 @@ def _fetch_bridge_status(port):
 
 def _settings_path():
     """Return the path to the settings file in Decky's settings directory."""
-    return os.path.join(decky.DECKY_SETTINGS_DIR, "tadpole.json")
+    return os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "tadpole.json")
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +180,13 @@ class Plugin:
 
     async def get_status(self) -> dict:
         """Return the current bridge + game status."""
-        global _bridge_port
+        global _bridge_port, _bridge_process
+
+        # Bug #10: Handle sleep/wake — if bridge was running but process died
+        # (e.g. after Steam Deck sleep), clean up the stale process handle
+        if _bridge_process is not None and _bridge_process.poll() is not None:
+            decky.logger.warn("Bridge process died (possibly from sleep/wake), cleaning up handle")
+            _bridge_process = None
 
         bridge_running = _is_bridge_running()
         bg3_running = _is_bg3_running()
@@ -222,12 +242,13 @@ class Plugin:
             # Search common locations
             candidates = [
                 os.path.join(decky.DECKY_USER_HOME, "tadpole", "bridge", "server.js"),
-                os.path.join(decky.DECKY_PLUGIN_DIR, "..", "..", "tadpole", "bridge", "server.js"),
+                os.path.join(decky.DECKY_PLUGIN_DIR, "bridge", "server.js"),
+                os.path.join(os.path.dirname(decky.DECKY_PLUGIN_DIR), "tadpole", "bridge", "server.js"),
                 "/home/deck/tadpole/bridge/server.js",
             ]
             for candidate in candidates:
                 if os.path.exists(candidate):
-                    bridge_script = candidate
+                    bridge_script = os.path.realpath(candidate)
                     break
 
         if not bridge_script or not os.path.exists(bridge_script):
@@ -258,13 +279,19 @@ class Plugin:
         env = os.environ.copy()
         env["PORT"] = str(_bridge_port)
 
+        # Open log files for bridge server output
+        log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')
+        os.makedirs(log_dir, exist_ok=True)
+        stdout_log = open(os.path.join(log_dir, "tadpole-bridge-stdout.log"), "a")
+        stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
+
         try:
             _bridge_process = subprocess.Popen(
                 ["node", bridge_script],
                 cwd=bridge_dir,
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=stdout_log,
+                stderr=stderr_log,
                 # Start in a new process group so we can kill the tree
                 preexec_fn=os.setsid,
             )
