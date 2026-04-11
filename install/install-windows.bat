@@ -120,7 +120,7 @@ if not defined BG3_PATH (
 
 :: Method D: Check GOG Galaxy registry
 if not defined BG3_PATH (
-    for %%K in ("HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1452983930" "HKLM\SOFTWARE\GOG.com\Games\1452983930") do (
+    for %%K in ("HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1452983930" "HKLM\SOFTWARE\GOG.com\Games\1452983930" "HKCU\SOFTWARE\GOG.com\Games\1452983930") do (
         if not defined BG3_PATH (
             for /F "tokens=2*" %%A in ('reg query %%K /v PATH 2^>nul ^| findstr PATH') do (
                 if exist "%%B" set "BG3_PATH=%%B"
@@ -129,7 +129,41 @@ if not defined BG3_PATH (
     )
 )
 
-:: Method E: Ask the user
+:: Method D2: Check GOG common install paths (may include apostrophe)
+if not defined BG3_PATH (
+    for %%D in (
+        "C:\GOG Games\Baldur's Gate 3"
+        "D:\GOG Games\Baldur's Gate 3"
+        "C:\Games\Baldur's Gate 3"
+        "D:\Games\Baldur's Gate 3"
+    ) do (
+        if not defined BG3_PATH (
+            if exist %%D set "BG3_PATH=%%~D"
+        )
+    )
+)
+
+:: Method E: Check Xbox Game Pass / Microsoft Store (UWP appx)
+if not defined BG3_PATH (
+    powershell -NoProfile -Command ^
+        "$pkg = Get-AppxPackage -Name '*BaldursGate3*' -ErrorAction SilentlyContinue | Select-Object -First 1;" ^
+        "if ($pkg) {" ^
+        "  $installLoc = $pkg.InstallLocation;" ^
+        "  if ($installLoc -and (Test-Path $installLoc)) {" ^
+        "    Write-Output $installLoc;" ^
+        "  }" ^
+        "}" 2>nul > "%TEMP%\tadpole_xbox_path.tmp"
+    if exist "%TEMP%\tadpole_xbox_path.tmp" (
+        for /F "usebackq tokens=*" %%P in ("%TEMP%\tadpole_xbox_path.tmp") do (
+            if not defined BG3_PATH (
+                if exist "%%P" set "BG3_PATH=%%P"
+            )
+        )
+        del "%TEMP%\tadpole_xbox_path.tmp" 2>nul
+    )
+)
+
+:: Method F: Ask the user
 if not defined BG3_PATH (
     echo  !WARN! Could not auto-detect BG3 install path.
     echo.
@@ -237,10 +271,19 @@ set "NODE_OK=0"
 where node >nul 2>&1
 if !errorlevel! equ 0 (
     for /F "tokens=*" %%v in ('node -v 2^>nul') do set "NODE_VER=%%v"
-    echo  !OK! Node.js !NODE_VER! found
-    set "NODE_OK=1"
-) else (
-    echo  !WARN! Node.js not found.
+    :: Validate minimum version (v18+)
+    set "NODE_MAJOR=!NODE_VER:v=!"
+    for /F "delims=." %%m in ("!NODE_MAJOR!") do set "NODE_MAJOR=%%m"
+    if !NODE_MAJOR! geq 18 (
+        echo  !OK! Node.js !NODE_VER! found
+        set "NODE_OK=1"
+    ) else (
+        echo  !WARN! Node.js !NODE_VER! found but v18+ is required.
+        echo         Attempting to upgrade via winget...
+    )
+)
+if "!NODE_OK!"=="0" (
+    echo  !WARN! Node.js not found or too old.
     echo         Attempting to install via winget...
     
     winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements >nul 2>&1

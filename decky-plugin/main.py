@@ -244,6 +244,8 @@ class Plugin:
                 os.path.join(decky.DECKY_USER_HOME, "tadpole", "bridge", "server.js"),
                 os.path.join(decky.DECKY_PLUGIN_DIR, "bridge", "server.js"),
                 os.path.join(os.path.dirname(decky.DECKY_PLUGIN_DIR), "tadpole", "bridge", "server.js"),
+                os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
+                os.path.join(decky.DECKY_USER_HOME, ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
                 "/home/deck/tadpole/bridge/server.js",
             ]
             for candidate in candidates:

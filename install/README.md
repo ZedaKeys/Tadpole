@@ -23,7 +23,7 @@ Tadpole is a companion app for Baldur's Gate 3 that shows real-time game state o
 
 | Requirement | Why | Install |
 |---|---|---|
-| **Baldur's Gate 3** | The game itself | Steam / GOG |
+| **Baldur's Gate 3** | The game itself | Steam / GOG / Xbox Game Pass |
 | **BG3 ScriptExtender** | Loads the Lua mod | [GitHub Releases](https://github.com/Norbyte/bg3se/releases/latest) |
 | **Node.js** (v18+) | Runs the bridge server | [nodejs.org](https://nodejs.org/) |
 | **Same WiFi** | Phone must reach your PC | — |
@@ -43,7 +43,7 @@ Tadpole is a companion app for Baldur's Gate 3 that shows real-time game state o
 4. Follow the on-screen instructions
 
 The installer will:
-- Auto-detect your BG3 installation (Steam / GOG)
+-Auto-detect your BG3 installation (Steam / GOG / Xbox Game Pass)
 - Install BG3 ScriptExtender if missing
 - Copy the Tadpole Lua mod
 - Install Node.js (via winget) if missing
@@ -233,14 +233,28 @@ Or on Linux: `PORT=8080 node server.js`
 
 ---
 
-## DeckyLoader Plugin (Coming Soon)
+## DeckyLoader Plugin (Steam Deck)
 
-A native Steam Deck plugin is in development that will:
-- Run the bridge server automatically in Gaming Mode
-- Show connection status as an overlay
-- Eliminate the need for Desktop Mode
+A native DeckyLoader plugin is available for Steam Deck that:
+- Runs the bridge server directly in Gaming Mode
+- Shows connection status and live game state as a panel overlay
+- Eliminates the need for Desktop Mode for basic operation
 
-Stay tuned!
+### Installation
+
+```bash
+# First, run the main Linux installer to install the BG3 mod
+cd ~/tadpole/install
+chmod +x install-linux.sh
+./install-linux.sh
+
+# Then install the DeckyLoader plugin
+cd ~/tadpole/decky-plugin
+chmod +x install.sh
+./install.sh
+```
+
+See [decky-plugin/README.md](../decky-plugin/README.md) for full details.
 
 ---
 

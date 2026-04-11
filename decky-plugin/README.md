@@ -51,9 +51,15 @@ pnpm install
 pnpm build
 
 # Copy the plugin to DeckyLoader's plugin directory
-mkdir -p ~/.config/decky/plugins/TadpoleBG3
-cp plugin.json main.py package.json ~/.config/decky/plugins/TadpoleBG3/
-cp -r dist/ ~/.config/decky/plugins/TadpoleBG3/dist/
+# Modern DeckyLoader (0.x+):
+mkdir -p ~/homebrew/plugins/TadpoleBG3
+cp plugin.json main.py package.json ~/homebrew/plugins/TadpoleBG3/
+cp -r dist/ ~/homebrew/plugins/TadpoleBG3/dist/
+
+# Or legacy DeckyLoader path:
+# mkdir -p ~/.config/decky/plugins/TadpoleBG3
+# cp plugin.json main.py package.json ~/.config/decky/plugins/TadpoleBG3/
+# cp -r dist/ ~/.config/decky/plugins/TadpoleBG3/dist/
 
 # Install bridge server dependencies (if not already done)
 cd ~/tadpole/bridge
@@ -63,7 +69,10 @@ npm install --production
 ### Option 3: Symlink for development
 
 ```bash
-ln -s ~/tadpole/decky-plugin ~/.config/decky/plugins/TadpoleBG3
+# Modern path:
+ln -s ~/tadpole/decky-plugin ~/homebrew/plugins/TadpoleBG3
+# Or legacy path:
+# ln -s ~/tadpole/decky-plugin ~/.config/decky/plugins/TadpoleBG3
 ```
 
 ## Usage
@@ -98,7 +107,7 @@ The plugin shows:
 |---------|---------|-------------|
 | Port | 3456 | Bridge server port |
 | Auto-start | On | Automatically start bridge when BG3 launches |
-| Bridge Directory | /home/deck/tadpole/bridge | Path to the bridge server |
+| Bridge Directory | (auto-detected) | Path to the bridge server (defaults: ~/tadpole/bridge or plugin_dir/bridge) |
 
 ## Architecture
 

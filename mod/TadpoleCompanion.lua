@@ -10,6 +10,7 @@ local Tadpole = {
   prevState = nil,
 }
 
+local MAX_EVENTS = 50
 local OUTPUT_PATH = os.getenv("TEMP") .. "\\tadpole_state.json"
 local COMMAND_PATH = os.getenv("TEMP") .. "\\tadpole_commands.json"
 
@@ -62,43 +63,55 @@ local function getPartyMemberData(guid)
   }
 end
 
--- Main state capture
-function Tadpole:CaptureState()
-  local hostGuid = Osi.GetHostCharacter()
-  if not hostGuid then return nil end
-  
-  local party = {}
-  local _, playerRows = Osi.DB_Players:Get(nil)
-  if playerRows then
-    for _, row in ipairs(playerRows) do
-      local data = getPartyMemberData(row[1])
-      if data then table.insert(party, data) end
-    end
+-- ISSUE 5: Helper to cap recentEvents at MAX_EVENTS
+local function addEvent(evt)
+  table.insert(Tadpole.recentEvents, evt)
+  while #Tadpole.recentEvents > MAX_EVENTS do
+    table.remove(Tadpole.recentEvents, 1)
   end
-  
-  local hostData = getPartyMemberData(hostGuid)
-  
-  local area = ""
-  pcall(function() area = Ext.Utils.GetCurrentLevel() or "" end)
-  
-  local gold = 0
-  pcall(function() gold = Osi.GetGold(hostGuid) or 0 end)
-  
-  local inCombat = false
-  pcall(function() inCombat = Osi.IsInCombat(hostGuid) == 1 end)
-  
-  local state = {
-    timestamp = Ext.Utils.GetTime(),
-    area = area,
-    inCombat = inCombat,
-    host = hostData,
-    party = party,
-    gold = gold,
-    events = self.recentEvents,
-  }
-  
-  self.recentEvents = {}
-  return state
+end
+
+-- Main state capture — ISSUE 4: wrapped in pcall
+function Tadpole:CaptureState()
+  local ok, result = pcall(function()
+    local hostGuid = Osi.GetHostCharacter()
+    if not hostGuid then return nil end
+    
+    local party = {}
+    local _, playerRows = Osi.DB_Players:Get(nil)
+    if playerRows then
+      for _, row in ipairs(playerRows) do
+        local data = getPartyMemberData(row[1])
+        if data then table.insert(party, data) end
+      end
+    end
+    
+    local hostData = getPartyMemberData(hostGuid)
+    
+    local area = ""
+    pcall(function() area = Ext.Utils.GetCurrentLevel() or "" end)
+    
+    local gold = 0
+    pcall(function() gold = Osi.GetGold(hostGuid) or 0 end)
+    
+    local inCombat = false
+    pcall(function() inCombat = Osi.IsInCombat(hostGuid) == 1 end)
+    
+    local state = {
+      timestamp = Ext.Utils.GetTime(),
+      area = area,
+      inCombat = inCombat,
+      host = hostData,
+      party = party,
+      gold = gold,
+      events = self.recentEvents,
+    }
+    
+    self.recentEvents = {}
+    return state
+  end)
+  if ok then return result end
+  return nil
 end
 
 -- Check if state changed
@@ -111,26 +124,33 @@ function Tadpole:StateChanged(newState)
   return false
 end
 
--- Write state to file for bridge server
+-- ISSUE 6: Atomic write — write to temp file then rename
 function Tadpole:WriteState(state)
   local json = Ext.Json.Stringify(state)
-  local file, err = io.open(OUTPUT_PATH, "w")
-  if file then
-    file:write(json)
-    file:close()
-  end
+  local tmpPath = OUTPUT_PATH .. ".tmp"
+  local file, err = io.open(tmpPath, "w")
+  if not file then return end
+  file:write(json)
+  file:close()
+  os.rename(tmpPath, OUTPUT_PATH)
 end
 
--- Read commands from bridge server
+-- ISSUE 2: ReadCommands now handles both single objects and arrays
 function Tadpole:ReadCommands()
   local file = io.open(COMMAND_PATH, "r")
   if not file then return nil end
   local content = file:read("*a")
   file:close()
   os.remove(COMMAND_PATH)
-  local success, cmd = pcall(Ext.Json.Parse, content)
-  if success then return cmd end
-  return nil
+  local success, parsed = pcall(Ext.Json.Parse, content)
+  if not success or not parsed then return nil end
+
+  -- If it's an array, return it as-is for iteration
+  if type(parsed) == "table" and parsed[1] ~= nil then
+    return parsed
+  end
+  -- Single command object — wrap in array for uniform handling
+  return { parsed }
 end
 
 -- Execute a command from the phone app
@@ -160,27 +180,32 @@ Ext.Events.Tick:Subscribe(function(e)
     Tadpole:WriteState(state)
   end
   
-  local cmd = Tadpole:ReadCommands()
-  if cmd then Tadpole:ExecuteCommand(cmd) end
+  -- ISSUE 2: ReadCommands returns array of commands
+  local cmds = Tadpole:ReadCommands()
+  if cmds then
+    for _, cmd in ipairs(cmds) do
+      Tadpole:ExecuteCommand(cmd)
+    end
+  end
 end)
 
--- Event listeners
+-- Event listeners — all use addEvent() which caps at MAX_EVENTS
 Ext.Osiris.RegisterListener("CombatStarted", 1, "after", function(combat)
-  table.insert(Tadpole.recentEvents, {
+  addEvent({
     type = "combat_started",
     timestamp = Ext.Utils.GetTime(),
   })
 end)
 
 Ext.Osiris.RegisterListener("CombatEnded", 1, "after", function(combat)
-  table.insert(Tadpole.recentEvents, {
+  addEvent({
     type = "combat_ended",
     timestamp = Ext.Utils.GetTime(),
   })
 end)
 
 Ext.Osiris.RegisterListener("LevelGameplayStarted", 2, "after", function(level, isEditor)
-  table.insert(Tadpole.recentEvents, {
+  addEvent({
     type = "area_changed",
     area = level,
     timestamp = Ext.Utils.GetTime(),
@@ -188,28 +213,28 @@ Ext.Osiris.RegisterListener("LevelGameplayStarted", 2, "after", function(level, 
 end)
 
 Ext.Osiris.RegisterListener("DialogStarted", 1, "after", function(dialog)
-  table.insert(Tadpole.recentEvents, {
+  addEvent({
     type = "dialog_started",
     timestamp = Ext.Utils.GetTime(),
   })
 end)
 
 Ext.Osiris.RegisterListener("DialogEnded", 1, "after", function(dialog)
-  table.insert(Tadpole.recentEvents, {
+  addEvent({
     type = "dialog_ended",
     timestamp = Ext.Utils.GetTime(),
   })
 end)
 
 Ext.Osiris.RegisterListener("LongRestFinished", 0, "after", function()
-  table.insert(Tadpole.recentEvents, {
+  addEvent({
     type = "long_rest",
     timestamp = Ext.Utils.GetTime(),
   })
 end)
 
 -- Initialization
-Ext.Events.SessionLoaded:Subscribe(function()
+Ext.Events.Session_loaded:Subscribe(function()
   Tadpole.lastStateJson = ""
   Tadpole.recentEvents = {}
   Ext.Utils.Log("Tadpole Companion mod loaded!")

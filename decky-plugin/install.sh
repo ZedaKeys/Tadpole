@@ -34,7 +34,19 @@ die() {
 # -- Resolve paths --
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME="TadpoleBG3"
-DECKY_PLUGIN_DIR="${HOME}/.config/decky/plugins/${PLUGIN_NAME}"
+
+# DeckyLoader plugin directory: modern versions use ~/homebrew/plugins/,
+# older versions use ~/.config/decky/plugins/. Check both.
+DECKY_PLUGIN_DIR=""
+if [[ -d "${HOME}/homebrew/plugins" ]]; then
+    DECKY_PLUGIN_DIR="${HOME}/homebrew/plugins/${PLUGIN_NAME}"
+elif [[ -d "${HOME}/.config/decky/plugins" ]]; then
+    DECKY_PLUGIN_DIR="${HOME}/.config/decky/plugins/${PLUGIN_NAME}"
+else
+    # Default to modern path (will be created)
+    DECKY_PLUGIN_DIR="${HOME}/homebrew/plugins/${PLUGIN_NAME}"
+fi
+
 BRIDGE_DIR="$(cd "${SCRIPT_DIR}/../bridge" 2>/dev/null && pwd || echo "")"
 
 # -- Banner --
@@ -47,12 +59,18 @@ echo ""
 echo ""
 log_info "Step 1: Checking DeckyLoader installation..."
 
-DECKY_DIR="${HOME}/.config/decky"
-if [[ -d "${DECKY_DIR}" ]]; then
-    log_ok "DeckyLoader config directory found at: ${DECKY_DIR}"
-else
-    log_warn "DeckyLoader config directory not found at: ${DECKY_DIR}"
-    log_info "DeckyLoader may still be installed in a different location."
+DECKY_FOUND=false
+if [[ -d "${HOME}/homebrew/plugins" ]]; then
+    log_ok "DeckyLoader found at: ${HOME}/homebrew (modern path)"
+    DECKY_FOUND=true
+elif [[ -d "${HOME}/.config/decky" ]]; then
+    log_ok "DeckyLoader found at: ${HOME}/.config/decky (legacy path)"
+    DECKY_FOUND=true
+fi
+
+if [[ "${DECKY_FOUND}" == "false" ]]; then
+    log_warn "DeckyLoader installation not found at expected paths."
+    log_info "DeckyLoader may still be installed in a non-standard location."
     echo ""
     echo "  If DeckyLoader is not installed:"
     echo "  1. Switch to Desktop Mode"
@@ -144,6 +162,11 @@ cp "${SCRIPT_DIR}/plugin.json" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || log_warn "C
 cp "${SCRIPT_DIR}/main.py" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || log_warn "Could not copy main.py"
 cp "${SCRIPT_DIR}/package.json" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
 
+# Copy decky.pyi type stub if it exists (needed by DeckyLoader's Python backend)
+if [[ -f "${SCRIPT_DIR}/decky.pyi" ]]; then
+    cp "${SCRIPT_DIR}/decky.pyi" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
+fi
+
 # Copy dist if it exists
 if [[ -d "${SCRIPT_DIR}/dist" ]]; then
     mkdir -p "${DECKY_PLUGIN_DIR}/dist"
@@ -161,6 +184,27 @@ if [[ -d "${SCRIPT_DIR}/assets" ]]; then
 fi
 
 log_ok "Plugin files installed to: ${DECKY_PLUGIN_DIR}"
+
+# ── Step 6b: Copy bridge server files ────────────────────────────────────────
+echo ""
+log_info "Step 6b: Checking bridge server availability..."
+
+BRIDGE_TARGET="${DECKY_PLUGIN_DIR}/bridge"
+if [[ -n "${BRIDGE_DIR}" && -f "${BRIDGE_DIR}/server.js" ]]; then
+    mkdir -p "${BRIDGE_TARGET}"
+    cp "${BRIDGE_DIR}/server.js" "${BRIDGE_TARGET}/" 2>/dev/null || log_warn "Could not copy bridge server.js"
+    cp "${BRIDGE_DIR}/package.json" "${BRIDGE_TARGET}/" 2>/dev/null || true
+    # Copy node_modules if they exist, otherwise npm install will be needed
+    if [[ -d "${BRIDGE_DIR}/node_modules" ]]; then
+        cp -r "${BRIDGE_DIR}/node_modules" "${BRIDGE_TARGET}/" 2>/dev/null || log_warn "Could not copy node_modules (may need npm install later)"
+    fi
+    log_ok "Bridge server files copied to: ${BRIDGE_TARGET}"
+else
+    log_warn "Bridge directory not found at expected location."
+    log_info "The plugin will search for the bridge at runtime in common locations:"
+    log_info "  ~/tadpole/bridge/, ~/homebrew/plugins/TadpoleBG3/bridge/"
+    log_info "You can also set the bridge directory in the plugin settings."
+fi
 
 # ── Step 7: Set permissions ──────────────────────────────────────────────────
 echo ""
@@ -190,6 +234,42 @@ else
     die "Some plugin files are missing."
 fi
 
+# ── Step 9: Attempt DeckyLoader reload ───────────────────────────────────────
+echo ""
+log_info "Step 9: Attempting to reload DeckyLoader..."
+
+RELOADED=false
+
+# Method A: systemctl (most common on Steam Deck)
+if command -v systemctl &>/dev/null; then
+    for svc in "decky_loader" "deckyloader" "plugin_loader" "PluginLoader"; do
+        if systemctl --user status "${svc}" &>/dev/null 2>&1; then
+            systemctl --user restart "${svc}" 2>/dev/null && {
+                log_ok "DeckyLoader service (${svc}) restarted via systemctl"
+                RELOADED=true
+                break
+            }
+        fi
+    done
+fi
+
+# Method B: systemd system service
+if [[ "${RELOADED}" == "false" ]] && command -v systemctl &>/dev/null; then
+    for svc in "decky_loader" "deckyloader" "plugin_loader" "PluginLoader"; do
+        if systemctl status "${svc}" &>/dev/null 2>&1; then
+            sudo systemctl restart "${svc}" 2>/dev/null && {
+                log_ok "DeckyLoader service (${svc}) restarted via systemctl (system)"
+                RELOADED=true
+                break
+            }
+        fi
+    done
+fi
+
+if [[ "${RELOADED}" == "false" ]]; then
+    log_warn "Could not auto-restart DeckyLoader service."
+fi
+
 # ── Done! ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "  ════════════════════════════════════════════════════════════════"
@@ -198,12 +278,17 @@ echo "  ════════════════════════
 echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"
 echo ""
-echo "  1. Restart DeckyLoader (or reload plugins):"
-echo "     - Open the quick access menu (... button)"
-echo "     - Go to DeckyLoader settings"
-echo "     - Click 'Reload Plugins'"
-echo ""
-echo "  2. The Tadpole panel will appear in the quick access menu"
+if [[ "${RELOADED}" == "true" ]]; then
+    echo "  1. DeckyLoader has been restarted — the Tadpole panel should appear"
+    echo "     in the quick access menu (... button) momentarily"
+else
+    echo "  1. Restart DeckyLoader (or reload plugins):"
+    echo "     - Open the quick access menu (... button)"
+    echo "     - Go to DeckyLoader settings"
+    echo "     - Click 'Reload Plugins'"
+    echo ""
+    echo "  2. The Tadpole panel will appear in the quick access menu"
+fi
 echo ""
 echo "  3. Start BG3 — the bridge will auto-start (if auto-start is on)"
 echo ""

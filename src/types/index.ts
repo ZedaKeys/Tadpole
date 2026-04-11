@@ -211,43 +211,29 @@ export interface UserPreferences {
 }
 
 // === Live Game State (Phase 2+) ===
+// Shape matches the actual Lua mod (TadpoleCompanion.lua) output.
+
+export interface GameCharacter {
+  guid: string;
+  name: string;
+  hp: number;
+  maxHp: number;
+  level: number;
+  position: { x: number; y: number; z: number };
+}
+
+export interface GameEvent {
+  type: string;
+  timestamp: number;
+  area?: string;
+}
 
 export interface GameState {
   timestamp: number;
-  player: {
-    name: string;
-    race: string;
-    class: string;
-    level: number;
-    hp: { current: number; max: number };
-    position: { x: number; y: number; z: number };
-    area: string;
-    act: number;
-    gold: number;
-    experience: number;
-    inspiration: number;
-  };
-  party: {
-    name: string;
-    hp: { current: number; max: number };
-    approval: number;
-    romance: RomanceStatus;
-  }[];
-  quests: {
-    active: { id: string; stage: number; description: string }[];
-    completed: string[];
-    failed: string[];
-  };
-  combat: null | {
-    active: boolean;
-    round: number;
-    turn: string;
-    enemies: { name: string; hp: { current: number; max: number }; type: string }[];
-  };
-  dialog: null | {
-    active: boolean;
-    speaker: string;
-    optionsCount: number;
-    hasApprovalStakes: boolean;
-  };
+  area: string;
+  inCombat: boolean;
+  host: GameCharacter | null;
+  party: GameCharacter[];
+  gold: number;
+  events: GameEvent[];
 }

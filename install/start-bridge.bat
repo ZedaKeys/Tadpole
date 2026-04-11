@@ -13,6 +13,7 @@ title Tadpole Bridge Server
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 set "GREEN=!ESC![92m"
 set "CYAN=!ESC![96m"
+set "RED=!ESC![91m"
 set "YELLOW=!ESC![93m"
 set "BOLD=!ESC![1m"
 set "DIM=!ESC![2m"

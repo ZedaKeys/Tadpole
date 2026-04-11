@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getGameConnection } from '@/lib/game-connection';
+import { getGameConnection, resetGameConnection } from '@/lib/game-connection';
 import { GameState } from '@/types';
 import { safeGet, safeSet } from '@/lib/storage';
 
@@ -16,7 +16,8 @@ export function useGameConnection() {
     const conn = getGameConnection();
     connRef.current = conn;
 
-    conn.onStateUpdate((state) => {
+    // ISSUE 3: Store unsubscribe function so callback can be removed on cleanup
+    const unsubscribe = conn.onStateUpdate((state) => {
       setGameState(state);
     });
 
@@ -27,7 +28,10 @@ export function useGameConnection() {
 
     return () => {
       clearInterval(interval);
+      unsubscribe();
       conn.disconnect();
+      // ISSUE 9: Null out singleton when all consumers are done
+      resetGameConnection();
     };
   }, []);
 

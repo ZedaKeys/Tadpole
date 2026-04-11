@@ -30,7 +30,7 @@ function HpBar({ current, max, name }: { current: number; max: number; name: str
 
 export default function LiveDashboard({ state }: { state: GameState }) {
   const party = state.party || [];
-  const player = state.player;
+  const host = state.host;
 
   return (
     <div
@@ -48,7 +48,7 @@ export default function LiveDashboard({ state }: { state: GameState }) {
             LIVE
           </span>
         </div>
-        {state.combat?.active && (
+        {state.inCombat && (
           <span
             className="text-xs px-2 py-0.5 rounded-full font-semibold"
             style={{ background: 'var(--danger)', color: '#fff' }}
@@ -63,36 +63,34 @@ export default function LiveDashboard({ state }: { state: GameState }) {
         <div className="flex items-center gap-1.5">
           <MapPin size={14} style={{ color: 'var(--accent)' }} />
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            {player?.area || state.timestamp ? 'Loading...' : 'Unknown'}
+            {state.area || 'Unknown'}
           </span>
         </div>
-        {player && (
-          <div className="flex items-center gap-1.5">
-            <Coins size={14} style={{ color: 'var(--warning)' }} />
-            <span className="text-xs font-mono-num">{player.gold}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          <Coins size={14} style={{ color: 'var(--warning)' }} />
+          <span className="text-xs font-mono-num">{state.gold}</span>
+        </div>
       </div>
 
-      {/* Player HP */}
-      {player && (
-        <HpBar current={player.hp.current} max={player.hp.max} name={player.name || 'Player'} />
+      {/* Host HP */}
+      {host && (
+        <HpBar current={host.hp} max={host.maxHp} name={host.name || 'Player'} />
       )}
 
       {/* Party HP */}
       {party.map((member, i) => (
-        <HpBar key={i} current={member.hp.current} max={member.hp.max} name={member.name} />
+        <HpBar key={i} current={member.hp} max={member.maxHp} name={member.name} />
       ))}
 
-      {/* Combat info */}
-      {state.combat?.active && (
+      {/* Combat indicator */}
+      {state.inCombat && (
         <div
           className="mt-2 rounded-lg p-2 text-center"
           style={{ background: 'rgba(239, 68, 68, 0.1)' }}
         >
           <span className="text-xs" style={{ color: 'var(--danger)' }}>
             <Swords size={12} className="inline mr-1" />
-            Round {state.combat.round} · Turn: {state.combat.turn}
+            In Combat
           </span>
         </div>
       )}

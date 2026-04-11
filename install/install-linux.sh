@@ -84,6 +84,15 @@ if [[ -z "${BG3_PATH}" && -f "${STEAM_HOME}/steamapps/libraryfolders.vdf" ]]; th
         fi
     done < "${STEAM_HOME}/steamapps/libraryfolders.vdf"
 fi
+# Method C2: Scan Flatpak Steam libraryfolders.vdf
+if [[ -z "${BG3_PATH}" && -f "${FLATPAK_STEAM}/steamapps/libraryfolders.vdf" ]]; then
+    while IFS= read -r line; do
+        lib=$(echo "$line" | grep -oP '"path"\s+"(.+?)"' | grep -oP '(?<=")[^"]*(?=")' | tail -1 || true)
+        if [[ -n "${lib}" ]]; then
+            try_path "${lib}/steamapps/common/Baldurs Gate 3" && break
+        fi
+    done < "${FLATPAK_STEAM}/steamapps/libraryfolders.vdf"
+fi
 # Method D: GOG / Heroic paths
 [[ -n "${BG3_PATH}" ]] || try_path "${HOME}/Games/Heroic/Baldurs Gate 3" && true
 # Method E: Heroic default GOG path
@@ -237,8 +246,14 @@ log_info "Step 4: Checking Node.js..."
 NODE_OK=0
 if command -v node &>/dev/null; then
     NODE_VER=$(node -v 2>/dev/null || echo "unknown")
-    log_ok "Node.js ${NODE_VER} found"
-    NODE_OK=1
+    # Validate minimum version (v18+)
+    NODE_MAJOR=$(echo "${NODE_VER}" | sed 's/^v//' | cut -d. -f1)
+    if [[ "${NODE_MAJOR}" -ge 18 ]] 2>/dev/null; then
+        log_ok "Node.js ${NODE_VER} found"
+        NODE_OK=1
+    else
+        log_warn "Node.js ${NODE_VER} found but v18+ is required. Will attempt upgrade."
+    fi
 else
     log_warn "Node.js not found."
 

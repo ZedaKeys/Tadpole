@@ -88,7 +88,7 @@ export default function HomePage() {
       {gameState && isConnected ? (
         <>
           <LiveDashboard state={gameState} />
-          {gameState.combat?.active && <CombatTracker state={gameState} />}
+          {gameState.inCombat && <CombatTracker state={gameState} />}
         </>
       ) : showConnect || isConnected ? (
         <div className="mb-6">

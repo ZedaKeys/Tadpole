@@ -82,12 +82,31 @@ export class GameConnection {
     this.reconnectAttempts = 0;
   }
 
-  onStateUpdate(callback: StateCallback) {
+  onStateUpdate(callback: StateCallback): () => void {
     this.stateCallbacks.push(callback);
+    // Return unsubscribe function for cleanup
+    return () => {
+      const idx = this.stateCallbacks.indexOf(callback);
+      if (idx !== -1) this.stateCallbacks.splice(idx, 1);
+    };
   }
 
-  onEvent(callback: EventCallback) {
+  removeStateCallback(callback: StateCallback) {
+    const idx = this.stateCallbacks.indexOf(callback);
+    if (idx !== -1) this.stateCallbacks.splice(idx, 1);
+  }
+
+  onEvent(callback: EventCallback): () => void {
     this.eventCallbacks.push(callback);
+    return () => {
+      const idx = this.eventCallbacks.indexOf(callback);
+      if (idx !== -1) this.eventCallbacks.splice(idx, 1);
+    };
+  }
+
+  removeEventCallback(callback: EventCallback) {
+    const idx = this.eventCallbacks.indexOf(callback);
+    if (idx !== -1) this.eventCallbacks.splice(idx, 1);
   }
 
   sendCommand(command: { action: string; [key: string]: unknown }) {
@@ -114,4 +133,12 @@ export function getGameConnection(): GameConnection {
     instance = new GameConnection();
   }
   return instance;
+}
+
+// ISSUE 9: Allow singleton to be nulled when no longer needed
+export function resetGameConnection() {
+  if (instance) {
+    instance.disconnect();
+    instance = null;
+  }
 }

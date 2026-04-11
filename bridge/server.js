@@ -99,7 +99,12 @@ ${status.recentEvents.length
 // HTTP server + WebSocket server
 // ---------------------------------------------------------------------------
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  // ISSUE 8: WebSocket keepalive — ping every 30s, destroy if no pong in 10s
+  clientTracking: true,
+});
 
 // ---------------------------------------------------------------------------
 // Event detection
@@ -411,3 +416,57 @@ server.listen(PORT, '0.0.0.0', () => {
 
   startStateWatcher();
 });
+
+// ---------------------------------------------------------------------------
+// ISSUE 8: WebSocket keepalive — ping every 30s
+// ---------------------------------------------------------------------------
+const KEEPALIVE_INTERVAL = 30000;
+const keepaliveTimer = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === 1) {
+      // Mark as terminated if no pong received; ws library doesn't auto-terminate
+      if (ws._tadpoleAlive === false) {
+        ws.terminate();
+        return;
+      }
+      ws._tadpoleAlive = false;
+      ws.ping();
+    }
+  });
+}, KEEPALIVE_INTERVAL);
+
+// Track pong responses to know connections are alive
+wss.on('connection', (ws) => {
+  ws._tadpoleAlive = true;
+  ws.on('pong', () => {
+    ws._tadpoleAlive = true;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ISSUE 7: Graceful shutdown on SIGINT / SIGTERM
+// ---------------------------------------------------------------------------
+function gracefulShutdown(signal) {
+  console.log(`\n[shutdown] Received ${signal}. Closing connections...`);
+  clearInterval(keepaliveTimer);
+
+  // Close all WebSocket connections cleanly
+  wss.clients.forEach((ws) => {
+    try { ws.close(1001, 'Server shutting down'); } catch {}
+  });
+
+  // Close the HTTP server (stop accepting new connections)
+  server.close(() => {
+    console.log('[shutdown] HTTP server closed.');
+    process.exit(0);
+  });
+
+  // Force exit after 5s if hanging
+  setTimeout(() => {
+    console.log('[shutdown] Forcing exit after timeout.');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
