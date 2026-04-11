@@ -40,3 +40,4 @@ next-env.d.ts
 
 # bridge server deps
 bridge/node_modules/
+decky-plugin/backend/__pycache__/
