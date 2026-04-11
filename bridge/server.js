@@ -34,6 +34,22 @@ let connectedClients = 0;
 const stateHistory = [];          // rolling buffer of last 100 snapshots
 const eventLog = [];              // recent detected events
 
+// JSON status endpoint for DeckyLoader plugin & programmatic consumers
+app.get('/status', (req, res) => {
+  res.json({
+    name: 'Tadpole Bridge Server',
+    version: '0.1.0',
+    uptime: process.uptime(),
+    stateFile: STATE_FILE,
+    commandFile: COMMAND_FILE,
+    stateFileExists: fs.existsSync(STATE_FILE),
+    connectedClients,
+    currentState,
+    recentEvents: eventLog.slice(-20),
+    historyLength: stateHistory.length,
+  });
+});
+
 app.get('/', (req, res) => {
   const status = {
     name: 'Tadpole Bridge Server',

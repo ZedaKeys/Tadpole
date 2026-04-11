@@ -1,0 +1,19 @@
+{
+  "name": "tadpole-decky",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeckyLoader plugin for Tadpole BG3 Companion",
+  "scripts": {
+    "build": "echo 'DeckyLoader plugins are built by DeckyLoader at runtime'"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "decky-frontend-lib": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}
