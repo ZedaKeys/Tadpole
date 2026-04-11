@@ -11,10 +11,14 @@ import {
   Compass,
   Gamepad2,
   Wrench,
-  Wifi,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { APP_NAME, APP_TAGLINE, VERSION } from '@/lib/version';
+import { useGameConnection } from '@/hooks/useGameConnection';
+import ConnectionPanel from '@/components/game/ConnectionPanel';
+import LiveDashboard from '@/components/game/LiveDashboard';
+import CombatTracker from '@/components/game/CombatTracker';
 
 const features = [
   { href: '/builds', icon: Swords, label: 'Build Planner', desc: 'Plan characters & classes' },
@@ -31,6 +35,9 @@ const features = [
 ];
 
 export default function HomePage() {
+  const { gameState, isConnected } = useGameConnection();
+  const [showConnect, setShowConnect] = useState(false);
+
   return (
     <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
       {/* Header with gradient glow */}
@@ -52,7 +59,6 @@ export default function HomePage() {
           >
             {APP_NAME}
           </h1>
-          {/* Purple glow behind title */}
           <div
             style={{
               position: 'absolute',
@@ -78,6 +84,55 @@ export default function HomePage() {
         </p>
       </div>
 
+      {/* Live game connection */}
+      {gameState && isConnected ? (
+        <>
+          <LiveDashboard state={gameState} />
+          {gameState.combat?.active && <CombatTracker state={gameState} />}
+        </>
+      ) : showConnect || isConnected ? (
+        <div className="mb-6">
+          <ConnectionPanel />
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowConnect(true)}
+          className="w-full mb-6 touch-target rounded-xl p-4 flex items-center gap-4 feature-card"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            textAlign: 'left',
+          }}
+        >
+          <div
+            className="flex-shrink-0 flex items-center justify-center rounded-xl"
+            style={{
+              width: 48,
+              height: 48,
+              background: 'var(--accent-muted)',
+            }}
+          >
+            <span style={{ color: 'var(--accent)', fontSize: '1.5rem' }}>📡</span>
+          </div>
+          <div className="flex-1">
+            <span className="font-semibold text-sm">Connect to Game</span>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+              Live sync your BG3 playthrough
+            </p>
+          </div>
+          <span
+            className="px-2 py-0.5 rounded-full text-xs font-semibold"
+            style={{
+              background: 'var(--accent-muted)',
+              color: 'var(--accent)',
+              fontSize: '0.65rem',
+            }}
+          >
+            NEW
+          </span>
+        </button>
+      )}
+
       {/* Feature Grid */}
       <div className="grid grid-cols-2 gap-3">
         {features.map((f) => (
@@ -102,54 +157,6 @@ export default function HomePage() {
             </span>
           </Link>
         ))}
-      </div>
-
-      {/* Coming Soon: Connect to Game */}
-      <div
-        className="mt-6 rounded-xl p-4 flex items-center gap-4 opacity-60"
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        <div
-          className="flex-shrink-0 flex items-center justify-center rounded-xl"
-          style={{
-            width: 48,
-            height: 48,
-            background: 'var(--surface-active)',
-          }}
-        >
-          <Wifi size={24} style={{ color: 'var(--text-muted)' }} />
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span
-              className="font-semibold text-sm"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Connect to Game
-            </span>
-            <span
-              className="px-2 py-0.5 rounded-full text-xs font-semibold"
-              style={{
-                background: 'var(--surface-active)',
-                color: 'var(--text-muted)',
-                fontSize: '0.65rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              Coming Soon
-            </span>
-          </div>
-          <p
-            className="text-xs mt-0.5"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            Live sync your playthrough data
-          </p>
-        </div>
       </div>
     </main>
   );
