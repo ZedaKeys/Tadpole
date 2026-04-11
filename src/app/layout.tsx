@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { APP_NAME, APP_TAGLINE, DISCLAIMER, VERSION } from '@/lib/version';
+import PWAMount from '@/components/pwa/PWAMount';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -59,6 +60,7 @@ export default function RootLayout({
         <footer className="text-center py-3 px-4" style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
           {DISCLAIMER} · v{VERSION}
         </footer>
+        <PWAMount />
       </body>
     </html>
   );
