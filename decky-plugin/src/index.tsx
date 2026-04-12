@@ -12,6 +12,27 @@ import { VFC, useState, useEffect, useCallback, useRef } from "react";
 import { FaFrog } from "react-icons/fa";
 
 // ---------------------------------------------------------------------------
+// Colors — consistent dark theme
+// ---------------------------------------------------------------------------
+const C = {
+  bg: "#1a1a2e",
+  surface: "#16213e",
+  surfaceLight: "#1f2b47",
+  border: "#2a3a5c",
+  text: "#e0e0e0",
+  textDim: "#7a8ba8",
+  accent: "#48bfe3",
+  green: "#52b788",
+  greenGlow: "rgba(82,183,136,0.5)",
+  red: "#e76f51",
+  redGlow: "rgba(231,111,81,0.5)",
+  orange: "#f4a261",
+  gold: "#f4a261",
+  purple: "#a855f7",
+  blue: "#3b82f6",
+};
+
+// ---------------------------------------------------------------------------
 // Callable wrappers — each maps to a Python method on the Plugin class
 // ---------------------------------------------------------------------------
 
@@ -21,7 +42,7 @@ const callGetStatus = callable<[], {
   ip: string;
   connected_clients: number;
   game_state: BridgeGameState | null;
-  recent_events: { type: string; timestamp: number; detail?: string }[];
+  recent_events: GameEvent[];
   node_installed: boolean;
 }>("get_status");
 
@@ -45,7 +66,7 @@ const callSaveSettings = callable<[settings: PluginSettings], {
 }>("save_settings");
 
 // ---------------------------------------------------------------------------
-// Types — mirrors the bridge server's JSON state
+// Types
 // ---------------------------------------------------------------------------
 
 interface PartyMember {
@@ -54,6 +75,8 @@ interface PartyMember {
   hp: number;
   maxHp: number;
   level?: number;
+  class?: string;
+  conditions?: string[];
 }
 
 interface BridgeGameState {
@@ -64,6 +87,13 @@ interface BridgeGameState {
   host?: PartyMember;
   party?: PartyMember[];
   gold?: number;
+  turn?: number;
+}
+
+interface GameEvent {
+  type: string;
+  timestamp: number;
+  detail?: string;
 }
 
 interface PluginSettings {
@@ -72,10 +102,6 @@ interface PluginSettings {
   bridgeDir: string;
 }
 
-// ---------------------------------------------------------------------------
-// Default settings
-// ---------------------------------------------------------------------------
-
 const DEFAULT_SETTINGS: PluginSettings = {
   port: 3456,
   autoStart: true,
@@ -83,79 +109,178 @@ const DEFAULT_SETTINGS: PluginSettings = {
 };
 
 // ---------------------------------------------------------------------------
-// Status dot component
+// Utility
 // ---------------------------------------------------------------------------
 
-const StatusDot: VFC<{ running: boolean }> = ({ running }) => (
-  <span
-    style={{
-      display: "inline-block",
-      width: 10,
-      height: 10,
+function timeAgo(ts: number): string {
+  const seconds = Math.floor((Date.now() / 1000) - ts);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+
+const EVENT_ICONS: Record<string, string> = {
+  combat_started: "⚔️",
+  combat_ended: "✅",
+  area_changed: "🗺️",
+  hp_critical: "💔",
+  dialog_started: "💬",
+  dialog_ended: "💬",
+  level_up: "⬆️",
+  party_changed: "👥",
+  death: "💀",
+  rest: "🏕️",
+  loot: "💰",
+};
+
+// ---------------------------------------------------------------------------
+// Components
+// ---------------------------------------------------------------------------
+
+/** Status indicator with glow effect */
+const StatusBadge: VFC<{
+  label: string;
+  active: boolean;
+  activeColor?: string;
+  inactiveColor?: string;
+}> = ({ label, active, activeColor = C.green, inactiveColor = C.red }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{
+      width: 8,
+      height: 8,
       borderRadius: "50%",
-      backgroundColor: running ? "#52b788" : "#e76f51",
-      marginRight: 8,
-      verticalAlign: "middle",
-      boxShadow: running
-        ? "0 0 6px rgba(82,183,136,0.6)"
-        : "0 0 6px rgba(231,111,81,0.6)",
-    }}
-  />
+      backgroundColor: active ? activeColor : inactiveColor,
+      boxShadow: active
+        ? `0 0 8px ${activeColor}80`
+        : `0 0 4px ${inactiveColor}50`,
+      transition: "all 0.3s ease",
+    }} />
+    <span style={{
+      fontSize: 13,
+      fontWeight: 600,
+      color: active ? activeColor : inactiveColor,
+      letterSpacing: 0.3,
+    }}>
+      {label}
+    </span>
+  </div>
 );
 
-// ---------------------------------------------------------------------------
-// HP Bar component
-// ---------------------------------------------------------------------------
+/** Compact stat row */
+const StatRow: VFC<{ label: string; value: string | number; color?: string }> = ({
+  label, value, color = C.textDim,
+}) => (
+  <div style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "4px 0",
+  }}>
+    <span style={{ fontSize: 12, color: C.textDim }}>{label}</span>
+    <span style={{ fontSize: 13, color, fontWeight: 600 }}>{value}</span>
+  </div>
+);
 
-const HPBar: VFC<{ name: string; hp: number; maxHp: number }> = ({
-  name,
-  hp,
-  maxHp,
-}) => {
+/** HP bar with smooth animation and color gradient */
+const HPBar: VFC<{
+  name: string;
+  hp: number;
+  maxHp: number;
+  isHost?: boolean;
+}> = ({ name, hp, maxHp, isHost = false }) => {
   const pct = maxHp > 0 ? Math.max(0, Math.min(hp / maxHp, 1)) : 0;
-  const color =
-    pct > 0.5 ? "#52b788" : pct > 0.25 ? "#f4a261" : "#e76f51";
+  const color = pct > 0.6 ? C.green : pct > 0.3 ? C.orange : C.red;
+  const glow = pct > 0.6 ? C.greenGlow : pct > 0.3 ? "none" : C.redGlow;
 
   return (
-    <div style={{ marginBottom: 6 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 12,
-          marginBottom: 2,
-          color: "#c0c0c0",
-        }}
-      >
-        <span>{name}</span>
-        <span>
+    <div style={{ marginBottom: isHost ? 8 : 5 }}>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        marginBottom: 3,
+      }}>
+        <span style={{
+          fontSize: isHost ? 13 : 11,
+          fontWeight: isHost ? 600 : 500,
+          color: isHost ? C.text : C.textDim,
+        }}>
+          {name}
+        </span>
+        <span style={{
+          fontSize: isHost ? 12 : 10,
+          color,
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+        }}>
           {hp}/{maxHp}
         </span>
       </div>
-      <div
-        style={{
-          height: 6,
-          borderRadius: 3,
-          backgroundColor: "#2a2a3e",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            width: `${pct * 100}%`,
-            backgroundColor: color,
-            borderRadius: 3,
-            transition: "width 0.3s ease",
-          }}
-        />
+      <div style={{
+        height: isHost ? 8 : 5,
+        borderRadius: isHost ? 4 : 3,
+        backgroundColor: C.surface,
+        overflow: "hidden",
+      }}>
+        <div style={{
+          height: "100%",
+          width: `${pct * 100}%`,
+          backgroundColor: color,
+          borderRadius: isHost ? 4 : 3,
+          transition: "width 0.4s ease, background-color 0.4s ease",
+          boxShadow: glow ? `0 0 6px ${glow}` : "none",
+        }} />
       </div>
     </div>
   );
 };
 
+/** Divider */
+const Divider = () => (
+  <div style={{
+    height: 1,
+    backgroundColor: C.border,
+    margin: "8px 0",
+    opacity: 0.5,
+  }} />
+);
+
+/** Section header */
+const SectionHeader: VFC<{ title: string; icon?: string }> = ({ title, icon }) => (
+  <div style={{
+    fontSize: 11,
+    fontWeight: 700,
+    color: C.accent,
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    marginBottom: 6,
+    marginTop: 2,
+  }}>
+    {icon && <span style={{ marginRight: 6 }}>{icon}</span>}
+    {title}
+  </div>
+);
+
+/** Pill/badge */
+const Pill: VFC<{ label: string; color?: string }> = ({ label, color = C.accent }) => (
+  <span style={{
+    display: "inline-block",
+    padding: "2px 8px",
+    borderRadius: 10,
+    fontSize: 10,
+    fontWeight: 600,
+    color,
+    backgroundColor: `${color}18`,
+    border: `1px solid ${color}30`,
+  }}>
+    {label}
+  </span>
+);
+
 // ---------------------------------------------------------------------------
-// Main panel content
+// Main panel
 // ---------------------------------------------------------------------------
 
 const TadpolePanel: VFC = () => {
@@ -165,16 +290,16 @@ const TadpolePanel: VFC = () => {
   const [ip, setIp] = useState("...");
   const [connectedClients, setConnectedClients] = useState(0);
   const [gameState, setGameState] = useState<BridgeGameState | null>(null);
-  const [recentEvents, setRecentEvents] = useState<
-    { type: string; timestamp: number; detail?: string }[]
-  >([]);
+  const [recentEvents, setRecentEvents] = useState<GameEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [nodeMissing, setNodeMissing] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartAttemptedRef = useRef(false);
+  const prevClientsRef = useRef(0);
+  const prevEventsLenRef = useRef(0);
 
-  // ---- Load settings from backend on mount ----
+  // Load settings
   useEffect(() => {
     callGetSettings()
       .then((saved) => {
@@ -185,7 +310,7 @@ const TadpolePanel: VFC = () => {
       .catch(() => {});
   }, []);
 
-  // ---- Fetch status from the Python backend ----
+  // Fetch status
   const fetchStatus = useCallback(async () => {
     try {
       const data = await callGetStatus();
@@ -196,38 +321,34 @@ const TadpolePanel: VFC = () => {
       setGameState(data.game_state);
       setRecentEvents(data.recent_events || []);
       setNodeMissing(!data.node_installed);
-    } catch (e) {
-      // Backend not responding — keep last state
-    }
+    } catch {}
   }, []);
 
-  // ---- Persist settings when they change ----
+  // Persist settings
   const updateSettings = useCallback((newSettings: PluginSettings) => {
     setSettings(newSettings);
     callSaveSettings(newSettings).catch(() => {});
   }, []);
 
-  // ---- Start the bridge ----
+  // Start bridge
   const startBridge = useCallback(async () => {
     setLoading(true);
     try {
       const result = await callStartBridge(settings.port, settings.bridgeDir);
-      if (result.success) {
-        toaster.toast({ title: "Tadpole", body: result.message });
-      } else {
-        toaster.toast({ title: "Tadpole Error", body: result.message });
-      }
+      toaster.toast({
+        title: "Tadpole",
+        body: result.message,
+      });
     } catch {
       toaster.toast({ title: "Tadpole Error", body: "Failed to start bridge" });
     }
-    // Give the bridge a moment to start
     setTimeout(async () => {
       await fetchStatus();
       setLoading(false);
     }, 1500);
   }, [settings, fetchStatus]);
 
-  // ---- Stop the bridge ----
+  // Stop bridge
   const stopBridge = useCallback(async () => {
     setLoading(true);
     try {
@@ -244,7 +365,7 @@ const TadpolePanel: VFC = () => {
     }, 500);
   }, [fetchStatus]);
 
-  // ---- Polling ----
+  // Polling
   useEffect(() => {
     fetchStatus();
     pollRef.current = setInterval(fetchStatus, 2000);
@@ -253,7 +374,7 @@ const TadpolePanel: VFC = () => {
     };
   }, [fetchStatus]);
 
-  // ---- Auto-start bridge when BG3 launches (once) ----
+  // Auto-start
   useEffect(() => {
     if (autoStartAttemptedRef.current) return;
     if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing) {
@@ -262,85 +383,119 @@ const TadpolePanel: VFC = () => {
     }
   }, [bg3Running, bridgeRunning, settings.autoStart, startBridge, nodeMissing]);
 
-  // ---- Toast notifications for important events ----
-  const prevClientsRef = useRef(0);
+  // Phone connection toast
   useEffect(() => {
-    // Phone connected/disconnected
     if (connectedClients > prevClientsRef.current && prevClientsRef.current === 0) {
-      toaster.toast({ title: "Phone Connected", body: `A phone app is now connected (${connectedClients})` });
+      toaster.toast({
+        title: "Phone Connected",
+        body: `A phone app is now connected (${connectedClients})`,
+      });
+    } else if (connectedClients === 0 && prevClientsRef.current > 0) {
+      toaster.toast({
+        title: "Phone Disconnected",
+        body: "No phones connected",
+      });
     }
     prevClientsRef.current = connectedClients;
   }, [connectedClients]);
 
-  // Toast for critical game events from recentEvents
-  const prevEventsLenRef = useRef(0);
+  // Game event toasts
   useEffect(() => {
     if (recentEvents.length <= prevEventsLenRef.current) {
       prevEventsLenRef.current = recentEvents.length;
       return;
     }
-    // Only toast the new events
     const newEvents = recentEvents.slice(prevEventsLenRef.current);
     for (const evt of newEvents) {
       if (evt.type === "combat_started") {
         toaster.toast({ title: "Combat!", body: "Combat has begun!" });
       } else if (evt.type === "hp_critical") {
         toaster.toast({ title: "HP Critical!", body: evt.detail || "A party member is critically low!" });
+      } else if (evt.type === "death") {
+        toaster.toast({ title: "Party Member Down!", body: evt.detail || "Someone has fallen!" });
+      } else if (evt.type === "level_up") {
+        toaster.toast({ title: "Level Up!", body: evt.detail || "A party member leveled up!" });
       }
     }
     prevEventsLenRef.current = recentEvents.length;
   }, [recentEvents]);
 
-  // ---- Render ----
+  // Computed state
+  const totalPartyHp = (() => {
+    let current = 0, max = 0;
+    if (gameState?.host && gameState.host.maxHp > 0) {
+      current += gameState.host.hp;
+      max += gameState.host.maxHp;
+    }
+    if (gameState?.party) {
+      for (const m of gameState.party) {
+        if (m.maxHp > 0) { current += m.hp; max += m.maxHp; }
+      }
+    }
+    return { current, max };
+  })();
+
   return (
-    <div>
-      {/* Node.js missing warning */}
+    <div style={{ padding: "4px 0" }}>
+      {/* Node.js warning */}
       {nodeMissing && (
-        <PanelSection title="Warning">
+        <PanelSection title="">
           <PanelSectionRow>
-            <div style={{ padding: "8px 0", color: "#e76f51", fontSize: 13 }}>
-              Node.js is not installed. Install it in Desktop Mode:
+            <div style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              backgroundColor: `${C.red}15`,
+              border: `1px solid ${C.red}30`,
+              color: C.red,
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}>
+              <strong>Node.js required.</strong>
               <br />
-              <code style={{ color: "#72ddf7", fontSize: 12 }}>
-                sudo pacman -S nodejs npm
-              </code>
+              Install in Desktop Mode:
+              <br />
+              <code style={{ color: C.accent, fontSize: 11 }}>sudo pacman -S nodejs npm</code>
             </div>
           </PanelSectionRow>
         </PanelSection>
       )}
 
-      {/* Connection Status */}
-      <PanelSection title="Connection">
+      {/* ── Connection ── */}
+      <PanelSection title="">
+        <SectionHeader title="Connection" icon="🔗" />
+
         <PanelSectionRow>
-          <div style={{ padding: "4px 0", fontSize: 14 }}>
-            <StatusDot running={bridgeRunning} />
-            <span style={{ color: bridgeRunning ? "#52b788" : "#e76f51" }}>
-              {bridgeRunning ? "Bridge Running" : "Bridge Stopped"}
-            </span>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <StatusBadge
+              label={bridgeRunning ? "Bridge Active" : "Bridge Offline"}
+              active={bridgeRunning}
+            />
+            {bridgeRunning && connectedClients > 0 && (
+              <Pill label={`${connectedClients} phone${connectedClients !== 1 ? "s" : ""}`} color={C.green} />
+            )}
           </div>
         </PanelSectionRow>
 
         {bridgeRunning && (
           <PanelSectionRow>
-            <div
-              style={{ padding: "2px 0", fontSize: 12, color: "#8d99ae" }}
-            >
-              IP: {ip}:{settings.port}
+            <div style={{
+              padding: "6px 10px",
+              borderRadius: 6,
+              backgroundColor: C.surface,
+              fontFamily: "monospace",
+              fontSize: 12,
+              color: C.accent,
+              textAlign: "center" as const,
+              border: `1px solid ${C.border}`,
+            }}>
+              {ip}:{settings.port}
             </div>
           </PanelSectionRow>
         )}
-
-        <PanelSectionRow>
-          <div
-            style={{
-              padding: "2px 0",
-              fontSize: 12,
-              color: connectedClients > 0 ? "#48bfe3" : "#8d99ae",
-            }}
-          >
-            Connected phones: {connectedClients}
-          </div>
-        </PanelSectionRow>
 
         <PanelSectionRow>
           <ButtonItem
@@ -348,92 +503,116 @@ const TadpolePanel: VFC = () => {
             disabled={loading || nodeMissing}
             onClick={bridgeRunning ? stopBridge : startBridge}
           >
-            {loading
-              ? "..."
-              : bridgeRunning
-                ? "Stop Bridge"
-                : "Start Bridge"}
+            <span style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}>
+              {loading ? "⟳" : bridgeRunning ? "■" : "▶"}
+              {loading ? "Working..." : bridgeRunning ? "Stop Bridge" : "Start Bridge"}
+            </span>
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
 
-      {/* BG3 Status */}
-      <PanelSection title="Game Status">
+      {/* ── Game Status ── */}
+      <PanelSection title="">
+        <SectionHeader title="Game" icon="🎮" />
+
         <PanelSectionRow>
-          <div style={{ padding: "4px 0", fontSize: 14 }}>
-            <StatusDot running={bg3Running} />
-            <span style={{ color: bg3Running ? "#72ddf7" : "#8d99ae" }}>
-              {bg3Running ? "BG3 Running" : "Launch BG3 to begin"}
-            </span>
-          </div>
+          <StatusBadge
+            label={bg3Running ? "BG3 Running" : "BG3 Not Detected"}
+            active={bg3Running}
+            activeColor={C.accent}
+            inactiveColor={C.textDim}
+          />
         </PanelSectionRow>
+
+        {!bg3Running && (
+          <PanelSectionRow>
+            <div style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              backgroundColor: C.surface,
+              fontSize: 11,
+              color: C.textDim,
+              textAlign: "center" as const,
+              border: `1px solid ${C.border}`,
+            }}>
+              Launch Baldur's Gate 3 to begin
+            </div>
+          </PanelSectionRow>
+        )}
       </PanelSection>
 
-      {/* Live Game State */}
-      {gameState && (
-        <PanelSection title="Live Game">
-          {/* Area */}
-          {gameState.area && (
-            <PanelSectionRow>
-              <div style={{ padding: "4px 0", fontSize: 13 }}>
-                <span style={{ color: "#48bfe3" }}>Area:</span>{" "}
-                <span style={{ color: "#eee" }}>{gameState.area}</span>
-              </div>
-            </PanelSectionRow>
-          )}
+      {/* ── Live Game ── */}
+      {gameState && bg3Running && (
+        <PanelSection title="">
+          <SectionHeader title="Live" icon="📊" />
 
-          {/* Combat / Dialog indicator */}
+          {/* Area + status row */}
           <PanelSectionRow>
-            <div style={{ padding: "4px 0", fontSize: 13 }}>
-              {gameState.inCombat && (
-                <span
-                  style={{
-                    color: "#e76f51",
-                    fontWeight: "bold",
-                    marginRight: 12,
-                  }}
-                >
-                  In Combat
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "6px 0",
+            }}>
+              {gameState.area && (
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                  {gameState.area}
                 </span>
               )}
-              {gameState.inDialog && (
-                <span style={{ color: "#f4a261", fontWeight: "bold" }}>
-                  In Dialog
-                </span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {gameState.inCombat && <Pill label="Combat" color={C.red} />}
+                {gameState.inDialog && <Pill label="Dialog" color={C.orange} />}
+                {!gameState.inCombat && !gameState.inDialog && (
+                  <Pill label="Explore" color={C.green} />
+                )}
+              </div>
+            </div>
+          </PanelSectionRow>
+
+          <Divider />
+
+          {/* Stats row */}
+          <PanelSectionRow>
+            <div style={{ display: "flex", gap: 12 }}>
+              {typeof gameState.gold === "number" && (
+                <StatRow label="Gold" value={`🪙 ${gameState.gold}`} color={C.gold} />
               )}
-              {!gameState.inCombat && !gameState.inDialog && (
-                <span style={{ color: "#8d99ae" }}>Exploring</span>
+              {totalPartyHp.max > 0 && (
+                <StatRow
+                  label="Party HP"
+                  value={`${totalPartyHp.current}/${totalPartyHp.max}`}
+                  color={totalPartyHp.current / totalPartyHp.max > 0.5 ? C.green : C.red}
+                />
+              )}
+              {gameState.party && (
+                <StatRow label="Party" value={`${gameState.party.length + 1} members`} color={C.accent} />
               )}
             </div>
           </PanelSectionRow>
 
-          {/* Gold */}
-          {typeof gameState.gold === "number" && (
-            <PanelSectionRow>
-              <div style={{ padding: "4px 0", fontSize: 13 }}>
-                <span style={{ color: "#f4a261" }}>Gold:</span>{" "}
-                <span style={{ color: "#eee" }}>{gameState.gold}</span>
-              </div>
-            </PanelSectionRow>
-          )}
+          <Divider />
 
           {/* Host HP */}
           {gameState.host && gameState.host.maxHp > 0 && (
             <PanelSectionRow>
-              <div style={{ padding: "8px 0" }}>
-                <HPBar
-                  name={gameState.host.name || "Host"}
-                  hp={gameState.host.hp}
-                  maxHp={gameState.host.maxHp}
-                />
-              </div>
+              <HPBar
+                name={gameState.host.name || "Host"}
+                hp={gameState.host.hp}
+                maxHp={gameState.host.maxHp}
+                isHost
+              />
             </PanelSectionRow>
           )}
 
           {/* Party HP */}
           {gameState.party && gameState.party.length > 0 && (
             <PanelSectionRow>
-              <div style={{ padding: "4px 0" }}>
+              <div style={{ padding: "2px 0" }}>
                 {gameState.party.map((member, i) =>
                   member.maxHp > 0 ? (
                     <HPBar
@@ -448,56 +627,96 @@ const TadpolePanel: VFC = () => {
             </PanelSectionRow>
           )}
 
-          {/* Recent events */}
+          {/* Recent Events */}
           {recentEvents.length > 0 && (
-            <PanelSectionRow>
-              <div style={{ padding: "8px 0" }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#48bfe3",
+            <>
+              <Divider />
+              <PanelSectionRow>
+                <div style={{ padding: "4px 0" }}>
+                  <div style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: C.textDim,
+                    textTransform: "uppercase" as const,
+                    letterSpacing: 0.8,
                     marginBottom: 4,
-                  }}
-                >
-                  Recent Events
-                </div>
-                {recentEvents.slice(-5).reverse().map((evt, i) => (
-                  <div
-                    key={i}
-                    style={{ fontSize: 11, color: "#8d99ae", marginBottom: 2 }}
-                  >
-                    <span style={{ color: "#72ddf7" }}>{evt.type}</span>
-                    {evt.detail ? ` - ${evt.detail}` : ""}
+                  }}>
+                    Recent
                   </div>
-                ))}
-              </div>
-            </PanelSectionRow>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {recentEvents.slice(-5).reverse().map((evt, i) => (
+                      <div key={i} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 11,
+                      }}>
+                        <span style={{ fontSize: 12 }}>
+                          {EVENT_ICONS[evt.type] || "•"}
+                        </span>
+                        <span style={{ color: C.textDim, flex: 1 }}>
+                          {evt.type.replace(/_/g, " ")}
+                          {evt.detail ? ` — ${evt.detail}` : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </PanelSectionRow>
+            </>
           )}
         </PanelSection>
       )}
 
-      {/* Phone App Info */}
-      <PanelSection title="Phone App">
+      {/* ── Phone App ── */}
+      <PanelSection title="">
+        <SectionHeader title="Phone App" icon="📱" />
+
         <PanelSectionRow>
-          <div style={{ padding: "4px 0", fontSize: 12, color: "#8d99ae" }}>
-            Open on your phone:
-            <br />
-            <span style={{ color: "#48bfe3", fontSize: 13 }}>
+          <div style={{
+            padding: "10px 12px",
+            borderRadius: 8,
+            backgroundColor: C.surface,
+            border: `1px solid ${C.border}`,
+          }}>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 6 }}>
+              Open on your phone:
+            </div>
+            <div style={{
+              fontSize: 13,
+              color: C.accent,
+              fontWeight: 600,
+              fontFamily: "monospace",
+              marginBottom: 8,
+              wordBreak: "break-all",
+            }}>
               https://tadpole-omega.vercel.app
-            </span>
-            <br />
-            <br />
-            Enter this IP:
-            <br />
-            <span style={{ color: "#eee", fontSize: 14 }}>
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>
+              Enter this IP:
+            </div>
+            <div style={{
+              fontSize: 14,
+              color: C.text,
+              fontWeight: 700,
+              fontFamily: "monospace",
+              padding: "6px 10px",
+              backgroundColor: C.surfaceLight,
+              borderRadius: 6,
+              textAlign: "center" as const,
+              border: `1px solid ${C.border}`,
+              letterSpacing: 0.5,
+            }}>
               {ip}:{settings.port}
-            </span>
+            </div>
           </div>
         </PanelSectionRow>
       </PanelSection>
 
-      {/* Settings */}
-      <PanelSection title="Settings">
+      {/* ── Settings ── */}
+      <PanelSection title="">
+        <SectionHeader title="Settings" icon="⚙️" />
+
         <PanelSectionRow>
           <ToggleField
             label="Auto-start with BG3"
@@ -542,13 +761,26 @@ const TadpolePanel: VFC = () => {
             {showSettings ? "Hide Advanced" : "Show Advanced"}
           </ButtonItem>
         </PanelSectionRow>
+
+        {/* Version footer */}
+        <PanelSectionRow>
+          <div style={{
+            textAlign: "center" as const,
+            fontSize: 10,
+            color: C.textDim,
+            opacity: 0.5,
+            padding: "8px 0 4px",
+          }}>
+            Tadpole v0.2.0
+          </div>
+        </PanelSectionRow>
       </PanelSection>
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Plugin definition — uses the official @decky/api definePlugin
+// Plugin definition
 // ---------------------------------------------------------------------------
 
 export default definePlugin(() => {
@@ -559,9 +791,6 @@ export default definePlugin(() => {
     ),
     content: <TadpolePanel />,
     icon: <FaFrog />,
-    onDismount: () => {
-      // Optionally stop bridge on plugin unmount
-      // callStopBridge().catch(() => {});
-    },
+    onDismount: () => {},
   };
 });
