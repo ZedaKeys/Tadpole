@@ -36,7 +36,7 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.2.0"
+PLUGIN_VERSION = "0.3.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -190,6 +190,86 @@ def _is_node_installed():
         return False
 
 
+def _get_node_version():
+    """Get Node.js version string, or None if not installed."""
+    try:
+        result = subprocess.run(
+            ["node", "--version"], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _is_lua_mod_installed():
+    """Check if the TadpoleCompanion.lua BG3 ScriptExtender mod exists."""
+    try:
+        # BG3 ScriptExtender mods live in:
+        # ~/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/ (for .pak)
+        # or the SE LuaScripts folder
+        home = os.path.expanduser("~")
+        candidates = [
+            # Steam Deck typical BG3 SE path
+            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "Mods"),
+            os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Data", "Mods"),
+            # ScriptExtender Lua scripts
+            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
+            os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
+            # Alternative BG3 folder name
+            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
+        ]
+        for candidate in candidates:
+            tadpole_lua = os.path.join(candidate, "TadpoleCompanion.lua")
+            if os.path.exists(tadpole_lua):
+                return True
+        # Also check if BG3 SE is even installed
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                # Folder exists but no TadpoleCompanion.lua
+                return False
+        return False  # Can't find BG3 install
+    except Exception:
+        return False
+
+
+def _find_bridge_server():
+    """Search common locations for the bridge server.js."""
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "tadpole", "bridge", "server.js"),
+        os.path.join(getattr(decky, 'DECKY_PLUGIN_DIR', ''), "bridge", "server.js"),
+        os.path.join(getattr(decky, 'DECKY_USER_HOME', home), "tadpole", "bridge", "server.js"),
+        os.path.join(getattr(decky, 'DECKY_USER_HOME', home), "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
+        os.path.join(getattr(decky, 'DECKY_USER_HOME', home), ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return os.path.realpath(c)
+    return None
+
+
+def _get_bridge_health(port):
+    """Detailed health check of the bridge server."""
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("GET", "/health")
+        resp = conn.getresponse()
+        if resp.status == 200:
+            data = json.loads(resp.read().decode())
+            conn.close()
+            return {"healthy": True, **data}
+        conn.close()
+    except Exception:
+        pass
+    # Fallback: try /status
+    data = _fetch_bridge_status(port)
+    if data:
+        return {"healthy": True, "clients": data.get("connectedClients", 0)}
+    return {"healthy": False}
+
+
 def _read_state_file():
     """Read the game state file written by the Lua mod."""
     try:
@@ -272,6 +352,36 @@ class Plugin:
     # -------------------------------------------------------------------
     # API methods — called from the TSX frontend via callable()
     # -------------------------------------------------------------------
+
+    async def get_diagnostics(self) -> dict:
+        """Run all diagnostic checks and return results."""
+        try:
+            node_installed = _is_node_installed()
+            node_version = _get_node_version() if node_installed else None
+            bridge_found = _find_bridge_server()
+            lua_installed = _is_lua_mod_installed()
+            bg3_running = _is_bg3_running()
+
+            return {
+                "node_installed": node_installed,
+                "node_version": node_version,
+                "bridge_found": bridge_found is not None,
+                "bridge_path": bridge_found,
+                "lua_installed": lua_installed,
+                "bg3_running": bg3_running,
+                "ip": _get_ip(),
+                "ready": node_installed and bridge_found is not None,
+            }
+        except Exception as e:
+            _report_plugin_error(f"get_diagnostics: {e}", stack=traceback.format_exc())
+            return {"error": str(e), "ready": False}
+
+    async def check_health(self) -> dict:
+        """Quick health check of the bridge server."""
+        try:
+            return _get_bridge_health(_bridge_port)
+        except Exception as e:
+            return {"healthy": False, "error": str(e)}
 
     async def get_status(self) -> dict:
         """Return the current bridge + game status."""
