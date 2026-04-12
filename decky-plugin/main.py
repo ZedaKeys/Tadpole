@@ -20,6 +20,7 @@ import shutil
 import zipfile
 import io
 import re
+import ssl
 
 import decky
 
@@ -40,7 +41,7 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "http://192.168.1.78:8095/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.5.0"
+PLUGIN_VERSION = "0.5.1"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -56,6 +57,24 @@ def _log(msg):
             f.write(line)
     except Exception:
         pass
+
+
+def _get_ssl_context():
+    """Return an SSL context that works on Steam Deck.
+
+    SteamOS ships with an incomplete CA bundle, causing
+    CERTIFICATE_VERIFY_FAILED on many HTTPS sites. Fall back to
+    unverified context when the default fails.
+    """
+    try:
+        ctx = ssl.create_default_context()
+        # Quick test: try loading default certs
+        ctx.get_ca_certs()
+        return ctx
+    except Exception:
+        pass
+    _log("SSL: using unverified context (Steam Deck CA issue)")
+    return ssl._create_unverified_context()
 
 
 def _error_log_path():
@@ -116,7 +135,8 @@ def _report_plugin_error(message, stack=None, extra=None):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            urllib.request.urlopen(req, timeout=3)
+            ctx = _get_ssl_context()
+            urllib.request.urlopen(req, timeout=3, context=ctx)
         except Exception:
             pass  # Silently fail if PocketBase is unreachable
     except Exception:
@@ -349,8 +369,9 @@ def _download_file(url, dest_path):
     """Download a file from URL to a local path."""
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        ctx = _get_ssl_context()
+        with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
             with open(dest_path, "wb") as f:
                 f.write(resp.read())
         return True
@@ -379,8 +400,9 @@ def _install_node():
         decky.logger.info(f"Downloading Node.js {node_version} from {url}")
 
         # Download
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        ctx = _get_ssl_context()
+        with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
             with open(tmp_tarball, "wb") as f:
                 # Read in chunks for large file
                 while True:
@@ -499,8 +521,9 @@ def _check_for_update():
         # Try GitHub API first
         url = f"{GITHUB_API}/releases/latest"
         _log(f"Checking for updates: {url}")
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.2"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        ctx = _get_ssl_context()
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
             data = json.loads(resp.read().decode())
 
         tag = data.get("tag_name", "")
@@ -557,8 +580,9 @@ def _perform_update(download_url):
             return {"success": False, "message": "Cannot determine plugin directory"}
 
         # Download the zip
-        req = urllib.request.Request(download_url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        req = urllib.request.Request(download_url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        ctx = _get_ssl_context()
+        with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             zip_bytes = resp.read()
 
         # Extract
