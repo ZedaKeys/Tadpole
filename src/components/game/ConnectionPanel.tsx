@@ -1,11 +1,19 @@
 'use client';
 
 import { useGameConnection } from '@/hooks/useGameConnection';
-import { Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { Wifi, WifiOff, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function ConnectionPanel() {
-  const { isConnected, connect, disconnect, getLastHost } = useGameConnection();
+  const {
+    isConnected,
+    connectionStatus,
+    connectionDetail,
+    isHttpsContext: isHttps,
+    connect,
+    disconnect,
+    getLastHost,
+  } = useGameConnection();
   const [host, setHost] = useState('');
   const [connecting, setConnecting] = useState(false);
 
@@ -25,6 +33,8 @@ export default function ConnectionPanel() {
     setConnecting(false);
   };
 
+  const isMixedContent = connectionStatus === 'mixed-content-blocked';
+
   return (
     <div
       className="rounded-xl p-4"
@@ -33,6 +43,38 @@ export default function ConnectionPanel() {
       <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--accent)' }}>
         Connect to Game
       </h3>
+
+      {/* HTTPS Mixed Content Warning */}
+      {isHttps && !isConnected && (
+        <div
+          className="rounded-lg p-3 mb-3 text-xs"
+          style={{
+            background: 'rgba(244, 162, 97, 0.1)',
+            border: '1px solid rgba(244, 162, 97, 0.3)',
+            color: '#f4a261',
+          }}
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <strong>HTTPS Security Warning</strong>
+              <p className="mt-1" style={{ color: '#ccc' }}>
+                This page is loaded over HTTPS, but the bridge server on your Steam Deck uses
+                an unencrypted (ws://) connection. Browsers block this as &quot;mixed content.&quot;
+              </p>
+              <p className="mt-1" style={{ color: '#ccc' }}>
+                To connect, open this app directly from your Steam Deck instead:
+              </p>
+              <div className="mt-1 font-mono" style={{ color: '#52b788' }}>
+                http://{host || '192.168.1.136'}:3456/phone
+              </div>
+              <p className="mt-1" style={{ color: '#999' }}>
+                Or, if the bridge server serves this app, bookmark the HTTP URL above.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isConnected ? (
         <>
@@ -75,6 +117,43 @@ export default function ConnectionPanel() {
           {connecting && (
             <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
               Connecting...
+            </p>
+          )}
+          {/* Mixed content error after attempting connection */}
+          {isMixedContent && (
+            <div
+              className="rounded-lg p-3 mt-3 text-xs"
+              style={{
+                background: 'rgba(231, 111, 81, 0.1)',
+                border: '1px solid rgba(231, 111, 81, 0.3)',
+                color: '#e76f51',
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong>Connection blocked by browser</strong>
+                  <p className="mt-1" style={{ color: '#ccc' }}>
+                    {connectionDetail || 'Mixed content: HTTPS page cannot open ws:// connections.'}
+                  </p>
+                  <a
+                    href={`http://${host || '192.168.1.136'}:3456/phone`}
+                    className="inline-flex items-center gap-1 mt-1 underline"
+                    style={{ color: '#48bfe3' }}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink size={12} />
+                    Open via HTTP instead
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Generic connection error */}
+          {connectionStatus === 'error' && !isMixedContent && (
+            <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>
+              {connectionDetail || 'Connection failed. Make sure the bridge server is running.'}
             </p>
           )}
         </>

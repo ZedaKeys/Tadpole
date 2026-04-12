@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getGameConnection, resetGameConnection } from '@/lib/game-connection';
+import { getGameConnection, resetGameConnection, isHttpsContext, ConnectionStatus } from '@/lib/game-connection';
 import { GameState } from '@/types';
 import { safeGet, safeSet } from '@/lib/storage';
 
@@ -10,15 +10,22 @@ const LAST_HOST_KEY = 'tadpole_last_host';
 export function useGameConnection() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
+  const [connectionDetail, setConnectionDetail] = useState('');
+  const [httpsContext] = useState(() => isHttpsContext());
   const connRef = useRef<ReturnType<typeof getGameConnection> | null>(null);
 
   useEffect(() => {
     const conn = getGameConnection();
     connRef.current = conn;
 
-    // ISSUE 3: Store unsubscribe function so callback can be removed on cleanup
-    const unsubscribe = conn.onStateUpdate((state) => {
+    const unsubscribeState = conn.onStateUpdate((state) => {
       setGameState(state);
+    });
+
+    const unsubscribeStatus = conn.onStatusChange((status, detail) => {
+      setConnectionStatus(status);
+      setConnectionDetail(detail || '');
     });
 
     // Poll connection status
@@ -28,9 +35,10 @@ export function useGameConnection() {
 
     return () => {
       clearInterval(interval);
-      unsubscribe();
+      unsubscribeState();
+      unsubscribeStatus();
       conn.disconnect();
-      // ISSUE 9: Null out singleton when all consumers are done
+      // Null out singleton when all consumers are done
       resetGameConnection();
     };
   }, []);
@@ -54,5 +62,15 @@ export function useGameConnection() {
     return safeGet(LAST_HOST_KEY) as string || '';
   }, []);
 
-  return { gameState, isConnected, connect, disconnect, sendCommand, getLastHost };
+  return {
+    gameState,
+    isConnected,
+    connectionStatus,
+    connectionDetail,
+    isHttpsContext: httpsContext,
+    connect,
+    disconnect,
+    sendCommand,
+    getLastHost,
+  };
 }
