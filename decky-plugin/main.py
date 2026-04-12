@@ -283,6 +283,230 @@ def _find_bridge_server():
     return None
 
 
+def _find_bg3_install_dir():
+    """Find the BG3 installation directory (where bin/ lives)."""
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3"),
+        os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3"),
+        os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3"),
+        os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldur's Gate 3"),
+    ]
+    for c in candidates:
+        if os.path.isdir(c) and os.path.isdir(os.path.join(c, "bin")):
+            return c
+    # Try Steam libraryfolders.vdf
+    try:
+        for vdf_path in [
+            os.path.join(home, ".steam", "steam", "steamapps", "libraryfolders.vdf"),
+            os.path.join(home, ".local", "share", "Steam", "steamapps", "libraryfolders.vdf"),
+        ]:
+            if os.path.exists(vdf_path):
+                with open(vdf_path) as f:
+                    content = f.read()
+                for match in re.finditer(r'"path"\s+"([^"]+)"', content):
+                    lib_path = match.group(1)
+                    for name in ["Baldurs Gate 3", "Baldur's Gate 3"]:
+                        bg3_dir = os.path.join(lib_path, "steamapps", "common", name)
+                        if os.path.isdir(bg3_dir) and os.path.isdir(os.path.join(bg3_dir, "bin")):
+                            return bg3_dir
+    except Exception:
+        pass
+    return None
+
+
+def _is_bg3se_installed():
+    """Check if BG3 Script Extender is installed (DWrite.dll in BG3 bin dir)."""
+    bg3_dir = _find_bg3_install_dir()
+    if not bg3_dir:
+        return False
+    dwrite = os.path.join(bg3_dir, "bin", "DWrite.dll")
+    return os.path.exists(dwrite)
+
+
+def _get_steam_launch_options(appid):
+    """Read the current Steam launch options for a given appid.
+
+    Returns the LaunchOptions string, or None if not set or unreadable.
+    """
+    home = os.path.expanduser("~")
+    userdata_dir = os.path.join(home, ".local", "share", "Steam", "userdata")
+    if not os.path.isdir(userdata_dir):
+        userdata_dir = os.path.join(home, ".steam", "steam", "userdata")
+    if not os.path.isdir(userdata_dir):
+        return None
+
+    for user_dir in os.listdir(userdata_dir):
+        config_path = os.path.join(userdata_dir, user_dir, "config", "localconfig.vdf")
+        if not os.path.exists(config_path):
+            continue
+        try:
+            with open(config_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            # Find the appid block - look for LaunchOptions within the app section
+            # VDF format: "appid" { "LaunchOptions" "value" ... }
+            # Use regex to find LaunchOptions for our appid
+            app_pattern = re.compile(
+                rf'"{appid}"\s*\{{[^}}]*"LaunchOptions"\s+"([^"]*)"',
+                re.DOTALL,
+            )
+            match = app_pattern.search(content)
+            if match:
+                return match.group(1)
+        except Exception:
+            pass
+    return None
+
+
+def _set_steam_launch_options(appid, launch_options):
+    """Set Steam launch options for a given appid.
+
+    This modifies the localconfig.vdf file. Steam needs to be restarted
+    (or at least the game) for changes to take effect.
+    Returns True if successful.
+    """
+    home = os.path.expanduser("~")
+    userdata_dir = os.path.join(home, ".local", "share", "Steam", "userdata")
+    if not os.path.isdir(userdata_dir):
+        userdata_dir = os.path.join(home, ".steam", "steam", "userdata")
+    if not os.path.isdir(userdata_dir):
+        return False
+
+    for user_dir in os.listdir(userdata_dir):
+        config_path = os.path.join(userdata_dir, user_dir, "config", "localconfig.vdf")
+        if not os.path.exists(config_path):
+            continue
+        try:
+            with open(config_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+
+            # Check if the appid section exists
+            app_section_pattern = re.compile(
+                rf'("{appid}"\s*\{{[^}}]*?)("LaunchOptions"\s+"[^"]*")?',
+                re.DOTALL,
+            )
+            match = app_section_pattern.search(content)
+            if match:
+                if match.group(2):
+                    # Replace existing LaunchOptions
+                    content = content[:match.start(2)] + f'"LaunchOptions"\t\t"{launch_options}"' + content[match.end(2):]
+                else:
+                    # Add LaunchOptions at end of app section (before closing })
+                    # Find the closing brace of this app section
+                    insert_point = match.end()
+                    # Find the next } after our match
+                    brace_pos = content.find("}", insert_point)
+                    if brace_pos > 0:
+                        content = content[:brace_pos] + f'\t\t\t\t\t"LaunchOptions"\t\t"{launch_options}"\n' + content[brace_pos:]
+            else:
+                # App section doesn't exist - this is unusual, skip
+                continue
+
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            return True
+        except Exception as e:
+            _log(f"Failed to set launch options: {e}")
+            continue
+    return False
+
+
+def _install_bg3se():
+    """Download and install BG3 Script Extender for Linux/Proton (Steam Deck).
+
+    Steps:
+    1. Download the BG3SE updater zip from GitHub
+    2. Extract DWrite.dll to BG3's bin/ directory
+    3. Set Steam launch option: WINEDLLOVERRIDES="DWrite.dll=n,b" %command%
+    4. On first BG3 launch, SE auto-downloads the actual extender files
+    """
+    try:
+        # Step 0: Find BG3 install
+        bg3_dir = _find_bg3_install_dir()
+        if not bg3_dir:
+            return {
+                "success": False,
+                "message": "BG3 installation not found. Make sure Baldur's Gate 3 is installed.",
+            }
+
+        bg3_bin = os.path.join(bg3_dir, "bin")
+        dwrite_path = os.path.join(bg3_bin, "DWrite.dll")
+
+        # Already installed?
+        if os.path.exists(dwrite_path):
+            # Still check/set launch options
+            current_opts = _get_steam_launch_options(BG3SE_STEAM_APPID)
+            needed = 'WINEDLLOVERRIDES="DWrite.dll=n,b" %command%'
+            if current_opts and "DWrite.dll" in current_opts:
+                return {"success": True, "message": "BG3 Script Extender already installed and configured."}
+
+            # Set launch options
+            if _set_steam_launch_options(BG3SE_STEAM_APPID, needed):
+                return {
+                    "success": True,
+                    "message": "DWrite.dll found. Set Steam launch option for Proton. Restart Steam/BG3 to apply.",
+                }
+            return {
+                "success": True,
+                "message": "DWrite.dll found. You need to set this Steam launch option manually:\nWINEDLLOVERRIDES=\"DWrite.dll=n,b\" %command%",
+            }
+
+        # Step 1: Download BG3SE updater zip
+        _log(f"Downloading BG3 Script Extender from {BG3SE_DOWNLOAD_URL}")
+        req = urllib.request.Request(BG3SE_DOWNLOAD_URL, headers={"User-Agent": "Tadpole-Decky/0.6.0"})
+        ctx = _get_ssl_context()
+        with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
+            zip_bytes = resp.read()
+
+        _log(f"Downloaded {len(zip_bytes)} bytes, extracting DWrite.dll...")
+
+        # Step 2: Extract DWrite.dll from zip
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            dwrite_found = False
+            for info in zf.infolist():
+                if os.path.basename(info.filename).lower() == "dwrite.dll" and not info.is_dir():
+                    with zf.open(info) as src, open(dwrite_path, "wb") as dst:
+                        dst.write(src.read())
+                    dwrite_found = True
+                    _log(f"Extracted {info.filename} -> {dwrite_path}")
+                    break
+
+            if not dwrite_found:
+                return {
+                    "success": False,
+                    "message": "DWrite.dll not found in the downloaded zip. The BG3SE release format may have changed.",
+                }
+
+        # Step 3: Set Steam launch options for Proton
+        needed = 'WINEDLLOVERRIDES="DWrite.dll=n,b" %command%'
+        current_opts = _get_steam_launch_options(BG3SE_STEAM_APPID)
+
+        if current_opts and "DWrite.dll" not in current_opts:
+            # Append to existing options
+            new_opts = f'{needed} {current_opts}'
+            launch_set = _set_steam_launch_options(BG3SE_STEAM_APPID, new_opts)
+        elif not current_opts:
+            launch_set = _set_steam_launch_options(BG3SE_STEAM_APPID, needed)
+        else:
+            launch_set = True  # Already has it
+
+        if launch_set:
+            return {
+                "success": True,
+                "message": "BG3 Script Extender installed! Steam launch option set. Restart BG3 to apply -- SE will auto-update on first launch.",
+            }
+        else:
+            return {
+                "success": True,
+                "message": "BG3 Script Extender installed! Set this Steam launch option manually:\nWINEDLLOVERRIDES=\"DWrite.dll=n,b\" %command%\nThen restart BG3.",
+                "manual_launch_option": needed,
+            }
+
+    except Exception as e:
+        _log(f"BG3SE install failed: {e}")
+        return {"success": False, "message": f"Install failed: {str(e)}"}
+
+
 def _get_bridge_health(port):
     """Detailed health check of the bridge server."""
     try:
@@ -321,6 +545,12 @@ BRIDGE_FILES = [
 
 # The Lua mod file
 LUA_MOD_FILE = "mod/TadpoleCompanion.lua"
+
+# BG3 Script Extender (Norbyte's bg3se)
+BG3SE_REPO = "Norbyte/bg3se"
+BG3SE_API = f"https://api.github.com/repos/{BG3SE_REPO}"
+BG3SE_DOWNLOAD_URL = "https://github.com/Norbyte/bg3se/releases/download/updater-20240430/BG3SE-Updater-20240430.zip"
+BG3SE_STEAM_APPID = "1086940"
 
 
 def _get_bg3_mod_dir():
@@ -738,6 +968,8 @@ class Plugin:
             lua_installed = _is_lua_mod_installed()
             bg3_running = _is_bg3_running()
             bg3_mod_dir = _get_bg3_mod_dir()
+            bg3se_installed = _is_bg3se_installed()
+            bg3_install_dir = _find_bg3_install_dir()
             node_bin = _get_node_binary()
             home = os.path.expanduser("~")
 
@@ -751,6 +983,8 @@ class Plugin:
                 "bridge_server_js": {"path": os.path.join(bridge_dir, "server.js"), "exists": os.path.exists(os.path.join(bridge_dir, "server.js"))},
                 "bridge_node_modules": {"path": os.path.join(bridge_dir, "node_modules"), "exists": os.path.isdir(os.path.join(bridge_dir, "node_modules"))},
                 "bg3_lua_scripts_dir": {"path": bg3_mod_dir or "NOT FOUND", "exists": bg3_mod_dir is not None},
+                "bg3_install_dir": {"path": bg3_install_dir or "NOT FOUND", "exists": bg3_install_dir is not None},
+                "bg3se_dwrite": {"path": os.path.join(bg3_install_dir, "bin", "DWrite.dll") if bg3_install_dir else "N/A", "exists": bg3se_installed},
                 "plugin_dir": {"path": getattr(decky, 'DECKY_PLUGIN_DIR', 'unknown'), "exists": os.path.isdir(getattr(decky, 'DECKY_PLUGIN_DIR', ''))},
                 "state_file": {"path": STATE_FILE, "exists": os.path.exists(STATE_FILE)},
             }
@@ -767,10 +1001,12 @@ class Plugin:
                 "bridge_found": bridge_found is not None,
                 "bridge_path": bridge_found,
                 "lua_installed": lua_installed,
+                "bg3se_installed": bg3se_installed,
+                "bg3_install_dir": bg3_install_dir,
                 "bg3_running": bg3_running,
                 "bg3_mod_dir": bg3_mod_dir,
                 "ip": _get_ip(),
-                "ready": node_installed and bridge_found is not None,
+                "ready": node_installed and bridge_found is not None and bg3se_installed,
                 "paths_checked": paths_checked,
                 "plugin_version": PLUGIN_VERSION,
                 "home": home,
@@ -818,10 +1054,30 @@ class Plugin:
         _log(f"install_lua_mod result: {result}")
         return result
 
+    async def install_bg3se(self) -> dict:
+        """Download and install BG3 Script Extender (DWrite.dll + Steam launch options)."""
+        _log("install_bg3se called")
+        result = _install_bg3se()
+        _log(f"install_bg3se result: {result}")
+        return result
+
     async def install_everything(self) -> dict:
-        """One-click: install Node.js, bridge server, and Lua mod."""
+        """One-click: install BG3SE, Node.js, bridge server, and Lua mod."""
         _log("=== install_everything called ===")
         results = {}
+
+        # 0. BG3 Script Extender (required for Lua mod to work)
+        if not _is_bg3se_installed():
+            _log("Step 0: Installing BG3 Script Extender...")
+            results["bg3se"] = _install_bg3se()
+            _log(f"BG3SE result: {results['bg3se']}")
+            if not results["bg3se"]["success"]:
+                _log(f"FAILED at bg3se: {results['bg3se']['message']}")
+                return {"success": False, "step": "bg3se", "results": results}
+        else:
+            results["bg3se"] = {"success": True, "message": "Already installed"}
+            _log("BG3 Script Extender already installed")
+
         # 1. Node.js
         if not _is_node_installed():
             _log("Step 1: Installing Node.js...")
@@ -883,6 +1139,22 @@ class Plugin:
         bg3_mod_dir = _get_bg3_mod_dir()
 
         commands = []
+
+        # 0. BG3 Script Extender
+        if not _is_bg3se_installed():
+            bg3_dir = _find_bg3_install_dir()
+            if bg3_dir:
+                commands.append({
+                    "label": "Install BG3 Script Extender",
+                    "command": f"cd /tmp && curl -sL {BG3SE_DOWNLOAD_URL} -o bg3se.zip && python3 -c \"import zipfile; z=zipfile.ZipFile('bg3se.zip'); [z.extract(m, '{bg3_dir}/bin/') for m in z.namelist() if 'DWrite.dll' in m]\" && rm bg3se.zip && echo 'Done! Now set this Steam launch option for BG3: WINEDLLOVERRIDES=\\\"DWrite.dll=n,b\\\" %command%'",
+                    "category": "install",
+                })
+            else:
+                commands.append({
+                    "label": "BG3 installation not found",
+                    "command": "echo 'Could not find BG3 install directory. Make sure BG3 is installed via Steam.'",
+                    "category": "info",
+                })
 
         # 1. Node.js install command
         if not _is_node_installed():

@@ -60,7 +60,7 @@ Before installing the plugin, you need one thing:
 
 - **DeckyLoader** -- The Steam Deck plugin loader. Install it from [deckbrew.xyz](https://decky.xyz)
 
-That's it. Everything else (Node.js, bridge server, Lua mod) is installed automatically.
+That's it. Everything else (BG3 Script Extender, Node.js, bridge server, Lua mod) is installed automatically.
 
 ### Step 1: Install the Plugin
 
@@ -77,10 +77,15 @@ That's it. Everything else (Node.js, bridge server, Lua mod) is installed automa
 1. Open the Decky menu and find **Tadpole BG3 Companion**
 2. Tap **"One-Click Setup"**
 3. The plugin will install:
+   - **BG3 Script Extender** -- Downloads DWrite.dll and configures Steam launch options
    - **Node.js** -- Downloads and installs locally (no sudo needed)
    - **Bridge Server** -- Copied from bundled files (works offline)
-   - **BG3 Lua Mod** -- Copied from bundled files (needs BG3 installed)
-4. Done! The bridge starts automatically when BG3 launches
+   - **BG3 Lua Mod** -- Copied from bundled files (needs BG3 launched once after Script Extender)
+4. If the Lua mod couldn't install, the plugin will show instructions:
+   - Close BG3 completely
+   - Launch BG3 again -- Script Extender will create its folders on first run
+   - Come back to Tadpole and hit Install Everything again
+5. Done! The bridge starts automatically when BG3 launches
 
 ### Step 3: Connect Your Phone
 
@@ -116,14 +121,15 @@ curl -s http://127.0.0.1:3456/status
 
 ---
 
-## BG3 ScriptExtender (Required for Live Data)
+## BG3 ScriptExtender
 
-The Lua mod needs the BG3 ScriptExtender to work. If you haven't installed it:
+The Lua mod needs the BG3 ScriptExtender to work. Tadpole's one-click setup installs it automatically, but if you need to do it manually:
 
-1. Download from [Norbyte's GitHub](https://github.com/Norbyte/lsxy/releases)
-2. Follow the [installation guide](https://github.com/Norbyte/lsxy#installation)
-3. Launch BG3 once with ScriptExtender enabled so it creates the LuaScripts folder
-4. Then run Tadpole's setup -- the Lua mod will install automatically
+1. Download from [Norbyte's GitHub](https://github.com/Norbyte/bg3se/releases/latest)
+2. Extract `DWrite.dll` to your `Baldurs Gate 3/bin/` directory
+3. Set this Steam launch option for BG3: `WINEDLLOVERRIDES="DWrite.dll=n,b" %command%`
+4. Launch BG3 once -- Script Extender will auto-update and create its folders
+5. Then run Tadpole's setup to install the Lua mod
 
 ---
 
@@ -189,7 +195,7 @@ tadpole/
 ## Credits
 
 - [DeckyLoader](https://github.com/SteamDeckHomebrew/decky-loader) -- Steam Deck plugin framework
-- [BG3 ScriptExtender](https://github.com/Norbyte/lsxy) -- BG3 modding framework
+- [BG3 ScriptExtender](https://github.com/Norbyte/bg3se) -- BG3 modding framework
 - Built with love for the BG3 community
 
 ## License

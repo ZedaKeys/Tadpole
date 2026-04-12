@@ -33,7 +33,8 @@ const callGetStatus = callable<[], {
 const callGetDiagnostics = callable<[], {
   node_installed: boolean; node_version: string | null;
   node_binary: string; bridge_found: boolean; bridge_path: string | null;
-  lua_installed: boolean; bg3_running: boolean; ip: string;
+  lua_installed: boolean; bg3se_installed: boolean; bg3_install_dir: string | null;
+  bg3_running: boolean; ip: string;
   bg3_mod_dir: string | null; ready: boolean; paths_checked: Record<string, { path: string; exists: boolean }>;
   plugin_version: string; home: string; decky_user_home: string;
 }>("get_diagnostics");
@@ -50,6 +51,7 @@ const callInstallEverything = callable<[], { success: boolean; results?: any; st
 const callInstallNode = callable<[], { success: boolean; message: string }>("install_node");
 const callInstallBridge = callable<[], { success: boolean; message: string; path?: string }>("install_bridge");
 const callInstallLuaMod = callable<[], { success: boolean; message: string }>("install_lua_mod");
+const callInstallBg3se = callable<[], { success: boolean; message: string; manual_launch_option?: string }>("install_bg3se");
 const callCheckUpdate = callable<[], {
   update_available: boolean; current_version: string;
   latest_version: string; download_url?: string; release_notes?: string; error?: string;
@@ -182,12 +184,35 @@ const SetupWizard: VFC<{
   <div>
     <SectionHeader title="Setup Check" />
 
+    <CheckItem label={diagnostics.bg3se_installed ? "BG3 Script Extender" : "BG3 Script Extender"} ok={diagnostics.bg3se_installed}
+      detail={diagnostics.bg3se_installed ? "DWrite.dll found in BG3 bin" : diagnostics.bg3_install_dir ? "Will download and install DWrite.dll" : "BG3 install not found -- install game first"} />
     <CheckItem label={diagnostics.node_installed ? `Node.js ${diagnostics.node_version || ""}` : "Node.js"} ok={diagnostics.node_installed}
       detail={diagnostics.node_installed ? `Binary: ${diagnostics.node_binary}` : "Will download prebuilt binary (no sudo)"} />
     <CheckItem label="Bridge Server" ok={diagnostics.bridge_found}
       detail={diagnostics.bridge_found ? diagnostics.bridge_path : "Will download from GitHub"} />
     <CheckItem label="BG3 Lua Mod" ok={diagnostics.lua_installed}
-      detail={diagnostics.lua_installed ? "TadpoleCompanion.lua found" : diagnostics.bg3_mod_dir ? "Will install to BG3 LuaScripts folder" : "BG3 ScriptExtender not found"} />
+      detail={diagnostics.lua_installed ? "TadpoleCompanion.lua found" : diagnostics.bg3_mod_dir ? "Will install to BG3 LuaScripts folder" : "Needs BG3 Script Extender first"} />
+
+    {/* Info box: BG3SE installed but needs restart for Lua mod */}
+    {diagnostics.bg3se_installed && !diagnostics.lua_installed && (
+      <PanelSectionRow>
+        <div style={{
+          padding: "10px 12px", borderRadius: 8, marginTop: 4,
+          backgroundColor: `${C.orange}10`, border: `1px solid ${C.orange}30`,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.orange, marginBottom: 4 }}>
+            One more step needed:
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.5 }}>
+            1. Close BG3 completely if running
+            <br />
+            2. Launch BG3 again -- Script Extender will set up its folders on first run
+            <br />
+            3. Come back here and hit Install Everything again to add the Lua mod
+          </div>
+        </div>
+      </PanelSectionRow>
+    )}
 
     {diagnostics.ready ? (
       <PanelSectionRow>
@@ -205,7 +230,8 @@ const SetupWizard: VFC<{
             <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
               {installing ? "..." : ">"}
               {installing
-                ? installStep === "node" ? "Installing Node.js..."
+                ? installStep === "bg3se" ? "Installing BG3 Script Extender..."
+                  : installStep === "node" ? "Installing Node.js..."
                   : installStep === "bridge" ? "Downloading bridge..."
                   : "Installing Lua mod..."
                 : "Install Everything (Auto)"}
@@ -404,7 +430,7 @@ const TadpolePanel: VFC = () => {
   // One-click install
   const handleInstallEverything = useCallback(async () => {
     setInstalling(true);
-    setInstallStep("node");
+    setInstallStep("bg3se");
     try {
       const r = await callInstallEverything();
       if (r.success) {
@@ -726,6 +752,7 @@ const TadpolePanel: VFC = () => {
             <PanelSectionRow><ButtonItem layout="below" onClick={async () => { const r = await callInstallNode(); toaster.toast({ title: "Node.js", body: r.message }); }}>Install Node.js</ButtonItem></PanelSectionRow>
             <PanelSectionRow><ButtonItem layout="below" onClick={async () => { const r = await callInstallBridge(); toaster.toast({ title: "Bridge", body: r.message }); }}>Install Bridge Server</ButtonItem></PanelSectionRow>
             <PanelSectionRow><ButtonItem layout="below" onClick={async () => { const r = await callInstallLuaMod(); toaster.toast({ title: "Lua Mod", body: r.message }); }}>Install BG3 Mod</ButtonItem></PanelSectionRow>
+            <PanelSectionRow><ButtonItem layout="below" onClick={async () => { const r = await callInstallBg3se(); toaster.toast({ title: "BG3 Script Extender", body: r.message }); }}>Install BG3 Script Extender</ButtonItem></PanelSectionRow>
             <PanelSectionRow>
               <TextField label="Bridge Port" value={String(settings.port)}
                 onChange={(v: any) => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0) updateSettings({ ...settings, port: n }); }} />
