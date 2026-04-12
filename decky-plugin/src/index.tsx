@@ -754,6 +754,25 @@ const TadpolePanel: VFC = () => {
             <PanelSectionRow><ButtonItem layout="below" onClick={async () => { const r = await callInstallLuaMod(); toaster.toast({ title: "Lua Mod", body: r.message }); }}>Install BG3 Mod</ButtonItem></PanelSectionRow>
             <PanelSectionRow><ButtonItem layout="below" onClick={async () => { const r = await callInstallBg3se(); toaster.toast({ title: "BG3 Script Extender", body: r.message }); }}>Install BG3 Script Extender</ButtonItem></PanelSectionRow>
             <PanelSectionRow>
+              <div style={{
+                padding: "8px 10px", borderRadius: 8, backgroundColor: C.surface,
+                border: `1px solid ${C.border}`,
+              }}>
+                <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>Steam launch option for BG3 (tap to copy):</div>
+                <div style={{
+                  padding: "6px 8px", borderRadius: 4, backgroundColor: "#0d0d1a",
+                  fontFamily: "monospace", fontSize: 11, color: C.accent,
+                  border: `1px solid ${C.border}`, userSelect: "all",
+                  cursor: "pointer",
+                }} onClick={() => {
+                  navigator.clipboard.writeText('WINEDLLOVERRIDES="DWrite.dll=n,b" %command%');
+                  toaster.toast({ title: "Copied!", body: "Paste this in BG3 Properties > Launch Options" });
+                }}>
+                  WINEDLLOVERRIDES="DWrite.dll=n,b" %command%
+                </div>
+              </div>
+            </PanelSectionRow>
+            <PanelSectionRow>
               <TextField label="Bridge Port" value={String(settings.port)}
                 onChange={(v: any) => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0) updateSettings({ ...settings, port: n }); }} />
             </PanelSectionRow>
