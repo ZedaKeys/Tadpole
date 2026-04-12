@@ -16,6 +16,10 @@ import traceback
 import datetime
 import urllib.request
 import urllib.error
+import shutil
+import zipfile
+import io
+import re
 
 import decky
 
@@ -36,7 +40,7 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.3.0"
+PLUGIN_VERSION = "0.4.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -270,6 +274,230 @@ def _get_bridge_health(port):
     return {"healthy": False}
 
 
+# ---------------------------------------------------------------------------
+# Auto-installer & auto-updater
+# ---------------------------------------------------------------------------
+
+GITHUB_REPO = "ZedaKeys/Tadpole"
+GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}"
+GITHUB_RAW = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main"
+
+# Files from the repo that the bridge server needs
+BRIDGE_FILES = [
+    "bridge/package.json",
+    "bridge/server.js",
+    "bridge/ws-handler.js",
+    "bridge/state-parser.js",
+]
+
+# The Lua mod file
+LUA_MOD_FILE = "mod/TadpoleCompanion.lua"
+
+
+def _get_bg3_mod_dir():
+    """Find the BG3 ScriptExtender LuaScripts directory."""
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
+        os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
+        os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
+        os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    # Try to find via Steam library
+    try:
+        vdf_path = os.path.join(home, ".steam", "steam", "steamapps", "libraryfolders.vdf")
+        if not os.path.exists(vdf_path):
+            vdf_path = os.path.join(home, ".local", "share", "Steam", "steamapps", "libraryfolders.vdf")
+        if os.path.exists(vdf_path):
+            with open(vdf_path) as f:
+                content = f.read()
+            # Extract paths from VDF
+            for match in re.finditer(r'"path"\s+"([^"]+)"', content):
+                lib_path = match.group(1)
+                bg3_lua = os.path.join(lib_path, "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts")
+                if os.path.isdir(bg3_lua):
+                    return bg3_lua
+                bg3_lua = os.path.join(lib_path, "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts")
+                if os.path.isdir(bg3_lua):
+                    return bg3_lua
+    except Exception:
+        pass
+    return None
+
+
+def _download_file(url, dest_path):
+    """Download a file from URL to a local path."""
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            with open(dest_path, "wb") as f:
+                f.write(resp.read())
+        return True
+    except Exception as e:
+        decky.logger.error(f"Failed to download {url}: {e}")
+        return False
+
+
+def _install_node():
+    """Install Node.js via pacman (Steam Deck has passwordless sudo for deck user)."""
+    try:
+        result = subprocess.run(
+            ["sudo", "pacman", "-S", "--noconfirm", "--needed", "nodejs", "npm"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode == 0:
+            return {"success": True, "message": f"Node.js installed: {_get_node_version()}"}
+        return {"success": False, "message": f"pacman failed: {result.stderr[-200:]}"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def _install_bridge(progress_cb=None):
+    """Download bridge server files from GitHub."""
+    try:
+        bridge_dir = os.path.join(os.path.expanduser("~"), "tadpole", "bridge")
+        os.makedirs(bridge_dir, exist_ok=True)
+
+        downloaded = 0
+        total = len(BRIDGE_FILES)
+
+        for file_path in BRIDGE_FILES:
+            url = f"{GITHUB_RAW}/{file_path}"
+            dest = os.path.join(bridge_dir, os.path.basename(file_path))
+            if not _download_file(url, dest):
+                # File might not exist in repo, skip
+                decky.logger.warn(f"Skipping {file_path} (not found in repo)")
+            downloaded += 1
+            if progress_cb:
+                progress_cb(downloaded, total)
+
+        # Run npm install
+        if os.path.exists(os.path.join(bridge_dir, "package.json")):
+            result = subprocess.run(
+                ["npm", "install", "--production"],
+                cwd=bridge_dir, capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode != 0:
+                return {"success": False, "message": f"npm install failed: {result.stderr[-200:]}"}
+
+        return {
+            "success": True,
+            "message": f"Bridge installed to {bridge_dir}",
+            "path": bridge_dir,
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def _install_lua_mod():
+    """Download and install the BG3 ScriptExtender Lua mod."""
+    try:
+        mod_dir = _get_bg3_mod_dir()
+        if not mod_dir:
+            return {
+                "success": False,
+                "message": "BG3 ScriptExtender LuaScripts folder not found. Make sure BG3 is installed and ScriptExtender is set up.",
+            }
+
+        url = f"{GITHUB_RAW}/{LUA_MOD_FILE}"
+        dest = os.path.join(mod_dir, "TadpoleCompanion.lua")
+
+        if not _download_file(url, dest):
+            return {"success": False, "message": f"Failed to download Lua mod from {url}"}
+
+        return {"success": True, "message": f"Lua mod installed to {dest}"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def _check_for_update():
+    """Check GitHub releases for a newer plugin version."""
+    try:
+        url = f"{GITHUB_API}/releases/latest"
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        tag = data.get("tag_name", "")
+        # Extract version from tag like "decky-plugin-v0.4.0" or "v0.4.0"
+        match = re.search(r"v?(\d+\.\d+\.\d+)", tag)
+        if not match:
+            return {"update_available": False, "error": "Could not parse version from tag"}
+
+        latest = match.group(1)
+        current = PLUGIN_VERSION
+
+        # Simple semver comparison
+        def parse_ver(v):
+            return tuple(int(x) for x in v.split("."))
+        
+        update_available = parse_ver(latest) > parse_ver(current)
+
+        result = {
+            "update_available": update_available,
+            "current_version": current,
+            "latest_version": latest,
+            "tag": tag,
+        }
+
+        if update_available:
+            # Find the zip asset
+            for asset in data.get("assets", []):
+                if asset["name"].endswith(".zip"):
+                    result["download_url"] = asset["browser_download_url"]
+                    result["release_notes"] = data.get("body", "")
+                    break
+
+        return result
+    except Exception as e:
+        return {"update_available": False, "error": str(e)}
+
+
+def _perform_update(download_url):
+    """Download and install the latest plugin release."""
+    try:
+        plugin_dir = getattr(decky, 'DECKY_PLUGIN_DIR', '')
+        if not plugin_dir:
+            return {"success": False, "message": "Cannot determine plugin directory"}
+
+        # Download the zip
+        req = urllib.request.Request(download_url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            zip_bytes = resp.read()
+
+        # Extract
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            # The zip contains a TadpoleBG3/ folder
+            for info in zf.infolist():
+                # Skip directories
+                if info.filename.endswith("/"):
+                    continue
+                # Remove the TadpoleBG3/ prefix
+                rel_path = info.filename
+                for prefix in ["TadpoleBG3/", "tadpole-decky/", ""]:
+                    if rel_path.startswith(prefix) and prefix:
+                        rel_path = rel_path[len(prefix):]
+                        break
+                if not rel_path:
+                    continue
+
+                dest = os.path.join(plugin_dir, rel_path)
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with zf.open(info) as src, open(dest, "wb") as dst:
+                    dst.write(src.read())
+
+        return {
+            "success": True,
+            "message": "Update installed. Please restart DeckyLoader to apply.",
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
 def _read_state_file():
     """Read the game state file written by the Lua mod."""
     try:
@@ -382,6 +610,62 @@ class Plugin:
             return _get_bridge_health(_bridge_port)
         except Exception as e:
             return {"healthy": False, "error": str(e)}
+
+    async def install_node(self) -> dict:
+        """Install Node.js via pacman."""
+        return _install_node()
+
+    async def install_bridge(self) -> dict:
+        """Download and set up the bridge server from GitHub."""
+        result = _install_bridge()
+        # Update settings with the new bridge dir
+        if result.get("success") and result.get("path"):
+            sp = _settings_path()
+            settings = {}
+            if os.path.exists(sp):
+                with open(sp) as f:
+                    settings = json.loads(f.read())
+            settings["bridgeDir"] = result["path"]
+            with open(sp, "w") as f:
+                f.write(json.dumps(settings, indent=2))
+        return result
+
+    async def install_lua_mod(self) -> dict:
+        """Download and install the BG3 Lua mod."""
+        return _install_lua_mod()
+
+    async def install_everything(self) -> dict:
+        """One-click: install Node.js, bridge server, and Lua mod."""
+        results = {}
+        # 1. Node.js
+        if not _is_node_installed():
+            results["node"] = _install_node()
+            if not results["node"]["success"]:
+                return {"success": False, "step": "node", "results": results}
+        else:
+            results["node"] = {"success": True, "message": "Already installed"}
+
+        # 2. Bridge server
+        if not _find_bridge_server():
+            results["bridge"] = _install_bridge()
+            if not results["bridge"]["success"]:
+                return {"success": False, "step": "bridge", "results": results}
+        else:
+            results["bridge"] = {"success": True, "message": "Already installed"}
+
+        # 3. Lua mod
+        results["lua"] = _install_lua_mod()
+
+        all_ok = all(r.get("success") for r in results.values())
+        return {"success": all_ok, "results": results}
+
+    async def check_update(self) -> dict:
+        """Check GitHub for a newer plugin version."""
+        return _check_for_update()
+
+    async def perform_update(self, download_url: str) -> dict:
+        """Download and install the latest plugin version."""
+        return _perform_update(download_url)
 
     async def get_status(self) -> dict:
         """Return the current bridge + game status."""

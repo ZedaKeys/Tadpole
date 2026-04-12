@@ -89,18 +89,11 @@ function FaFrog (props) {
 // Colors
 // ---------------------------------------------------------------------------
 const C = {
-    surface: "#16213e",
-    surfaceLight: "#1f2b47",
-    border: "#2a3a5c",
-    text: "#e0e0e0",
-    textDim: "#7a8ba8",
-    accent: "#48bfe3",
-    green: "#52b788",
-    greenGlow: "rgba(82,183,136,0.5)",
-    red: "#e76f51",
-    redGlow: "rgba(231,111,81,0.5)",
-    orange: "#f4a261",
-    gold: "#f4a261"};
+    surface: "#16213e", surfaceLight: "#1f2b47",
+    border: "#2a3a5c", text: "#e0e0e0", textDim: "#7a8ba8",
+    accent: "#48bfe3", green: "#52b788", greenGlow: "rgba(82,183,136,0.5)",
+    red: "#e76f51", orange: "#f4a261", gold: "#f4a261", blue: "#3b82f6",
+};
 // ---------------------------------------------------------------------------
 // Callables
 // ---------------------------------------------------------------------------
@@ -111,62 +104,62 @@ const callStartBridge = callable("start_bridge");
 const callStopBridge = callable("stop_bridge");
 const callGetSettings = callable("get_settings");
 const callSaveSettings = callable("save_settings");
-const DEFAULT_SETTINGS = {
-    port: 3456,
-    autoStart: true,
-    bridgeDir: "/home/deck/tadpole/bridge",
-};
+// New install/update callables
+const callInstallEverything = callable("install_everything");
+const callInstallNode = callable("install_node");
+const callInstallBridge = callable("install_bridge");
+const callInstallLuaMod = callable("install_lua_mod");
+const callCheckUpdate = callable("check_update");
+const callPerformUpdate = callable("perform_update");
+const DEFAULT_SETTINGS = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
 const EVENT_ICONS = {
     combat_started: "⚔️", combat_ended: "✅", area_changed: "🗺️",
     hp_critical: "💔", dialog_started: "💬", dialog_ended: "💬",
-    level_up: "⬆️", party_changed: "👥", death: "💀",
-    rest: "🏕️", loot: "💰",
+    level_up: "⬆️", party_changed: "👥", death: "💀", rest: "🏕️", loot: "💰",
 };
 // ---------------------------------------------------------------------------
-// Components
+// Reusable components
 // ---------------------------------------------------------------------------
-const StatusBadge = ({ label, active, activeColor = C.green, inactiveColor = C.red }) => (SP_JSX.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [SP_JSX.jsx("div", { style: {
+const StatusBadge = ({ label, active, activeColor = C.green, inactiveColor = C.red, }) => (SP_JSX.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [SP_JSX.jsx("div", { style: {
                 width: 8, height: 8, borderRadius: "50%",
                 backgroundColor: active ? activeColor : inactiveColor,
                 boxShadow: active ? `0 0 8px ${activeColor}80` : `0 0 4px ${inactiveColor}50`,
-                transition: "all 0.3s ease",
-            } }), SP_JSX.jsx("span", { style: {
-                fontSize: 13, fontWeight: 600,
-                color: active ? activeColor : inactiveColor,
-                letterSpacing: 0.3,
-            }, children: label })] }));
+            } }), SP_JSX.jsx("span", { style: { fontSize: 13, fontWeight: 600, color: active ? activeColor : inactiveColor }, children: label })] }));
 const Pill = ({ label, color = C.accent }) => (SP_JSX.jsx("span", { style: {
         display: "inline-block", padding: "2px 8px", borderRadius: 10,
-        fontSize: 10, fontWeight: 600, color,
-        backgroundColor: `${color}18`, border: `1px solid ${color}30`,
+        fontSize: 10, fontWeight: 600, color, backgroundColor: `${color}18`, border: `1px solid ${color}30`,
     }, children: label }));
-const StatRow = ({ label, value, color = C.textDim, }) => (SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0" }, children: [SP_JSX.jsx("span", { style: { fontSize: 12, color: C.textDim }, children: label }), SP_JSX.jsx("span", { style: { fontSize: 13, color, fontWeight: 600 }, children: value })] }));
+const StatRow = ({ label, value, color = C.textDim }) => (SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0" }, children: [SP_JSX.jsx("span", { style: { fontSize: 12, color: C.textDim }, children: label }), SP_JSX.jsx("span", { style: { fontSize: 13, color, fontWeight: 600 }, children: value })] }));
 const HPBar = ({ name, hp, maxHp, isHost = false, }) => {
     const pct = maxHp > 0 ? Math.max(0, Math.min(hp / maxHp, 1)) : 0;
     const color = pct > 0.6 ? C.green : pct > 0.3 ? C.orange : C.red;
-    const glow = pct > 0.6 ? C.greenGlow : pct > 0.3 ? "none" : C.redGlow;
-    return (SP_JSX.jsxs("div", { style: { marginBottom: isHost ? 8 : 5 }, children: [SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }, children: [SP_JSX.jsx("span", { style: { fontSize: isHost ? 13 : 11, fontWeight: isHost ? 600 : 500, color: isHost ? C.text : C.textDim }, children: name }), SP_JSX.jsxs("span", { style: { fontSize: isHost ? 12 : 10, color, fontWeight: 600, fontVariantNumeric: "tabular-nums" }, children: [hp, "/", maxHp] })] }), SP_JSX.jsx("div", { style: { height: isHost ? 8 : 5, borderRadius: isHost ? 4 : 3, backgroundColor: C.surface, overflow: "hidden" }, children: SP_JSX.jsx("div", { style: {
+    const glow = pct > 0.6 ? C.greenGlow : pct > 0.3 ? "none" : "rgba(231,111,81,0.5)";
+    return (SP_JSX.jsxs("div", { style: { marginBottom: isHost ? 8 : 5 }, children: [SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }, children: [SP_JSX.jsx("span", { style: { fontSize: isHost ? 13 : 11, fontWeight: isHost ? 600 : 500, color: isHost ? C.text : C.textDim }, children: name }), SP_JSX.jsxs("span", { style: { fontSize: isHost ? 12 : 10, color, fontWeight: 600 }, children: [hp, "/", maxHp] })] }), SP_JSX.jsx("div", { style: { height: isHost ? 8 : 5, borderRadius: isHost ? 4 : 3, backgroundColor: C.surface, overflow: "hidden" }, children: SP_JSX.jsx("div", { style: {
                         height: "100%", width: `${pct * 100}%`, backgroundColor: color,
-                        borderRadius: isHost ? 4 : 3, transition: "width 0.4s ease, background-color 0.4s ease",
-                        boxShadow: `0 0 6px ${glow}` ,
+                        borderRadius: isHost ? 4 : 3, transition: "width 0.4s ease",
+                        boxShadow: glow !== "none" ? `0 0 6px ${glow}` : "none",
                     } }) })] }));
 };
 const Divider = () => SP_JSX.jsx("div", { style: { height: 1, backgroundColor: C.border, margin: "8px 0", opacity: 0.5 } });
-const SectionHeader = ({ title, icon }) => (SP_JSX.jsxs("div", { style: {
-        fontSize: 11, fontWeight: 700, color: C.accent,
-        textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, marginTop: 2,
-    }, children: [icon && SP_JSX.jsx("span", { style: { marginRight: 6 }, children: icon }), title] }));
-/** Diagnostic checklist item */
-const CheckItem = ({ label, ok, detail, fixCommand }) => (SP_JSX.jsxs("div", { style: {
+const SectionHeader = ({ title, icon }) => (SP_JSX.jsxs("div", { style: { fontSize: 11, fontWeight: 700, color: C.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, marginTop: 2 }, children: [icon && SP_JSX.jsx("span", { style: { marginRight: 6 }, children: icon }), title] }));
+const CheckItem = ({ label, ok, detail }) => (SP_JSX.jsxs("div", { style: {
         padding: "8px 12px", borderRadius: 8, marginBottom: 4,
         backgroundColor: ok ? `${C.green}10` : `${C.red}10`,
         border: `1px solid ${ok ? `${C.green}30` : `${C.red}30`}`,
-    }, children: [SP_JSX.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [SP_JSX.jsx("span", { style: { fontSize: 14 }, children: ok ? "✅" : "❌" }), SP_JSX.jsx("span", { style: { fontSize: 12, fontWeight: 600, color: ok ? C.green : C.red }, children: label })] }), detail && SP_JSX.jsx("div", { style: { fontSize: 11, color: C.textDim, marginLeft: 22, marginTop: 2 }, children: detail }), fixCommand && !ok && (SP_JSX.jsx("div", { style: {
-                marginLeft: 22, marginTop: 4, padding: "4px 8px", borderRadius: 4,
-                backgroundColor: C.surface, fontFamily: "monospace", fontSize: 11, color: C.accent,
-            }, children: fixCommand }))] }));
+    }, children: [SP_JSX.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [SP_JSX.jsx("span", { style: { fontSize: 14 }, children: ok ? "✅" : "❌" }), SP_JSX.jsx("span", { style: { fontSize: 12, fontWeight: 600, color: ok ? C.green : C.red }, children: label })] }), detail && SP_JSX.jsx("div", { style: { fontSize: 11, color: C.textDim, marginLeft: 22, marginTop: 2 }, children: detail })] }));
 // ---------------------------------------------------------------------------
-// Main panel
+// Setup Wizard
+// ---------------------------------------------------------------------------
+const SetupWizard = ({ diagnostics, onInstall, installing, installStep, onClose }) => (SP_JSX.jsxs("div", { children: [SP_JSX.jsx(SectionHeader, { title: "Setup Check", icon: "\uD83D\uDD0D" }), SP_JSX.jsx(CheckItem, { label: diagnostics.node_installed ? `Node.js ${diagnostics.node_version || ""}` : "Node.js", ok: diagnostics.node_installed, detail: diagnostics.node_installed ? "Ready" : "Will install via pacman" }), SP_JSX.jsx(CheckItem, { label: "Bridge Server", ok: diagnostics.bridge_found, detail: diagnostics.bridge_found ? diagnostics.bridge_path : "Will download from GitHub" }), SP_JSX.jsx(CheckItem, { label: "BG3 Lua Mod", ok: diagnostics.lua_installed, detail: diagnostics.lua_installed ? "TadpoleCompanion.lua found" : "Will install to BG3 LuaScripts folder" }), diagnostics.ready ? (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
+                    padding: "8px 12px", borderRadius: 8, backgroundColor: `${C.green}15`,
+                    border: `1px solid ${C.green}30`, textAlign: "center", marginTop: 4,
+                }, children: SP_JSX.jsx("span", { style: { fontSize: 13, fontWeight: 600, color: C.green }, children: "All set! Ready to play." }) }) })) : (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: onInstall, disabled: installing, children: SP_JSX.jsxs("span", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }, children: [installing ? "⟳" : "🚀", installing
+                            ? installStep === "node" ? "Installing Node.js..."
+                                : installStep === "bridge" ? "Downloading bridge..."
+                                    : "Installing Lua mod..."
+                            : "Install Everything"] }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: onClose, children: diagnostics.ready ? "Close" : "Skip Setup" }) })] }));
+// ---------------------------------------------------------------------------
+// Main Panel
 // ---------------------------------------------------------------------------
 const TadpolePanel = () => {
     const [settings, setSettings] = SP_REACT.useState({ ...DEFAULT_SETTINGS });
@@ -180,24 +173,34 @@ const TadpolePanel = () => {
     const [loading, setLoading] = SP_REACT.useState(false);
     const [showSettings, setShowSettings] = SP_REACT.useState(false);
     const [nodeMissing, setNodeMissing] = SP_REACT.useState(false);
+    // Setup
     const [diagnostics, setDiagnostics] = SP_REACT.useState(null);
-    const [showDiagnostics, setShowDiagnostics] = SP_REACT.useState(false);
+    const [showSetup, setShowSetup] = SP_REACT.useState(false);
+    const [installing, setInstalling] = SP_REACT.useState(false);
+    const [installStep, setInstallStep] = SP_REACT.useState("");
+    // Update
+    const [updateInfo, setUpdateInfo] = SP_REACT.useState(null);
+    const [updating, setUpdating] = SP_REACT.useState(false);
+    const [checkingUpdate, setCheckingUpdate] = SP_REACT.useState(false);
     const pollRef = SP_REACT.useRef(null);
-    const autoStartAttemptedRef = SP_REACT.useRef(false);
+    const autoStartRef = SP_REACT.useRef(false);
     const prevClientsRef = SP_REACT.useRef(0);
-    const prevEventsLenRef = SP_REACT.useRef(0);
-    // Load settings + run diagnostics on mount
+    const prevEventsRef = SP_REACT.useRef(0);
+    // Load settings + diagnostics on mount
     SP_REACT.useEffect(() => {
-        callGetSettings().then((saved) => {
-            if (saved && Object.keys(saved).length > 0)
-                setSettings({ ...DEFAULT_SETTINGS, ...saved });
-        }).catch(() => { });
-        callGetDiagnostics().then((d) => {
-            setDiagnostics(d);
-            if (d && !d.ready)
-                setShowDiagnostics(true); // Auto-show if issues
-        }).catch(() => { });
+        callGetSettings().then(s => { if (s && Object.keys(s).length > 0)
+            setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => { });
+        runDiagnostics();
     }, []);
+    const runDiagnostics = SP_REACT.useCallback(async () => {
+        try {
+            const d = await callGetDiagnostics();
+            setDiagnostics(d);
+            if (d && !d.ready && !showSetup)
+                setShowSetup(true);
+        }
+        catch { }
+    }, [showSetup]);
     const fetchStatus = SP_REACT.useCallback(async () => {
         try {
             const data = await callGetStatus();
@@ -208,10 +211,9 @@ const TadpolePanel = () => {
             setGameState(data.game_state);
             setRecentEvents(data.recent_events || []);
             setNodeMissing(!data.node_installed);
-            // Health check if bridge is running
             if (data.bridge_running) {
-                const health = await callCheckHealth();
-                setBridgeHealthy(health.healthy);
+                const h = await callCheckHealth();
+                setBridgeHealthy(h.healthy);
             }
             else {
                 setBridgeHealthy(false);
@@ -219,37 +221,89 @@ const TadpolePanel = () => {
         }
         catch { }
     }, []);
-    const updateSettings = SP_REACT.useCallback((newSettings) => {
-        setSettings(newSettings);
-        callSaveSettings(newSettings).catch(() => { });
+    const updateSettings = SP_REACT.useCallback((s) => {
+        setSettings(s);
+        callSaveSettings(s).catch(() => { });
     }, []);
     const startBridge = SP_REACT.useCallback(async () => {
         setLoading(true);
         try {
-            const result = await callStartBridge(settings.port, settings.bridgeDir);
-            toaster.toast({ title: "Tadpole", body: result.message });
+            const r = await callStartBridge(settings.port, settings.bridgeDir);
+            toaster.toast({ title: "Tadpole", body: r.message });
         }
         catch {
-            toaster.toast({ title: "Tadpole Error", body: "Failed to start bridge" });
+            toaster.toast({ title: "Error", body: "Failed to start bridge" });
         }
         setTimeout(async () => { await fetchStatus(); setLoading(false); }, 1500);
     }, [settings, fetchStatus]);
     const stopBridge = SP_REACT.useCallback(async () => {
         setLoading(true);
         try {
-            const result = await callStopBridge();
-            if (result.success)
-                toaster.toast({ title: "Tadpole", body: result.message });
+            const r = await callStopBridge();
+            if (r.success)
+                toaster.toast({ title: "Tadpole", body: r.message });
         }
         catch {
-            toaster.toast({ title: "Tadpole Error", body: "Failed to stop bridge" });
+            toaster.toast({ title: "Error", body: "Failed to stop" });
         }
         setTimeout(async () => { await fetchStatus(); setLoading(false); }, 500);
     }, [fetchStatus]);
-    const runDiagnostics = SP_REACT.useCallback(async () => {
-        const d = await callGetDiagnostics();
-        setDiagnostics(d);
-        setShowDiagnostics(true);
+    // One-click install
+    const handleInstallEverything = SP_REACT.useCallback(async () => {
+        setInstalling(true);
+        setInstallStep("node");
+        try {
+            const r = await callInstallEverything();
+            if (r.success) {
+                toaster.toast({ title: "Setup Complete!", body: "Everything installed successfully" });
+                setShowSetup(false);
+                await runDiagnostics();
+                await fetchStatus();
+            }
+            else {
+                toaster.toast({ title: "Setup Failed", body: `Failed at ${r.step || "unknown step"}` });
+            }
+        }
+        catch {
+            toaster.toast({ title: "Error", body: "Installation failed" });
+        }
+        setInstalling(false);
+        setInstallStep("");
+    }, [runDiagnostics, fetchStatus]);
+    // Check for updates
+    const handleCheckUpdate = SP_REACT.useCallback(async () => {
+        setCheckingUpdate(true);
+        try {
+            const info = await callCheckUpdate();
+            setUpdateInfo(info);
+            if (info.update_available) {
+                toaster.toast({ title: "Update Available", body: `v${info.latest_version} is out!` });
+            }
+            else if (!info.error) {
+                toaster.toast({ title: "Up to Date", body: `v${info.current_version} is the latest` });
+            }
+        }
+        catch {
+            toaster.toast({ title: "Error", body: "Could not check for updates" });
+        }
+        setCheckingUpdate(false);
+    }, []);
+    // Perform update
+    const handlePerformUpdate = SP_REACT.useCallback(async (url) => {
+        setUpdating(true);
+        try {
+            const r = await callPerformUpdate(url);
+            if (r.success) {
+                toaster.toast({ title: "Updated!", body: r.message });
+            }
+            else {
+                toaster.toast({ title: "Update Failed", body: r.message });
+            }
+        }
+        catch {
+            toaster.toast({ title: "Error", body: "Update failed" });
+        }
+        setUpdating(false);
     }, []);
     // Polling
     SP_REACT.useEffect(() => {
@@ -260,134 +314,79 @@ const TadpolePanel = () => {
     }, [fetchStatus]);
     // Auto-start
     SP_REACT.useEffect(() => {
-        if (autoStartAttemptedRef.current)
+        if (autoStartRef.current)
             return;
         if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing) {
-            autoStartAttemptedRef.current = true;
+            autoStartRef.current = true;
             startBridge();
         }
     }, [bg3Running, bridgeRunning, settings.autoStart, startBridge, nodeMissing]);
-    // Phone connection toasts
+    // Phone toasts
     SP_REACT.useEffect(() => {
-        if (connectedClients > prevClientsRef.current && prevClientsRef.current === 0) {
-            toaster.toast({ title: "Phone Connected", body: `Phone app connected (${connectedClients})` });
-        }
-        else if (connectedClients === 0 && prevClientsRef.current > 0) {
+        if (connectedClients > prevClientsRef.current && prevClientsRef.current === 0)
+            toaster.toast({ title: "Phone Connected", body: `Phone connected (${connectedClients})` });
+        else if (connectedClients === 0 && prevClientsRef.current > 0)
             toaster.toast({ title: "Phone Disconnected", body: "No phones connected" });
-        }
         prevClientsRef.current = connectedClients;
     }, [connectedClients]);
-    // Game event toasts
+    // Event toasts
     SP_REACT.useEffect(() => {
-        if (recentEvents.length <= prevEventsLenRef.current) {
-            prevEventsLenRef.current = recentEvents.length;
+        if (recentEvents.length <= prevEventsRef.current) {
+            prevEventsRef.current = recentEvents.length;
             return;
         }
-        const newEvents = recentEvents.slice(prevEventsLenRef.current);
-        for (const evt of newEvents) {
+        for (const evt of recentEvents.slice(prevEventsRef.current)) {
             if (evt.type === "combat_started")
-                toaster.toast({ title: "Combat!", body: "Combat has begun!" });
-            else if (evt.type === "hp_critical")
-                toaster.toast({ title: "HP Critical!", body: evt.detail || "A party member is critically low!" });
+                toaster.toast({ title: "Combat!", body: "Fight!" });
             else if (evt.type === "death")
-                toaster.toast({ title: "Party Member Down!", body: evt.detail || "Someone has fallen!" });
+                toaster.toast({ title: "Down!", body: evt.detail || "Someone fell!" });
             else if (evt.type === "level_up")
-                toaster.toast({ title: "Level Up!", body: evt.detail || "A party member leveled up!" });
+                toaster.toast({ title: "Level Up!", body: evt.detail || "" });
         }
-        prevEventsLenRef.current = recentEvents.length;
+        prevEventsRef.current = recentEvents.length;
     }, [recentEvents]);
-    const totalPartyHp = (() => {
-        let current = 0, max = 0;
-        if (gameState?.host && gameState.host.maxHp > 0) {
-            current += gameState.host.hp;
-            max += gameState.host.maxHp;
+    const totalHp = (() => {
+        let c = 0, m = 0;
+        if (gameState?.host?.maxHp > 0) {
+            c += gameState.host.hp;
+            m += gameState.host.maxHp;
         }
-        if (gameState?.party) {
-            for (const m of gameState.party) {
-                if (m.maxHp > 0) {
-                    current += m.hp;
-                    max += m.maxHp;
-                }
-            }
-        }
-        return { current, max };
+        gameState?.party?.forEach((p) => { if (p.maxHp > 0) {
+            c += p.hp;
+            m += p.maxHp;
+        } });
+        return { c, m };
     })();
-    // Determine if this is first-run (nothing set up)
-    const isFirstRun = diagnostics && !diagnostics.ready;
-    return (SP_JSX.jsxs("div", { style: { padding: "4px 0" }, children: [isFirstRun && !showDiagnostics && (SP_JSX.jsx(DFL.PanelSection, { title: "", children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
+    return (SP_JSX.jsxs("div", { style: { padding: "4px 0" }, children: [showSetup && diagnostics && (SP_JSX.jsx(DFL.PanelSection, { title: "", children: SP_JSX.jsx(SetupWizard, { diagnostics: diagnostics, onInstall: handleInstallEverything, installing: installing, installStep: installStep, onClose: () => setShowSetup(false) }) })), !showSetup && diagnostics && !diagnostics.ready && (SP_JSX.jsx(DFL.PanelSection, { title: "", children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
                             padding: "12px", borderRadius: 10, backgroundColor: C.surface,
                             border: `1px solid ${C.border}`, textAlign: "center",
-                        }, children: [SP_JSX.jsx("div", { style: { fontSize: 32, marginBottom: 8 }, children: "\uD83D\uDC38" }), SP_JSX.jsx("div", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }, children: "Welcome to Tadpole!" }), SP_JSX.jsx("div", { style: { fontSize: 12, color: C.textDim, marginBottom: 8 }, children: "A few things need to be set up before we can connect to your game." }), SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: runDiagnostics, children: "Run Setup Check" })] }) }) })), showDiagnostics && diagnostics && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Setup Check", icon: "\uD83D\uDD0D" }), SP_JSX.jsx(CheckItem, { label: diagnostics.node_installed
-                            ? `Node.js ${diagnostics.node_version || "installed"}`
-                            : "Node.js not installed", ok: diagnostics.node_installed, detail: diagnostics.node_installed
-                            ? "Required to run the bridge server"
-                            : "The bridge server needs Node.js to run", fixCommand: "sudo pacman -S nodejs npm" }), SP_JSX.jsx(CheckItem, { label: diagnostics.bridge_found
-                            ? "Bridge server found"
-                            : "Bridge server not found", ok: diagnostics.bridge_found, detail: diagnostics.bridge_found
-                            ? diagnostics.bridge_path || ""
-                            : "Download from github.com/ZedaKeys/Tadpole and set the path in Settings" }), SP_JSX.jsx(CheckItem, { label: diagnostics.lua_installed
-                            ? "BG3 mod installed"
-                            : "BG3 mod not detected", ok: diagnostics.lua_installed, detail: diagnostics.lua_installed
-                            ? "TadpoleCompanion.lua found"
-                            : "The Lua mod sends live game data to the bridge" }), diagnostics.ready && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
-                                padding: "8px 12px", borderRadius: 8,
-                                backgroundColor: `${C.green}15`, border: `1px solid ${C.green}30`,
-                                textAlign: "center", marginTop: 4,
-                            }, children: SP_JSX.jsx("span", { style: { fontSize: 13, fontWeight: 600, color: C.green }, children: "All good! You're ready to play." }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setShowDiagnostics(false), children: diagnostics.ready ? "Close" : "Close and set up manually" }) })] })), nodeMissing && !showDiagnostics && (SP_JSX.jsx(DFL.PanelSection, { title: "", children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
-                            padding: "10px 12px", borderRadius: 8,
-                            backgroundColor: `${C.red}15`, border: `1px solid ${C.red}30`,
-                            color: C.red, fontSize: 12, lineHeight: 1.5,
-                        }, children: [SP_JSX.jsx("strong", { children: "Node.js is required." }), SP_JSX.jsx("br", {}), "Install in Desktop Mode:", SP_JSX.jsx("div", { style: {
-                                    marginTop: 4, padding: "4px 8px", borderRadius: 4,
-                                    backgroundColor: C.surface, fontFamily: "monospace", fontSize: 11, color: C.accent,
-                                }, children: "sudo pacman -S nodejs npm" })] }) }) })), !showDiagnostics && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Connection", icon: "\uD83D\uDD17" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [SP_JSX.jsx(StatusBadge, { label: bridgeRunning
-                                        ? bridgeHealthy ? "Bridge Active" : "Bridge (unhealthy)"
-                                        : "Bridge Offline", active: bridgeRunning && bridgeHealthy }), bridgeRunning && connectedClients > 0 && (SP_JSX.jsx(Pill, { label: `${connectedClients} phone${connectedClients !== 1 ? "s" : ""}`, color: C.green }))] }) }), bridgeRunning && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
+                        }, children: [SP_JSX.jsx("div", { style: { fontSize: 32, marginBottom: 8 }, children: "\uD83D\uDC38" }), SP_JSX.jsx("div", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }, children: "Welcome to Tadpole!" }), SP_JSX.jsx("div", { style: { fontSize: 12, color: C.textDim, marginBottom: 8 }, children: "Let's set up everything you need." }), SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => { runDiagnostics(); setShowSetup(true); }, children: "\uD83D\uDE80 One-Click Setup" })] }) }) })), !showSetup && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Connection", icon: "\uD83D\uDD17" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [SP_JSX.jsx(StatusBadge, { label: bridgeRunning ? (bridgeHealthy ? "Bridge Active" : "Bridge (unhealthy)") : "Bridge Offline", active: bridgeRunning && bridgeHealthy }), bridgeRunning && connectedClients > 0 && (SP_JSX.jsx(Pill, { label: `${connectedClients} phone${connectedClients !== 1 ? "s" : ""}`, color: C.green }))] }) }), bridgeRunning && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
                                 padding: "6px 10px", borderRadius: 6, backgroundColor: C.surface,
                                 fontFamily: "monospace", fontSize: 12, color: C.accent,
                                 textAlign: "center", border: `1px solid ${C.border}`,
-                            }, children: [ip, ":", settings.port] }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: loading || nodeMissing, onClick: bridgeRunning ? stopBridge : startBridge, children: SP_JSX.jsxs("span", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }, children: [loading ? "⟳" : bridgeRunning ? "■" : "▶", loading ? "Working..." : bridgeRunning ? "Stop Bridge" : "Start Bridge"] }) }) })] })), !showDiagnostics && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Game", icon: "\uD83C\uDFAE" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(StatusBadge, { label: bg3Running ? "BG3 Running" : "BG3 Not Detected", active: bg3Running, activeColor: C.accent, inactiveColor: C.textDim }) }), !bg3Running && bridgeRunning && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
+                            }, children: [ip, ":", settings.port] }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: loading || nodeMissing, onClick: bridgeRunning ? stopBridge : startBridge, children: SP_JSX.jsxs("span", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }, children: [loading ? "⟳" : bridgeRunning ? "■" : "▶", loading ? "Working..." : bridgeRunning ? "Stop Bridge" : "Start Bridge"] }) }) })] })), !showSetup && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Game", icon: "\uD83C\uDFAE" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(StatusBadge, { label: bg3Running ? "BG3 Running" : "BG3 Not Detected", active: bg3Running, activeColor: C.accent, inactiveColor: C.textDim }) }), !bg3Running && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
                                 padding: "6px 10px", borderRadius: 6, backgroundColor: C.surface,
-                                fontSize: 11, color: C.textDim, textAlign: "center",
-                                border: `1px solid ${C.border}`,
-                            }, children: "Bridge is ready \u2014 launch BG3 to connect" }) })), !bg3Running && !bridgeRunning && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
-                                padding: "6px 10px", borderRadius: 6, backgroundColor: C.surface,
-                                fontSize: 11, color: C.textDim, textAlign: "center",
-                                border: `1px solid ${C.border}`,
-                            }, children: "Start the bridge, then launch BG3" }) }))] })), gameState && bg3Running && !showDiagnostics && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Live", icon: "\uD83D\uDCCA" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }, children: [gameState.area && (SP_JSX.jsx("span", { style: { fontSize: 13, fontWeight: 600, color: C.text }, children: gameState.area })), SP_JSX.jsxs("div", { style: { display: "flex", gap: 6 }, children: [gameState.inCombat && SP_JSX.jsx(Pill, { label: "Combat", color: C.red }), gameState.inDialog && SP_JSX.jsx(Pill, { label: "Dialog", color: C.orange }), !gameState.inCombat && !gameState.inDialog && SP_JSX.jsx(Pill, { label: "Explore", color: C.green })] })] }) }), SP_JSX.jsx(Divider, {}), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { display: "flex", gap: 12 }, children: [typeof gameState.gold === "number" && (SP_JSX.jsx(StatRow, { label: "Gold", value: `🪙 ${gameState.gold}`, color: C.gold })), totalPartyHp.max > 0 && (SP_JSX.jsx(StatRow, { label: "Party HP", value: `${totalPartyHp.current}/${totalPartyHp.max}`, color: totalPartyHp.current / totalPartyHp.max > 0.5 ? C.green : C.red })), gameState.party && (SP_JSX.jsx(StatRow, { label: "Party", value: `${gameState.party.length + 1} members`, color: C.accent }))] }) }), SP_JSX.jsx(Divider, {}), gameState.host && gameState.host.maxHp > 0 && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(HPBar, { name: gameState.host.name || "Host", hp: gameState.host.hp, maxHp: gameState.host.maxHp, isHost: true }) })), gameState.party && gameState.party.length > 0 && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { padding: "2px 0" }, children: gameState.party.map((member, i) => member.maxHp > 0 ? (SP_JSX.jsx(HPBar, { name: member.name, hp: member.hp, maxHp: member.maxHp }, member.guid || i)) : null) }) })), recentEvents.length > 0 && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(Divider, {}), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: {
-                                                fontSize: 10, fontWeight: 600, color: C.textDim,
-                                                textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4,
-                                            }, children: "Recent" }), SP_JSX.jsx("div", { style: { display: "flex", flexDirection: "column", gap: 3 }, children: recentEvents.slice(-5).reverse().map((evt, i) => (SP_JSX.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 11 }, children: [SP_JSX.jsx("span", { style: { fontSize: 12 }, children: EVENT_ICONS[evt.type] || "•" }), SP_JSX.jsxs("span", { style: { color: C.textDim, flex: 1 }, children: [evt.type.replace(/_/g, " "), evt.detail ? ` — ${evt.detail}` : ""] })] }, i))) })] }) })] }))] })), !showDiagnostics && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Phone App", icon: "\uD83D\uDCF1" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
-                                padding: "10px 12px", borderRadius: 8, backgroundColor: C.surface,
-                                border: `1px solid ${C.border}`,
-                            }, children: [SP_JSX.jsx("div", { style: { fontSize: 11, color: C.textDim, marginBottom: 6 }, children: "Open on your phone:" }), SP_JSX.jsx("div", { style: {
-                                        fontSize: 13, color: C.accent, fontWeight: 600, fontFamily: "monospace",
-                                        marginBottom: 8, wordBreak: "break-all",
-                                    }, children: "https://tadpole-omega.vercel.app" }), SP_JSX.jsx("div", { style: { fontSize: 11, color: C.textDim, marginBottom: 4 }, children: "Enter this IP:" }), SP_JSX.jsxs("div", { style: {
+                                fontSize: 11, color: C.textDim, textAlign: "center", border: `1px solid ${C.border}`,
+                            }, children: bridgeRunning ? "Bridge ready — launch BG3 to connect" : "Start the bridge, then launch BG3" }) }))] })), gameState && bg3Running && !showSetup && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Live", icon: "\uD83D\uDCCA" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }, children: [gameState.area && SP_JSX.jsx("span", { style: { fontSize: 13, fontWeight: 600, color: C.text }, children: gameState.area }), SP_JSX.jsxs("div", { style: { display: "flex", gap: 6 }, children: [gameState.inCombat && SP_JSX.jsx(Pill, { label: "Combat", color: C.red }), gameState.inDialog && SP_JSX.jsx(Pill, { label: "Dialog", color: C.orange }), !gameState.inCombat && !gameState.inDialog && SP_JSX.jsx(Pill, { label: "Explore", color: C.green })] })] }) }), SP_JSX.jsx(Divider, {}), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { display: "flex", gap: 12 }, children: [typeof gameState.gold === "number" && SP_JSX.jsx(StatRow, { label: "Gold", value: `🪙 ${gameState.gold}`, color: C.gold }), totalHp.m > 0 && SP_JSX.jsx(StatRow, { label: "Party HP", value: `${totalHp.c}/${totalHp.m}`, color: totalHp.c / totalHp.m > 0.5 ? C.green : C.red }), gameState.party && SP_JSX.jsx(StatRow, { label: "Party", value: `${gameState.party.length + 1} members`, color: C.accent })] }) }), SP_JSX.jsx(Divider, {}), gameState.host?.maxHp > 0 && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(HPBar, { name: gameState.host.name || "Host", hp: gameState.host.hp, maxHp: gameState.host.maxHp, isHost: true }) })), gameState.party?.length > 0 && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { padding: "2px 0" }, children: gameState.party.map((m, i) => m.maxHp > 0 ? SP_JSX.jsx(HPBar, { name: m.name, hp: m.hp, maxHp: m.maxHp }, m.guid || i) : null) }) })), recentEvents.length > 0 && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(Divider, {}), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: { padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }, children: "Recent" }), recentEvents.slice(-5).reverse().map((evt, i) => (SP_JSX.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 11 }, children: [SP_JSX.jsx("span", { children: EVENT_ICONS[evt.type] || "•" }), SP_JSX.jsxs("span", { style: { color: C.textDim }, children: [evt.type.replace(/_/g, " "), evt.detail ? ` — ${evt.detail}` : ""] })] }, i)))] }) })] }))] })), !showSetup && (SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Phone App", icon: "\uD83D\uDCF1" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
+                                padding: "10px 12px", borderRadius: 8, backgroundColor: C.surface, border: `1px solid ${C.border}`,
+                            }, children: [SP_JSX.jsx("div", { style: { fontSize: 11, color: C.textDim, marginBottom: 6 }, children: "Open on your phone:" }), SP_JSX.jsx("div", { style: { fontSize: 13, color: C.accent, fontWeight: 600, fontFamily: "monospace", marginBottom: 8 }, children: "https://tadpole-omega.vercel.app" }), SP_JSX.jsx("div", { style: { fontSize: 11, color: C.textDim, marginBottom: 4 }, children: "Enter this IP:" }), SP_JSX.jsxs("div", { style: {
                                         fontSize: 14, color: C.text, fontWeight: 700, fontFamily: "monospace",
                                         padding: "6px 10px", backgroundColor: C.surfaceLight, borderRadius: 6,
-                                        textAlign: "center", border: `1px solid ${C.border}`, letterSpacing: 0.5,
-                                    }, children: [ip, ":", settings.port] })] }) })] })), SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Settings", icon: "\u2699\uFE0F" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ToggleField, { label: "Auto-start with BG3", checked: settings.autoStart, onChange: (checked) => updateSettings({ ...settings, autoStart: checked }) }) }), showSettings && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Port", value: String(settings.port), onChange: (val) => {
-                                        const num = parseInt(val, 10);
-                                        if (!isNaN(num) && num > 0 && num < 65536)
-                                            updateSettings({ ...settings, port: num });
-                                    } }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Directory", value: settings.bridgeDir, onChange: (val) => updateSettings({ ...settings, bridgeDir: val }) }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: runDiagnostics, children: "\uD83D\uDD0D Run Diagnostics" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setShowSettings(!showSettings), children: showSettings ? "Hide Advanced" : "Show Advanced" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
-                                textAlign: "center", fontSize: 10, color: C.textDim,
-                                opacity: 0.5, padding: "8px 0 4px",
-                            }, children: "Tadpole v0.3.0" }) })] })] }));
+                                        textAlign: "center", border: `1px solid ${C.border}`,
+                                    }, children: [ip, ":", settings.port] })] }) })] })), SP_JSX.jsxs(DFL.PanelSection, { title: "", children: [SP_JSX.jsx(SectionHeader, { title: "Settings", icon: "\u2699\uFE0F" }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ToggleField, { label: "Auto-start with BG3", checked: settings.autoStart, onChange: (v) => updateSettings({ ...settings, autoStart: v }) }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: handleCheckUpdate, disabled: checkingUpdate, children: checkingUpdate ? "⟳ Checking..." : "🔄 Check for Updates" }) }), updateInfo?.update_available && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs("div", { style: {
+                                padding: "10px 12px", borderRadius: 8,
+                                backgroundColor: `${C.blue}15`, border: `1px solid ${C.blue}30`,
+                            }, children: [SP_JSX.jsxs("div", { style: { fontSize: 13, fontWeight: 600, color: C.blue, marginBottom: 4 }, children: ["Update: v", updateInfo.latest_version] }), SP_JSX.jsxs("div", { style: { fontSize: 11, color: C.textDim, marginBottom: 8 }, children: ["Current: v", updateInfo.current_version] }), SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => handlePerformUpdate(updateInfo.download_url), disabled: updating, children: updating ? "⟳ Updating..." : "Install Update" })] }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => { runDiagnostics(); setShowSetup(true); }, children: "\uD83D\uDD0D Run Setup / Diagnostics" }) }), showSettings && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => { const r = await callInstallNode(); toaster.toast({ title: "Node.js", body: r.message }); }, children: "Install Node.js" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => { const r = await callInstallBridge(); toaster.toast({ title: "Bridge", body: r.message }); }, children: "Install Bridge Server" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => { const r = await callInstallLuaMod(); toaster.toast({ title: "Lua Mod", body: r.message }); }, children: "Install BG3 Mod" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Port", value: String(settings.port), onChange: (v) => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0)
+                                        updateSettings({ ...settings, port: n }); } }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Directory", value: settings.bridgeDir, onChange: (v) => updateSettings({ ...settings, bridgeDir: v }) }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setShowSettings(!showSettings), children: showSettings ? "Hide Advanced" : "Show Advanced" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { textAlign: "center", fontSize: 10, color: C.textDim, opacity: 0.5, padding: "8px 0 4px" }, children: "Tadpole v0.4.0" }) })] })] }));
 };
 // ---------------------------------------------------------------------------
-// Plugin definition
-// ---------------------------------------------------------------------------
-var index = definePlugin(() => {
-    return {
-        name: "Tadpole BG3 Companion",
-        titleView: SP_JSX.jsx("div", { className: DFL.staticClasses.Title, children: "Tadpole BG3 Companion" }),
-        content: SP_JSX.jsx(TadpolePanel, {}),
-        icon: SP_JSX.jsx(FaFrog, {}),
-        onDismount: () => { },
-    };
-});
+var index = definePlugin(() => ({
+    name: "Tadpole BG3 Companion",
+    titleView: SP_JSX.jsx("div", { className: DFL.staticClasses.Title, children: "Tadpole BG3 Companion" }),
+    content: SP_JSX.jsx(TadpolePanel, {}),
+    icon: SP_JSX.jsx(FaFrog, {}),
+    onDismount: () => { },
+}));
 
 export { index as default };
 //# sourceMappingURL=index.js.map
