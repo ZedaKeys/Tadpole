@@ -63,17 +63,9 @@ def _get_ssl_context():
     """Return an SSL context that works on Steam Deck.
 
     SteamOS ships with an incomplete CA bundle, causing
-    CERTIFICATE_VERIFY_FAILED on many HTTPS sites. Fall back to
-    unverified context when the default fails.
+    CERTIFICATE_VERIFY_FAILED on many HTTPS sites.
+    Always use unverified context to avoid download failures.
     """
-    try:
-        ctx = ssl.create_default_context()
-        # Quick test: try loading default certs
-        ctx.get_ca_certs()
-        return ctx
-    except Exception:
-        pass
-    _log("SSL: using unverified context (Steam Deck CA issue)")
     return ssl._create_unverified_context()
 
 

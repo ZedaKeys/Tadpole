@@ -1,213 +1,53 @@
-# Tadpole BG3 Companion - DeckyLoader Plugin
+# Tadpole BG3 Companion -- DeckyLoader Plugin
 
-A DeckyLoader plugin for Steam Deck that runs the Tadpole bridge server and shows live BG3 game status in the Steam Deck quick access menu.
+Live Baldur's Gate 3 companion for Steam Deck. Shows real-time HP bars, combat tracking, and party info on your phone while you play.
 
-## Features
+## Quick Install
 
-- Start/stop the bridge server directly from the Steam Deck quick access menu
-- Live connection status (IP, connected phone apps)
-- Real-time game state preview:
-  - Current area name
-  - Combat and dialog status indicators
-  - Party HP bars (color-coded)
-  - Gold amount
-  - Recent game events
-- Auto-start bridge when BG3 launches
-- Configurable port and bridge directory
-- Warning when Node.js is not installed
+1. Install [DeckyLoader](https://decky.xyz) on your Steam Deck
+2. Download the latest `TadpoleBG3.zip` from [Releases](https://github.com/ZedaKeys/Tadpole/releases)
+3. In Decky menu: gear icon > "Install Plugin From Zip" > select the zip
+4. Open Tadpole in the Decky menu and tap "One-Click Setup"
 
 ## Prerequisites
 
-1. **DeckyLoader** - Install from [decky.xyz](https://decky.xyz)
-   - On Steam Deck: switch to Desktop Mode
-   - Open a terminal and run the DeckyLoader installer
-   - Reboot back to Gaming Mode
+- **DeckyLoader** -- [decky.xyz](https://decky.xyz)
+- **BG3 ScriptExtender** (for live data) -- [Norbyte/lsxy](https://github.com/Norbyte/lsxy)
 
-2. **Node.js** - Required to run the bridge server
-   ```bash
-   # On Steam Deck (Desktop Mode):
-   sudo pacman -S nodejs npm
-   ```
+Node.js, the bridge server, and the Lua mod are all installed automatically.
 
-3. **Tadpole BG3 mod** - The Lua mod must be installed for BG3
-   - Run the main Tadpole installer: `./install/install-linux.sh`
+## Features
 
-## Installation
+- One-click auto-install of all dependencies
+- Real-time HP bars for all party members
+- Combat start/end notifications
+- Level up alerts
+- Connection status and phone count
+- Diagnostics panel showing every path checked
+- Copyable terminal commands for manual install
+- In-app log viewer
+- Auto-start bridge when BG3 launches
+- Plugin update checker
 
-### Option 1: Using the installer script (recommended)
+## Manual Commands (Desktop Mode)
 
-```bash
-cd ~/tadpole/decky-plugin
-chmod +x install.sh
-./install.sh
-```
-
-### Option 2: Manual installation
+If auto-install fails, switch to Desktop Mode, open Konsole:
 
 ```bash
-# Build the plugin
-cd ~/tadpole/decky-plugin
-pnpm install
-pnpm build
+# Install Node.js (no sudo)
+mkdir -p ~/tadpole/node && cd /tmp && curl -sL https://nodejs.org/dist/v18.20.4/node-v18.20.4-linux-x64.tar.xz -o node.tar.xz && tar xf node.tar.xz -C ~/tadpole/node --strip-components=1 && rm node.tar.xz && ~/tadpole/node/bin/node --version
 
-# Copy the plugin to DeckyLoader's plugin directory
-# Modern DeckyLoader (0.x+):
-mkdir -p ~/homebrew/plugins/TadpoleBG3
-cp plugin.json main.py package.json ~/homebrew/plugins/TadpoleBG3/
-cp -r dist/ ~/homebrew/plugins/TadpoleBG3/dist/
+# View plugin log
+cat /tmp/tadpole-plugin.log
 
-# Or legacy DeckyLoader path:
-# mkdir -p ~/.config/decky/plugins/TadpoleBG3
-# cp plugin.json main.py package.json ~/.config/decky/plugins/TadpoleBG3/
-# cp -r dist/ ~/.config/decky/plugins/TadpoleBG3/dist/
-
-# Install bridge server dependencies (if not already done)
-cd ~/tadpole/bridge
-npm install --production
+# Test bridge connection
+curl -s http://127.0.0.1:3456/status
 ```
 
-### Option 3: Symlink for development
+## Phone App
 
-```bash
-# Modern path:
-ln -s ~/tadpole/decky-plugin ~/homebrew/plugins/TadpoleBG3
-# Or legacy path:
-# ln -s ~/tadpole/decky-plugin ~/.config/decky/plugins/TadpoleBG3
-```
+Open https://tadpole-omega.vercel.app on your phone and enter the IP shown in the plugin.
 
-## Usage
+## Version
 
-1. **Install the BG3 mod** by running `./install/install-linux.sh` from the main Tadpole directory
-2. **Launch Baldur's Gate 3** on your Steam Deck
-3. Open the **quick access menu** (the `...` button)
-4. Scroll to the **Tadpole BG3 Companion** panel
-5. The bridge will auto-start when BG3 is detected (or click "Start Bridge")
-6. On your phone, open **https://tadpole-omega.vercel.app**
-7. Enter your Steam Deck's IP address (shown in the plugin panel) and port (default: 3456)
-
-## Plugin Panel
-
-The plugin shows:
-
-- **Connection Status** - Green/red dot + bridge running state, IP address, connected phone count
-- **Game Status** - Whether BG3 is running
-- **Live Game** (when game state is available):
-  - Current area name
-  - Combat/Dialog/Exploring indicator
-  - Gold amount
-  - Host character HP bar
-  - Party member HP bars
-  - Recent events (combat started, area changed, etc.)
-- **Phone App** - URL and IP to enter on your phone
-- **Settings** - Auto-start toggle, port number, bridge directory
-
-## Configuration
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Port | 3456 | Bridge server port |
-| Auto-start | On | Automatically start bridge when BG3 launches |
-| Bridge Directory | (auto-detected) | Path to the bridge server (defaults: ~/tadpole/bridge or plugin_dir/bridge) |
-
-## Architecture
-
-```
-BG3 (Lua Mod)  -->  State File  -->  Bridge Server  -->  Phone App (WebSocket)
-                                       ^
-                                       |
-                            DeckyLoader Plugin
-                            (manages bridge process,
-                             shows live status)
-```
-
-- The **Lua mod** writes game state to `/tmp/tadpole_state.json`
-- The **bridge server** watches that file and broadcasts via WebSocket
-- The **DeckyLoader plugin** manages the bridge process and polls its `/status` endpoint
-- The **phone app** connects to the bridge via WebSocket
-
-## File Structure
-
-```
-decky-plugin/
-  plugin.json          -- Plugin metadata for DeckyLoader
-  package.json         -- Dependencies (@decky/api, @decky/ui, react-icons)
-  rollup.config.js     -- Rollup build config with @decky/rollup
-  tsconfig.json        -- TypeScript config (separate from main Next.js app)
-  main.py              -- Python backend (manages bridge, reads state)
-  src/
-    index.tsx           -- React frontend (panel shown in quick access menu)
-  dist/
-    index.js            -- Built output (generated by rollup)
-  install.sh            -- Installer script for Steam Deck
-  README.md             -- This file
-```
-
-## API
-
-### Frontend → Backend (callable)
-
-The frontend uses `callable()` from `@decky/api` to call Python methods:
-
-| Method | Args | Returns |
-|--------|------|---------|
-| `get_status` | (none) | Bridge + game status |
-| `start_bridge` | port, bridge_dir | Success/message |
-| `stop_bridge` | (none) | Success/message |
-| `get_ip` | (none) | LAN IP address |
-| `get_settings` | (none) | Saved settings |
-| `save_settings` | settings dict | Success/message |
-
-### Backend (Python Plugin class)
-
-- Uses `import decky` module for:
-  - `decky.logger.info/warn/error()` for logging
-  - `decky.emit()` for sending events to frontend
-  - `decky.DECKY_*` constants for paths
-- Settings stored in `decky.DECKY_SETTINGS_DIR/tadpole.json`
-
-## Development
-
-The plugin is built using:
-- **@decky/api** - DeckyLoader's callable/definePlugin API
-- **@decky/ui** - DeckyLoader's React components (PanelSection, ButtonItem, etc.)
-- **@decky/rollup** - Build tool for DeckyLoader plugins
-- **react-icons** - Icon library
-- **Python decky module** - Backend process management
-
-To modify the plugin:
-1. Edit `src/index.tsx` for UI changes
-2. Edit `main.py` for backend logic
-3. Run `pnpm build` to rebuild
-4. Restart DeckyLoader or re-load the plugin
-
-## Troubleshooting
-
-### "Node.js is not installed"
-Switch to Desktop Mode and install Node.js:
-```bash
-sudo pacman -S nodejs npm
-```
-
-### "Bridge Stopped" and won't start
-- Check that the bridge directory exists and contains `server.js`
-- Check that Node.js is installed: `node --version`
-- Try running the bridge manually in Desktop Mode:
-  ```bash
-  cd ~/tadpole/bridge && node server.js
-  ```
-
-### "Launch BG3 to begin"
-BG3 is not detected as running. Make sure:
-- BG3 is actually running (not just the launcher)
-- The BG3 ScriptExtender mod is installed
-- The TadpoleCompanion.lua is in the correct LuaScripts directory
-
-### Phone can't connect
-- Make sure both devices are on the same WiFi network
-- Check the IP shown in the plugin panel matches your Deck's IP
-- Try disabling and re-enabling the bridge
-- In Desktop Mode, check the firewall: `sudo ufw allow 3456/tcp`
-
-## License
-
-Part of the Tadpole BG3 Companion project by ZedaKeys.
+Current: **0.6.0**
