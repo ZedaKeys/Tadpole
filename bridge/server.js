@@ -12,7 +12,7 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const BRIDGE_VERSION = '0.1.0';
-const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
+const PB_ERROR_ENDPOINT = 'http://192.168.1.78:8095/api/collections/tadpole_errors/records';
 const ERROR_LOG_FILE = path.join(__dirname, 'bridge-error.log');
 
 // ---------------------------------------------------------------------------

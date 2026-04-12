@@ -32,9 +32,10 @@ const callGetStatus = callable<[], {
 
 const callGetDiagnostics = callable<[], {
   node_installed: boolean; node_version: string | null;
-  bridge_found: boolean; bridge_path: string | null;
+  node_binary: string; bridge_found: boolean; bridge_path: string | null;
   lua_installed: boolean; bg3_running: boolean; ip: string;
-  ready: boolean;
+  bg3_mod_dir: string | null; ready: boolean; paths_checked: Record<string, { path: string; exists: boolean }>;
+  plugin_version: string; home: string; decky_user_home: string;
 }>("get_diagnostics");
 
 const callCheckHealth = callable<[], { healthy: boolean }>("check_health");
@@ -44,7 +45,7 @@ const callStopBridge = callable<[], { success: boolean; message: string }>("stop
 const callGetSettings = callable<[], any>("get_settings");
 const callSaveSettings = callable<[any], { success: boolean }>("save_settings");
 
-// New install/update callables
+// Install/update callables
 const callInstallEverything = callable<[], { success: boolean; results?: any; step?: string }>("install_everything");
 const callInstallNode = callable<[], { success: boolean; message: string }>("install_node");
 const callInstallBridge = callable<[], { success: boolean; message: string; path?: string }>("install_bridge");
@@ -55,6 +56,7 @@ const callCheckUpdate = callable<[], {
 }>("check_update");
 const callPerformUpdate = callable<[string], { success: boolean; message: string }>("perform_update");
 const callGetLog = callable<[], { log: string }>("get_log");
+const callGetManualCommands = callable<[], { commands: Array<{ label: string; command: string; category: string }> }>("get_manual_commands");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,6 +146,25 @@ const CheckItem: VFC<{ label: string; ok: boolean; detail?: string }> = ({ label
   </div>
 );
 
+// Copyable command block - shows command text that can be selected/copied
+const CopyableCommand: VFC<{ label: string; command: string; category: string }> = ({ label, command, category }) => {
+  const borderColor = category === "install" ? C.blue : category === "debug" ? C.orange : C.textDim;
+  return (
+    <div style={{
+      padding: "8px 10px", borderRadius: 8, marginBottom: 6,
+      backgroundColor: C.surface, border: `1px solid ${borderColor}40`,
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 4 }}>{label}</div>
+      <div style={{
+        padding: "6px 8px", borderRadius: 4, backgroundColor: "#0d0d1a",
+        fontFamily: "monospace", fontSize: 10, color: C.accent,
+        whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
+        border: `1px solid ${C.border}`, userSelect: "all",
+      }}>{command}</div>
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Setup Wizard
 // ---------------------------------------------------------------------------
@@ -154,16 +175,19 @@ const SetupWizard: VFC<{
   installing: boolean;
   installStep: string;
   onClose: () => void;
-}> = ({ diagnostics, onInstall, installing, installStep, onClose }) => (
+  manualCommands: Array<{ label: string; command: string; category: string }>;
+  showManual: boolean;
+  onToggleManual: () => void;
+}> = ({ diagnostics, onInstall, installing, installStep, onClose, manualCommands, showManual, onToggleManual }) => (
   <div>
     <SectionHeader title="Setup Check" />
 
     <CheckItem label={diagnostics.node_installed ? `Node.js ${diagnostics.node_version || ""}` : "Node.js"} ok={diagnostics.node_installed}
-      detail={diagnostics.node_installed ? "Ready" : "Will install via pacman"} />
+      detail={diagnostics.node_installed ? `Binary: ${diagnostics.node_binary}` : "Will download prebuilt binary (no sudo)"} />
     <CheckItem label="Bridge Server" ok={diagnostics.bridge_found}
       detail={diagnostics.bridge_found ? diagnostics.bridge_path : "Will download from GitHub"} />
     <CheckItem label="BG3 Lua Mod" ok={diagnostics.lua_installed}
-      detail={diagnostics.lua_installed ? "TadpoleCompanion.lua found" : "Will install to BG3 LuaScripts folder"} />
+      detail={diagnostics.lua_installed ? "TadpoleCompanion.lua found" : diagnostics.bg3_mod_dir ? "Will install to BG3 LuaScripts folder" : "BG3 ScriptExtender not found"} />
 
     {diagnostics.ready ? (
       <PanelSectionRow>
@@ -175,18 +199,46 @@ const SetupWizard: VFC<{
         </div>
       </PanelSectionRow>
     ) : (
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={onInstall} disabled={installing}>
-          <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {installing ? "..." : ">"}
-            {installing
-              ? installStep === "node" ? "Installing Node.js..."
-                : installStep === "bridge" ? "Downloading bridge..."
-                : "Installing Lua mod..."
-              : "Install Everything"}
-          </span>
-        </ButtonItem>
-      </PanelSectionRow>
+      <>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onInstall} disabled={installing}>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {installing ? "..." : ">"}
+              {installing
+                ? installStep === "node" ? "Installing Node.js..."
+                  : installStep === "bridge" ? "Downloading bridge..."
+                  : "Installing Lua mod..."
+                : "Install Everything (Auto)"}
+            </span>
+          </ButtonItem>
+        </PanelSectionRow>
+
+        {/* Manual commands fallback */}
+        {manualCommands.filter(c => c.category === "install").length > 0 && (
+          <>
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={onToggleManual}>
+                {showManual ? "Hide Manual Commands" : "Show Manual Install Commands"}
+              </ButtonItem>
+            </PanelSectionRow>
+            {showManual && (
+              <PanelSectionRow>
+                <div style={{
+                  padding: "8px 10px", borderRadius: 8, backgroundColor: "#0d0d1a",
+                  border: `1px solid ${C.border}`, marginBottom: 4,
+                }}>
+                  <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, lineHeight: 1.3 }}>
+                    If auto-install fails, switch to Desktop Mode, open a terminal, and run these commands:
+                  </div>
+                  {manualCommands.filter(c => c.category === "install").map((cmd, i) => (
+                    <CopyableCommand key={i} label={cmd.label} command={cmd.command} category={cmd.category} />
+                  ))}
+                </div>
+              </PanelSectionRow>
+            )}
+          </>
+        )}
+      </>
     )}
 
     <PanelSectionRow>
@@ -194,6 +246,47 @@ const SetupWizard: VFC<{
         {diagnostics.ready ? "Close" : "Skip Setup"}
       </ButtonItem>
     </PanelSectionRow>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Diagnostics Detail Panel
+// ---------------------------------------------------------------------------
+
+const DiagnosticsPanel: VFC<{ diagnostics: any; onRefresh: () => void }> = ({ diagnostics, onRefresh }) => (
+  <div>
+    <SectionHeader title="Diagnostics" />
+    <PanelSectionRow>
+      <ButtonItem layout="below" onClick={onRefresh}>Refresh</ButtonItem>
+    </PanelSectionRow>
+
+    {/* Version info */}
+    <div style={{ padding: "6px 10px", borderRadius: 6, backgroundColor: C.surface, border: `1px solid ${C.border}`, marginBottom: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 4 }}>Version</div>
+      <StatRow label="Plugin" value={diagnostics.plugin_version || "?"} color={C.accent} />
+      <StatRow label="Node.js" value={diagnostics.node_version || "NOT INSTALLED"} color={diagnostics.node_version ? C.green : C.red} />
+      <StatRow label="Home Dir" value={diagnostics.home || "?"} color={C.textDim} />
+      <StatRow label="Decky User" value={diagnostics.decky_user_home || "?"} color={C.textDim} />
+      <StatRow label="LAN IP" value={diagnostics.ip || "?"} color={C.accent} />
+    </div>
+
+    {/* Paths checked */}
+    {diagnostics.paths_checked && (
+      <div style={{ padding: "6px 10px", borderRadius: 6, backgroundColor: C.surface, border: `1px solid ${C.border}`, marginBottom: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 4 }}>Paths</div>
+        {Object.entries(diagnostics.paths_checked).map(([key, info]: [string, any]) => (
+          <div key={key} style={{ padding: "3px 0", display: "flex", alignItems: "flex-start", gap: 6 }}>
+            <span style={{ fontSize: 11, color: info.exists ? C.green : C.red, fontWeight: 600, flexShrink: 0 }}>
+              {info.exists ? "[OK]" : "[X]"}
+            </span>
+            <div>
+              <div style={{ fontSize: 10, color: C.textDim }}>{key.replace(/_/g, " ")}</div>
+              <div style={{ fontSize: 9, color: C.textDim, fontFamily: "monospace", wordBreak: "break-all" }}>{info.path}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
   </div>
 );
 
@@ -219,6 +312,8 @@ const TadpolePanel: VFC = () => {
   const [showSetup, setShowSetup] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installStep, setInstallStep] = useState("");
+  const [manualCommands, setManualCommands] = useState<Array<{ label: string; command: string; category: string }>>([]);
+  const [showManual, setShowManual] = useState(false);
 
   // Update
   const [updateInfo, setUpdateInfo] = useState<any>(null);
@@ -228,6 +323,9 @@ const TadpolePanel: VFC = () => {
   // Log viewer
   const [showLog, setShowLog] = useState(false);
   const [logText, setLogText] = useState("");
+
+  // Diagnostics panel
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const handleViewLog = useCallback(async () => {
     try {
@@ -253,6 +351,11 @@ const TadpolePanel: VFC = () => {
       const d = await callGetDiagnostics();
       setDiagnostics(d);
       if (d && !d.ready && !showSetup) setShowSetup(true);
+    } catch {}
+    // Also fetch manual commands
+    try {
+      const mc = await callGetManualCommands();
+      setManualCommands(mc.commands || []);
     } catch {}
   }, [showSetup]);
 
@@ -311,6 +414,11 @@ const TadpolePanel: VFC = () => {
         await fetchStatus();
       } else {
         toaster.toast({ title: "Setup Failed", body: `Failed at ${r.step || "unknown step"}` });
+        // Refresh manual commands after failure so user sees what to do
+        try {
+          const mc = await callGetManualCommands();
+          setManualCommands(mc.commands || []);
+        } catch {}
       }
     } catch { toaster.toast({ title: "Error", body: "Installation failed" }); }
     setInstalling(false);
@@ -391,7 +499,7 @@ const TadpolePanel: VFC = () => {
 
   return (
     <div style={{ padding: "4px 0" }}>
-      {/* ── Setup Wizard ── */}
+      {/* -- Setup Wizard -- */}
       {showSetup && diagnostics && (
         <PanelSection title="">
           <SetupWizard
@@ -400,11 +508,14 @@ const TadpolePanel: VFC = () => {
             installing={installing}
             installStep={installStep}
             onClose={() => setShowSetup(false)}
+            manualCommands={manualCommands}
+            showManual={showManual}
+            onToggleManual={() => setShowManual(!showManual)}
           />
         </PanelSection>
       )}
 
-      {/* ── First run welcome (no setup shown yet) ── */}
+      {/* -- First run welcome (no setup shown yet) -- */}
       {!showSetup && diagnostics && !diagnostics.ready && (
         <PanelSection title="">
           <PanelSectionRow>
@@ -425,7 +536,7 @@ const TadpolePanel: VFC = () => {
         </PanelSection>
       )}
 
-      {/* ── Connection ── */}
+      {/* -- Connection -- */}
       {!showSetup && (
         <PanelSection title="">
           <SectionHeader title="Connection" />
@@ -460,7 +571,7 @@ const TadpolePanel: VFC = () => {
         </PanelSection>
       )}
 
-      {/* ── Game ── */}
+      {/* -- Game -- */}
       {!showSetup && (
         <PanelSection title="">
           <SectionHeader title="Game" />
@@ -473,14 +584,14 @@ const TadpolePanel: VFC = () => {
                 padding: "6px 10px", borderRadius: 6, backgroundColor: C.surface,
                 fontSize: 11, color: C.textDim, textAlign: "center", border: `1px solid ${C.border}`,
               }}>
-                {bridgeRunning ? "Bridge ready — launch BG3 to connect" : "Start the bridge, then launch BG3"}
+                {bridgeRunning ? "Bridge ready -- launch BG3 to connect" : "Start the bridge, then launch BG3"}
               </div>
             </PanelSectionRow>
           )}
         </PanelSection>
       )}
 
-      {/* ── Live Game ── */}
+      {/* -- Live Game -- */}
       {gameState && bg3Running && !showSetup && (
         <PanelSection title="">
           <SectionHeader title="Live" />
@@ -522,7 +633,7 @@ const TadpolePanel: VFC = () => {
                   {recentEvents.slice(-5).reverse().map((evt: any, i: number) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
                       <span>{EVENT_ICONS[evt.type] || "-"}</span>
-                      <span style={{ color: C.textDim }}>{evt.type.replace(/_/g, " ")}{evt.detail ? ` — ${evt.detail}` : ""}</span>
+                      <span style={{ color: C.textDim }}>{evt.type.replace(/_/g, " ")}{evt.detail ? ` -- ${evt.detail}` : ""}</span>
                     </div>
                   ))}
                 </div>
@@ -532,7 +643,7 @@ const TadpolePanel: VFC = () => {
         </PanelSection>
       )}
 
-      {/* ── Phone App ── */}
+      {/* -- Phone App -- */}
       {!showSetup && (
         <PanelSection title="">
           <SectionHeader title="Phone App" />
@@ -555,7 +666,7 @@ const TadpolePanel: VFC = () => {
         </PanelSection>
       )}
 
-      {/* ── Settings ── */}
+      {/* -- Settings -- */}
       <PanelSection title="">
         <SectionHeader title="Settings" />
 
@@ -597,6 +708,18 @@ const TadpolePanel: VFC = () => {
           </ButtonItem>
         </PanelSectionRow>
 
+        {/* Diagnostics detail */}
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => setShowDiagnostics(!showDiagnostics)}>
+            {showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics"}
+          </ButtonItem>
+        </PanelSectionRow>
+        {showDiagnostics && diagnostics && (
+          <PanelSectionRow>
+            <DiagnosticsPanel diagnostics={diagnostics} onRefresh={runDiagnostics} />
+          </PanelSectionRow>
+        )}
+
         {/* Individual install buttons (advanced) */}
         {showSettings && (
           <>
@@ -631,7 +754,7 @@ const TadpolePanel: VFC = () => {
             <div style={{
               padding: "8px 10px", borderRadius: 8, backgroundColor: "#0d0d1a",
               border: `1px solid ${C.border}`, fontFamily: "monospace",
-              fontSize: 10, color: C.textDim, maxHeight: 200, overflowY: "auto",
+              fontSize: 10, color: C.textDim, maxHeight: 250, overflowY: "auto",
               whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
             }}>
               {logText || "Loading..."}
@@ -639,9 +762,35 @@ const TadpolePanel: VFC = () => {
           </PanelSectionRow>
         )}
 
+        {/* Manual commands (always visible in settings) */}
+        {manualCommands.length > 0 && (
+          <>
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={() => setShowManual(!showManual)}>
+                {showManual ? "Hide Terminal Commands" : "Show Terminal Commands"}
+              </ButtonItem>
+            </PanelSectionRow>
+            {showManual && (
+              <PanelSectionRow>
+                <div style={{
+                  padding: "8px 10px", borderRadius: 8, backgroundColor: "#0d0d1a",
+                  border: `1px solid ${C.border}`,
+                }}>
+                  <div style={{ fontSize: 10, color: C.textDim, marginBottom: 6, lineHeight: 1.3 }}>
+                    Switch to Desktop Mode, open a terminal, and run these:
+                  </div>
+                  {manualCommands.map((cmd, i) => (
+                    <CopyableCommand key={i} label={cmd.label} command={cmd.command} category={cmd.category} />
+                  ))}
+                </div>
+              </PanelSectionRow>
+            )}
+          </>
+        )}
+
         <PanelSectionRow>
           <div style={{ textAlign: "center", fontSize: 10, color: C.textDim, opacity: 0.5, padding: "8px 0 4px" }}>
-            Tadpole v0.4.2
+            Tadpole v0.5.0
           </div>
         </PanelSectionRow>
       </PanelSection>

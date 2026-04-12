@@ -40,7 +40,7 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "http://192.168.1.78:8095/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.4.2"
+PLUGIN_VERSION = "0.5.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -686,23 +686,51 @@ class Plugin:
     # -------------------------------------------------------------------
 
     async def get_diagnostics(self) -> dict:
-        """Run all diagnostic checks and return results."""
+        """Run all diagnostic checks and return results with detailed paths."""
         try:
             node_installed = _is_node_installed()
             node_version = _get_node_version() if node_installed else None
             bridge_found = _find_bridge_server()
             lua_installed = _is_lua_mod_installed()
             bg3_running = _is_bg3_running()
+            bg3_mod_dir = _get_bg3_mod_dir()
+            node_bin = _get_node_binary()
+            home = os.path.expanduser("~")
+
+            # Detailed path info for debugging
+            tadpole_node_path = os.path.join(home, "tadpole", "node", "bin", "node")
+            bridge_dir = os.path.join(home, "tadpole", "bridge")
+
+            # Check what actually exists on disk
+            paths_checked = {
+                "tadpole_node_bin": {"path": tadpole_node_path, "exists": os.path.exists(tadpole_node_path)},
+                "bridge_server_js": {"path": os.path.join(bridge_dir, "server.js"), "exists": os.path.exists(os.path.join(bridge_dir, "server.js"))},
+                "bridge_node_modules": {"path": os.path.join(bridge_dir, "node_modules"), "exists": os.path.isdir(os.path.join(bridge_dir, "node_modules"))},
+                "bg3_lua_scripts_dir": {"path": bg3_mod_dir or "NOT FOUND", "exists": bg3_mod_dir is not None},
+                "plugin_dir": {"path": getattr(decky, 'DECKY_PLUGIN_DIR', 'unknown'), "exists": os.path.isdir(getattr(decky, 'DECKY_PLUGIN_DIR', ''))},
+                "state_file": {"path": STATE_FILE, "exists": os.path.exists(STATE_FILE)},
+            }
+
+            # If bg3_mod_dir exists, check for lua file
+            if bg3_mod_dir:
+                lua_path = os.path.join(bg3_mod_dir, "TadpoleCompanion.lua")
+                paths_checked["tadpole_lua"] = {"path": lua_path, "exists": os.path.exists(lua_path)}
 
             return {
                 "node_installed": node_installed,
                 "node_version": node_version,
+                "node_binary": node_bin,
                 "bridge_found": bridge_found is not None,
                 "bridge_path": bridge_found,
                 "lua_installed": lua_installed,
                 "bg3_running": bg3_running,
+                "bg3_mod_dir": bg3_mod_dir,
                 "ip": _get_ip(),
                 "ready": node_installed and bridge_found is not None,
+                "paths_checked": paths_checked,
+                "plugin_version": PLUGIN_VERSION,
+                "home": home,
+                "decky_user_home": getattr(decky, 'DECKY_USER_HOME', 'unknown'),
             }
         except Exception as e:
             _report_plugin_error(f"get_diagnostics: {e}", stack=traceback.format_exc())
@@ -792,15 +820,78 @@ class Plugin:
         return _perform_update(download_url)
 
     async def get_log(self) -> dict:
-        """Return the last 50 lines of the plugin log."""
+        """Return the last 100 lines of the plugin log."""
         try:
             if not os.path.exists(PLUGIN_LOG):
                 return {"log": "No log file yet. Plugin may not have loaded."}
             with open(PLUGIN_LOG, "r") as f:
                 lines = f.readlines()
-            return {"log": "".join(lines[-50:])}
+            return {"log": "".join(lines[-100:])}
         except Exception as e:
             return {"log": f"Error reading log: {e}"}
+
+    async def get_manual_commands(self) -> dict:
+        """Return terminal commands the user can run manually to install deps."""
+        home = os.path.expanduser("~")
+        tadpole_dir = os.path.join(home, "tadpole")
+        node_dir = os.path.join(tadpole_dir, "node")
+        bridge_dir = os.path.join(tadpole_dir, "bridge")
+        bg3_mod_dir = _get_bg3_mod_dir()
+
+        commands = []
+
+        # 1. Node.js install command
+        if not _is_node_installed():
+            commands.append({
+                "label": "Install Node.js (no sudo needed)",
+                "command": f"mkdir -p {node_dir} && cd /tmp && curl -sL https://nodejs.org/dist/v18.20.4/node-v18.20.4-linux-x64.tar.xz -o node.tar.xz && tar xf node.tar.xz -C {node_dir} --strip-components=1 && rm node.tar.xz && {node_dir}/bin/node --version",
+                "category": "install",
+            })
+
+        # 2. Bridge server install
+        if not _find_bridge_server():
+            bridge_files_cmd = f"mkdir -p {bridge_dir}"
+            for f in BRIDGE_FILES:
+                basename = os.path.basename(f)
+                bridge_files_cmd += f" && curl -sL {GITHUB_RAW}/{f} -o {bridge_dir}/{basename}"
+            npm_bin = os.path.join(node_dir, "bin", "npm") if os.path.exists(os.path.join(node_dir, "bin", "node")) else "npm"
+            bridge_files_cmd += f" && cd {bridge_dir} && {npm_bin} install --production"
+            commands.append({
+                "label": "Install Bridge Server",
+                "command": bridge_files_cmd,
+                "category": "install",
+            })
+
+        # 3. Lua mod install
+        if not _is_lua_mod_installed():
+            if bg3_mod_dir:
+                commands.append({
+                    "label": "Install BG3 Lua Mod",
+                    "command": f"curl -sL {GITHUB_RAW}/{LUA_MOD_FILE} -o {bg3_mod_dir}/TadpoleCompanion.lua",
+                    "category": "install",
+                })
+            else:
+                commands.append({
+                    "label": "BG3 ScriptExtender not found. Install BG3 ScriptExtender first, then retry.",
+                    "command": "echo 'Install BG3 ScriptExtender from: https://github.com/Norbyte/lsxy'",
+                    "category": "info",
+                })
+
+        # 4. View log command
+        commands.append({
+            "label": "View plugin log",
+            "command": f"cat {PLUGIN_LOG}",
+            "category": "debug",
+        })
+
+        # 5. Check bridge status
+        commands.append({
+            "label": "Test bridge connection",
+            "command": f"curl -s http://127.0.0.1:{_bridge_port}/health || echo 'Bridge not responding'",
+            "category": "debug",
+        })
+
+        return {"commands": commands}
 
     async def get_status(self) -> dict:
         """Return the current bridge + game status."""
