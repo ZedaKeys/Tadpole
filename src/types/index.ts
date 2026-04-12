@@ -237,3 +237,93 @@ export interface GameState {
   gold: number;
   events: GameEvent[];
 }
+
+// === Build Planner ===
+
+export type AbilityType =
+  | 'strength'
+  | 'dexterity'
+  | 'constitution'
+  | 'intelligence'
+  | 'wisdom'
+  | 'charisma';
+
+export interface RaceSubrace {
+  id: string;
+  name: string;
+  description: string;
+  abilityBonuses: { ability: AbilityType; bonus: number }[];
+  features: { name: string; description: string }[];
+  proficiencies: string[];
+}
+
+export interface Race {
+  id: string;
+  name: string;
+  description: string;
+  abilityBonuses: { ability: AbilityType; bonus: number }[];
+  features: { name: string; description: string }[];
+  proficiencies: string[];
+  subraces: RaceSubrace[];
+  speed: number; // base movement speed in feet
+  size: 'Small' | 'Medium';
+}
+
+export interface Feat {
+  id: string;
+  name: string;
+  description: string;
+  isHalfFeat: boolean; // grants +1 to an ability
+  abilityOptions?: AbilityType[]; // which abilities the half-feat can boost
+  prerequisites?: string; // e.g. "Spellcasting" or "Proficiency with martial weapons"
+}
+
+export interface Background {
+  id: string;
+  name: string;
+  description: string;
+  skillProficiencies: string[];
+  feature?: string; // background feature name
+}
+
+export interface SkillInfo {
+  name: string;
+  ability: AbilityType;
+}
+
+export interface SpellSlotRow {
+  level: number; // character level
+  slots: number[]; // [cantrips, 1st, 2nd, 3rd, 4th, 5th, 6th]
+}
+
+export interface BuildLevel {
+  classId: string;
+  subclassId?: string;
+}
+
+export interface FeatChoice {
+  atLevel: number;
+  featId: string; // feat id or 'asi'
+  asiBoosts?: { ability: AbilityType; amount: number }[];
+}
+
+export interface BuildSpells {
+  classId: string;
+  cantrips: string[];
+  spells: string[];
+}
+
+export interface SavedBuild {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  race: string;
+  subrace?: string;
+  background: string;
+  baseScores: Record<AbilityType, number>;
+  levels: BuildLevel[];
+  featChoices: FeatChoice[];
+  chosenSkills: string[];
+  chosenSpells: BuildSpells[];
+}

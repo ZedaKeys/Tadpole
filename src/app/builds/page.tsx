@@ -1,10 +1,10 @@
 'use client';
 
-import { Shield, Swords, Wand2, Heart } from 'lucide-react';
 import { classes } from '@/data/classes';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { AppShell } from '@/components/layout/AppShell';
+import Link from 'next/link';
 
 const CLASS_COLORS: Record<string, string> = {
   barbarian: '#ef4444',
@@ -24,6 +24,24 @@ const CLASS_COLORS: Record<string, string> = {
 export default function BuildsPage() {
   return (
     <AppShell title="Build Planner">
+      {/* Quick actions */}
+      <div className="flex gap-2 mb-4">
+        <Link
+          href="/builds/new"
+          className="flex-1 py-3 rounded-xl font-semibold text-sm text-center"
+          style={{ background: 'var(--accent)', color: '#fff', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          + New Build
+        </Link>
+        <Link
+          href="/builds/saved"
+          className="flex-1 py-3 rounded-xl font-semibold text-sm text-center"
+          style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          Saved Builds
+        </Link>
+      </div>
+
       <p
         className="mb-3"
         style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
