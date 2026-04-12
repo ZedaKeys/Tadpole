@@ -54,6 +54,7 @@ const callCheckUpdate = callable<[], {
   latest_version: string; download_url?: string; release_notes?: string; error?: string;
 }>("check_update");
 const callPerformUpdate = callable<[string], { success: boolean; message: string }>("perform_update");
+const callGetLog = callable<[], { log: string }>("get_log");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -223,6 +224,18 @@ const TadpolePanel: VFC = () => {
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [updating, setUpdating] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  // Log viewer
+  const [showLog, setShowLog] = useState(false);
+  const [logText, setLogText] = useState("");
+
+  const handleViewLog = useCallback(async () => {
+    try {
+      const r = await callGetLog();
+      setLogText(r.log);
+      setShowLog(!showLog);
+    } catch { setLogText("Could not read log"); setShowLog(true); }
+  }, [showLog]);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartRef = useRef(false);
@@ -607,9 +620,28 @@ const TadpolePanel: VFC = () => {
           </ButtonItem>
         </PanelSectionRow>
 
+        {/* Log viewer */}
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={handleViewLog}>
+            📋 {showLog ? "Hide Log" : "View Log"}
+          </ButtonItem>
+        </PanelSectionRow>
+        {showLog && (
+          <PanelSectionRow>
+            <div style={{
+              padding: "8px 10px", borderRadius: 8, backgroundColor: "#0d0d1a",
+              border: `1px solid ${C.border}`, fontFamily: "monospace",
+              fontSize: 10, color: C.textDim, maxHeight: 200, overflowY: "auto",
+              whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
+            }}>
+              {logText || "Loading..."}
+            </div>
+          </PanelSectionRow>
+        )}
+
         <PanelSectionRow>
           <div style={{ textAlign: "center", fontSize: 10, color: C.textDim, opacity: 0.5, padding: "8px 0 4px" }}>
-            Tadpole v0.4.0
+            Tadpole v0.4.2
           </div>
         </PanelSectionRow>
       </PanelSection>

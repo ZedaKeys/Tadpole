@@ -40,9 +40,22 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.4.1"
+PLUGIN_VERSION = "0.4.2"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
+
+# Local debug log -- always works, no network needed
+PLUGIN_LOG = "/tmp/tadpole-plugin.log"
+
+def _log(msg):
+    """Write to local log file so user can check what happened."""
+    try:
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        line = f"[{ts}] {msg}\n"
+        with open(PLUGIN_LOG, "a") as f:
+            f.write(line)
+    except Exception:
+        pass
 
 
 def _error_log_path():
@@ -609,20 +622,32 @@ class Plugin:
     async def _main(self):
         """Lifecycle: called when the plugin is loaded."""
         global _bridge_port
+        _log("=== Tadpole plugin starting ===")
+        _log(f"Version: {PLUGIN_VERSION}")
+        _log(f"DECKY_PLUGIN_DIR: {getattr(decky, 'DECKY_PLUGIN_DIR', 'unknown')}")
+        _log(f"DECKY_USER_HOME: {getattr(decky, 'DECKY_USER_HOME', 'unknown')}")
+        _log(f"Python: {os.path.dirname(os.executable)}")
+        _log(f"Node installed: {_is_node_installed()}")
+        _log(f"Node binary: {_get_node_binary()}")
+        _log(f"Bridge found: {_find_bridge_server()}")
+        _log(f"BG3 mod dir: {_get_bg3_mod_dir()}")
+
         decky.logger.info("Tadpole BG3 Companion plugin loaded")
         decky.logger.info(f"Plugin version: {PLUGIN_VERSION}")
 
         # Load saved port setting
         try:
             sp = _settings_path()
+            _log(f"Settings path: {sp}")
             if os.path.exists(sp):
                 with open(sp, "r") as f:
                     saved = json.loads(f.read())
                     if "port" in saved:
                         _bridge_port = saved["port"]
+                _log(f"Loaded port: {_bridge_port}")
         except Exception as e:
+            _log(f"ERROR loading settings: {e}")
             decky.logger.warn(f"Could not load settings: {e}")
-            _report_plugin_error(f"load settings: {e}", stack=traceback.format_exc())
 
     async def _unload(self):
         """Lifecycle: called when the plugin is unloaded."""
@@ -678,12 +703,17 @@ class Plugin:
             return {"healthy": False, "error": str(e)}
 
     async def install_node(self) -> dict:
-        """Install Node.js via pacman."""
-        return _install_node()
+        """Install Node.js by downloading prebuilt binary."""
+        _log("install_node called")
+        result = _install_node()
+        _log(f"install_node result: {result}")
+        return result
 
     async def install_bridge(self) -> dict:
         """Download and set up the bridge server from GitHub."""
+        _log("install_bridge called")
         result = _install_bridge()
+        _log(f"install_bridge result: {result}")
         # Update settings with the new bridge dir
         if result.get("success") and result.get("path"):
             sp = _settings_path()
@@ -698,31 +728,46 @@ class Plugin:
 
     async def install_lua_mod(self) -> dict:
         """Download and install the BG3 Lua mod."""
-        return _install_lua_mod()
+        _log("install_lua_mod called")
+        result = _install_lua_mod()
+        _log(f"install_lua_mod result: {result}")
+        return result
 
     async def install_everything(self) -> dict:
         """One-click: install Node.js, bridge server, and Lua mod."""
+        _log("=== install_everything called ===")
         results = {}
         # 1. Node.js
         if not _is_node_installed():
+            _log("Step 1: Installing Node.js...")
             results["node"] = _install_node()
+            _log(f"Node.js result: {results['node']}")
             if not results["node"]["success"]:
+                _log(f"FAILED at node: {results['node']['message']}")
                 return {"success": False, "step": "node", "results": results}
         else:
             results["node"] = {"success": True, "message": "Already installed"}
+            _log("Node.js already installed")
 
         # 2. Bridge server
         if not _find_bridge_server():
+            _log("Step 2: Installing bridge server...")
             results["bridge"] = _install_bridge()
+            _log(f"Bridge result: {results['bridge']}")
             if not results["bridge"]["success"]:
+                _log(f"FAILED at bridge: {results['bridge']['message']}")
                 return {"success": False, "step": "bridge", "results": results}
         else:
             results["bridge"] = {"success": True, "message": "Already installed"}
+            _log("Bridge already installed")
 
         # 3. Lua mod
+        _log("Step 3: Installing Lua mod...")
         results["lua"] = _install_lua_mod()
+        _log(f"Lua mod result: {results['lua']}")
 
         all_ok = all(r.get("success") for r in results.values())
+        _log(f"=== install_everything done: {'SUCCESS' if all_ok else 'PARTIAL'} ===")
         return {"success": all_ok, "results": results}
 
     async def check_update(self) -> dict:
@@ -732,6 +777,17 @@ class Plugin:
     async def perform_update(self, download_url: str) -> dict:
         """Download and install the latest plugin version."""
         return _perform_update(download_url)
+
+    async def get_log(self) -> dict:
+        """Return the last 50 lines of the plugin log."""
+        try:
+            if not os.path.exists(PLUGIN_LOG):
+                return {"log": "No log file yet. Plugin may not have loaded."}
+            with open(PLUGIN_LOG, "r") as f:
+                lines = f.readlines()
+            return {"log": "".join(lines[-50:])}
+        except Exception as e:
+            return {"log": f"Error reading log: {e}"}
 
     async def get_status(self) -> dict:
         """Return the current bridge + game status."""

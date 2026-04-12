@@ -111,6 +111,7 @@ const callInstallBridge = callable("install_bridge");
 const callInstallLuaMod = callable("install_lua_mod");
 const callCheckUpdate = callable("check_update");
 const callPerformUpdate = callable("perform_update");
+const callGetLog = callable("get_log");
 const DEFAULT_SETTINGS = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
 const EVENT_ICONS = {
     combat_started: "⚔️", combat_ended: "✅", area_changed: "🗺️",
@@ -182,6 +183,20 @@ const TadpolePanel = () => {
     const [updateInfo, setUpdateInfo] = SP_REACT.useState(null);
     const [updating, setUpdating] = SP_REACT.useState(false);
     const [checkingUpdate, setCheckingUpdate] = SP_REACT.useState(false);
+    // Log viewer
+    const [showLog, setShowLog] = SP_REACT.useState(false);
+    const [logText, setLogText] = SP_REACT.useState("");
+    const handleViewLog = SP_REACT.useCallback(async () => {
+        try {
+            const r = await callGetLog();
+            setLogText(r.log);
+            setShowLog(!showLog);
+        }
+        catch {
+            setLogText("Could not read log");
+            setShowLog(true);
+        }
+    }, [showLog]);
     const pollRef = SP_REACT.useRef(null);
     const autoStartRef = SP_REACT.useRef(false);
     const prevClientsRef = SP_REACT.useRef(0);
@@ -377,7 +392,12 @@ const TadpolePanel = () => {
                                 padding: "10px 12px", borderRadius: 8,
                                 backgroundColor: `${C.blue}15`, border: `1px solid ${C.blue}30`,
                             }, children: [SP_JSX.jsxs("div", { style: { fontSize: 13, fontWeight: 600, color: C.blue, marginBottom: 4 }, children: ["Update: v", updateInfo.latest_version] }), SP_JSX.jsxs("div", { style: { fontSize: 11, color: C.textDim, marginBottom: 8 }, children: ["Current: v", updateInfo.current_version] }), SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => handlePerformUpdate(updateInfo.download_url), disabled: updating, children: updating ? "⟳ Updating..." : "Install Update" })] }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => { runDiagnostics(); setShowSetup(true); }, children: "\uD83D\uDD0D Run Setup / Diagnostics" }) }), showSettings && (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => { const r = await callInstallNode(); toaster.toast({ title: "Node.js", body: r.message }); }, children: "Install Node.js" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => { const r = await callInstallBridge(); toaster.toast({ title: "Bridge", body: r.message }); }, children: "Install Bridge Server" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => { const r = await callInstallLuaMod(); toaster.toast({ title: "Lua Mod", body: r.message }); }, children: "Install BG3 Mod" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Port", value: String(settings.port), onChange: (v) => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0)
-                                        updateSettings({ ...settings, port: n }); } }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Directory", value: settings.bridgeDir, onChange: (v) => updateSettings({ ...settings, bridgeDir: v }) }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setShowSettings(!showSettings), children: showSettings ? "Hide Advanced" : "Show Advanced" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { textAlign: "center", fontSize: 10, color: C.textDim, opacity: 0.5, padding: "8px 0 4px" }, children: "Tadpole v0.4.0" }) })] })] }));
+                                        updateSettings({ ...settings, port: n }); } }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Directory", value: settings.bridgeDir, onChange: (v) => updateSettings({ ...settings, bridgeDir: v }) }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setShowSettings(!showSettings), children: showSettings ? "Hide Advanced" : "Show Advanced" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsxs(DFL.ButtonItem, { layout: "below", onClick: handleViewLog, children: ["\uD83D\uDCCB ", showLog ? "Hide Log" : "View Log"] }) }), showLog && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
+                                padding: "8px 10px", borderRadius: 8, backgroundColor: "#0d0d1a",
+                                border: `1px solid ${C.border}`, fontFamily: "monospace",
+                                fontSize: 10, color: C.textDim, maxHeight: 200, overflowY: "auto",
+                                whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
+                            }, children: logText || "Loading..." }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: { textAlign: "center", fontSize: 10, color: C.textDim, opacity: 0.5, padding: "8px 0 4px" }, children: "Tadpole v0.4.2" }) })] })] }));
 };
 // ---------------------------------------------------------------------------
 var index = definePlugin(() => ({
