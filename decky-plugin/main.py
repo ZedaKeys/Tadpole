@@ -456,25 +456,41 @@ def _get_node_binary():
 
 
 def _install_bridge(progress_cb=None):
-    """Download bridge server files from GitHub."""
+    """Set up bridge server from bundled files or GitHub."""
     try:
         bridge_dir = os.path.join(os.path.expanduser("~"), "tadpole", "bridge")
         os.makedirs(bridge_dir, exist_ok=True)
 
-        downloaded = 0
-        total = len(BRIDGE_FILES)
+        # First try: copy from plugin's bundled bridge/ directory
+        plugin_dir = getattr(decky, 'DECKY_PLUGIN_DIR', '')
+        bundled_bridge = os.path.join(plugin_dir, "bridge") if plugin_dir else ""
+        used_bundled = False
 
-        for file_path in BRIDGE_FILES:
-            url = f"{GITHUB_RAW}/{file_path}"
-            dest = os.path.join(bridge_dir, os.path.basename(file_path))
-            if not _download_file(url, dest):
-                # File might not exist in repo, skip
-                decky.logger.warn(f"Skipping {file_path} (not found in repo)")
-            downloaded += 1
-            if progress_cb:
-                progress_cb(downloaded, total)
+        if bundled_bridge and os.path.exists(os.path.join(bundled_bridge, "server.js")):
+            decky.logger.info(f"Found bundled bridge at {bundled_bridge}, copying...")
+            _log(f"Installing bridge from bundled files at {bundled_bridge}")
+            for fname in ["server.js", "package.json", "package-lock.json"]:
+                src = os.path.join(bundled_bridge, fname)
+                dst = os.path.join(bridge_dir, fname)
+                if os.path.exists(src):
+                    shutil.copy2(src, dst)
+            used_bundled = True
+        else:
+            # Fallback: download from GitHub
+            decky.logger.info("No bundled bridge, downloading from GitHub...")
+            _log("Downloading bridge from GitHub...")
+            downloaded = 0
+            total = len(BRIDGE_FILES)
+            for file_path in BRIDGE_FILES:
+                url = f"{GITHUB_RAW}/{file_path}"
+                dest = os.path.join(bridge_dir, os.path.basename(file_path))
+                if not _download_file(url, dest):
+                    decky.logger.warn(f"Skipping {file_path} (not found in repo)")
+                downloaded += 1
+                if progress_cb:
+                    progress_cb(downloaded, total)
 
-        # Run npm install using bundled or system npm
+        # Run npm install
         if os.path.exists(os.path.join(bridge_dir, "package.json")):
             node_bin = _get_node_binary()
             npm_bin = os.path.join(os.path.dirname(node_bin), "npm") if os.path.dirname(node_bin) != "" else "npm"
@@ -485,9 +501,10 @@ def _install_bridge(progress_cb=None):
             if result.returncode != 0:
                 return {"success": False, "message": f"npm install failed: {result.stderr[-200:]}"}
 
+        source = "bundled" if used_bundled else "downloaded"
         return {
             "success": True,
-            "message": f"Bridge installed to {bridge_dir}",
+            "message": f"Bridge {source} and installed to {bridge_dir}",
             "path": bridge_dir,
         }
     except Exception as e:
