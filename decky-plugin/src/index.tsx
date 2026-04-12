@@ -790,7 +790,7 @@ const TadpolePanel: VFC = () => {
 
         <PanelSectionRow>
           <div style={{ textAlign: "center", fontSize: 10, color: C.textDim, opacity: 0.5, padding: "8px 0 4px" }}>
-            Tadpole v0.5.1
+            Tadpole v0.6.0
           </div>
         </PanelSectionRow>
       </PanelSection>

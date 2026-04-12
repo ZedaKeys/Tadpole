@@ -41,7 +41,7 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "http://192.168.1.78:8095/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.5.1"
+PLUGIN_VERSION = "0.6.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -512,7 +512,7 @@ def _install_bridge(progress_cb=None):
 
 
 def _install_lua_mod():
-    """Download and install the BG3 ScriptExtender Lua mod."""
+    """Install the BG3 ScriptExtender Lua mod from bundled files or GitHub."""
     try:
         mod_dir = _get_bg3_mod_dir()
         if not mod_dir:
@@ -521,9 +521,20 @@ def _install_lua_mod():
                 "message": "BG3 ScriptExtender LuaScripts folder not found. Make sure BG3 is installed and ScriptExtender is set up.",
             }
 
-        url = f"{GITHUB_RAW}/{LUA_MOD_FILE}"
         dest = os.path.join(mod_dir, "TadpoleCompanion.lua")
 
+        # First try: copy from bundled mod/ directory
+        plugin_dir = getattr(decky, 'DECKY_PLUGIN_DIR', '')
+        bundled_mod = os.path.join(plugin_dir, "mod", "TadpoleCompanion.lua") if plugin_dir else ""
+
+        if bundled_mod and os.path.exists(bundled_mod):
+            _log(f"Installing Lua mod from bundled file: {bundled_mod}")
+            shutil.copy2(bundled_mod, dest)
+            return {"success": True, "message": f"Lua mod installed to {dest}"}
+
+        # Fallback: download from GitHub
+        _log("No bundled Lua mod, downloading from GitHub...")
+        url = f"{GITHUB_RAW}/{LUA_MOD_FILE}"
         if not _download_file(url, dest):
             return {"success": False, "message": f"Failed to download Lua mod from {url}"}
 
