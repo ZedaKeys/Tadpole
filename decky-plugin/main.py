@@ -40,7 +40,7 @@ _bridge_port = 3456
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.4.0"
+PLUGIN_VERSION = "0.4.1"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -184,7 +184,10 @@ def _is_bridge_running():
 
 
 def _is_node_installed():
-    """Check if Node.js is available."""
+    """Check if Node.js is available (bundled or system)."""
+    tadpole_node = os.path.join(os.path.expanduser("~"), "tadpole", "node", "bin", "node")
+    if os.path.exists(tadpole_node):
+        return True
     try:
         result = subprocess.run(
             ["node", "--version"], capture_output=True, text=True, timeout=5
@@ -196,9 +199,10 @@ def _is_node_installed():
 
 def _get_node_version():
     """Get Node.js version string, or None if not installed."""
+    node_bin = _get_node_binary()
     try:
         result = subprocess.run(
-            ["node", "--version"], capture_output=True, text=True, timeout=5
+            [node_bin, "--version"], capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -343,17 +347,77 @@ def _download_file(url, dest_path):
 
 
 def _install_node():
-    """Install Node.js via pacman (Steam Deck has passwordless sudo for deck user)."""
+    """Install Node.js by downloading the prebuilt binary (no sudo needed)."""
     try:
+        # Check if we already have our own node
+        tadpole_node = os.path.join(os.path.expanduser("~"), "tadpole", "node", "bin", "node")
+        if os.path.exists(tadpole_node):
+            return {"success": True, "message": f"Node.js already installed at {tadpole_node}"}
+
+        # Download prebuilt Node.js LTS for linux-x64 (Steam Deck is x86_64)
+        # Use v18 LTS for broad compatibility
+        node_version = "v18.20.4"
+        tarball = f"node-{node_version}-linux-x64.tar.xz"
+        url = f"https://nodejs.org/dist/{node_version}/{tarball}"
+
+        install_dir = os.path.join(os.path.expanduser("~"), "tadpole", "node")
+        tmp_tarball = os.path.join("/tmp", tarball)
+
+        decky.logger.info(f"Downloading Node.js {node_version} from {url}")
+
+        # Download
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            with open(tmp_tarball, "wb") as f:
+                # Read in chunks for large file
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+        decky.logger.info(f"Downloaded {tarball}, extracting...")
+
+        # Extract -- strip the top-level node-v18.x.x-linux-x64/ folder
+        os.makedirs(install_dir, exist_ok=True)
         result = subprocess.run(
-            ["sudo", "pacman", "-S", "--noconfirm", "--needed", "nodejs", "npm"],
-            capture_output=True, text=True, timeout=120,
+            ["tar", "xf", tmp_tarball, "-C", install_dir, "--strip-components=1"],
+            capture_output=True, text=True, timeout=60,
         )
-        if result.returncode == 0:
-            return {"success": True, "message": f"Node.js installed: {_get_node_version()}"}
-        return {"success": False, "message": f"pacman failed: {result.stderr[-200:]}"}
+
+        # Clean up tarball
+        try:
+            os.remove(tmp_tarball)
+        except Exception:
+            pass
+
+        if result.returncode != 0:
+            return {"success": False, "message": f"Extract failed: {result.stderr[-200:]}"}
+
+        # Verify
+        if not os.path.exists(tadpole_node):
+            return {"success": False, "message": "Node binary not found after extraction"}
+
+        # Make executable
+        subprocess.run(["chmod", "+x", tadpole_node], capture_output=True, timeout=5)
+
+        version = _get_node_version()
+        decky.logger.info(f"Node.js installed: {version}")
+        return {"success": True, "message": f"Node.js {version} installed to {install_dir}"}
+
     except Exception as e:
+        decky.logger.error(f"Node.js install failed: {e}")
         return {"success": False, "message": str(e)}
+
+
+# Path to the bundled Node.js binary (if installed by us)
+def _get_node_binary():
+    """Return the path to the node binary, preferring our bundled version."""
+    tadpole_node = os.path.join(os.path.expanduser("~"), "tadpole", "node", "bin", "node")
+    if os.path.exists(tadpole_node):
+        return tadpole_node
+    # Fall back to system node
+    return "node"
 
 
 def _install_bridge(progress_cb=None):
@@ -375,10 +439,12 @@ def _install_bridge(progress_cb=None):
             if progress_cb:
                 progress_cb(downloaded, total)
 
-        # Run npm install
+        # Run npm install using bundled or system npm
         if os.path.exists(os.path.join(bridge_dir, "package.json")):
+            node_bin = _get_node_binary()
+            npm_bin = os.path.join(os.path.dirname(node_bin), "npm") if os.path.dirname(node_bin) != "" else "npm"
             result = subprocess.run(
-                ["npm", "install", "--production"],
+                [npm_bin, "install", "--production"],
                 cwd=bridge_dir, capture_output=True, text=True, timeout=120,
             )
             if result.returncode != 0:
@@ -755,13 +821,18 @@ class Plugin:
                     "message": f"Bridge server not found. Searched: {bridge_script}",
                 }
 
-            # Check node_modules, run npm install if needed
+            # Use bundled node if available
+            node_bin = _get_node_binary()
             bridge_dir = os.path.dirname(bridge_script)
+
+            # Check node_modules, run npm install if needed
             if not os.path.exists(os.path.join(bridge_dir, "node_modules")):
                 decky.logger.info("node_modules not found, running npm install...")
+                # Find npm binary (bundled or system)
+                npm_bin = os.path.join(os.path.dirname(node_bin), "npm") if os.path.dirname(node_bin) != "" else "npm"
                 try:
                     subprocess.run(
-                        ["npm", "install", "--production"],
+                        [npm_bin, "install", "--production"],
                         cwd=bridge_dir,
                         capture_output=True,
                         text=True,
@@ -784,7 +855,7 @@ class Plugin:
             stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
 
             _bridge_process = subprocess.Popen(
-                ["node", bridge_script],
+                [node_bin, bridge_script],
                 cwd=bridge_dir,
                 env=env,
                 stdout=stdout_log,
