@@ -39,7 +39,7 @@ _bridge_process = None
 _bridge_port = 3456
 
 # Error reporting
-PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
+PB_ERROR_ENDPOINT = "http://100.85.242.64:8095/api/collections/tadpole_errors/records"
 PLUGIN_VERSION = "0.4.2"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
