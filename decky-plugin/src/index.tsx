@@ -63,9 +63,9 @@ interface PluginSettings { port: number; autoStart: boolean; bridgeDir: string; 
 const DEFAULT_SETTINGS: PluginSettings = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
 
 const EVENT_ICONS: Record<string, string> = {
-  combat_started: "⚔️", combat_ended: "✅", area_changed: "🗺️",
-  hp_critical: "💔", dialog_started: "💬", dialog_ended: "💬",
-  level_up: "⬆️", party_changed: "👥", death: "💀", rest: "🏕️", loot: "💰",
+  combat_started: "!", combat_ended: "OK", area_changed: ">",
+  hp_critical: "!!", dialog_started: "D", dialog_ended: "D",
+  level_up: "^", party_changed: "+", death: "X", rest: "R", loot: "$",
 };
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ const CheckItem: VFC<{ label: string; ok: boolean; detail?: string }> = ({ label
     border: `1px solid ${ok ? `${C.green}30` : `${C.red}30`}`,
   }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 14 }}>{ok ? "✅" : "❌"}</span>
+      <span style={{ fontSize: 14 }}>{ok ? "[OK]" : "[X]"}</span>
       <span style={{ fontSize: 12, fontWeight: 600, color: ok ? C.green : C.red }}>{label}</span>
     </div>
     {detail && <div style={{ fontSize: 11, color: C.textDim, marginLeft: 22, marginTop: 2 }}>{detail}</div>}
@@ -156,7 +156,7 @@ const SetupWizard: VFC<{
   onClose: () => void;
 }> = ({ diagnostics, onInstall, installing, installStep, onClose }) => (
   <div>
-    <SectionHeader title="Setup Check" icon="🔍" />
+    <SectionHeader title="Setup Check" />
 
     <CheckItem label={diagnostics.node_installed ? `Node.js ${diagnostics.node_version || ""}` : "Node.js"} ok={diagnostics.node_installed}
       detail={diagnostics.node_installed ? "Ready" : "Will install via pacman"} />
@@ -178,7 +178,7 @@ const SetupWizard: VFC<{
       <PanelSectionRow>
         <ButtonItem layout="below" onClick={onInstall} disabled={installing}>
           <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {installing ? "⟳" : "🚀"}
+            {installing ? "..." : ">"}
             {installing
               ? installStep === "node" ? "Installing Node.js..."
                 : installStep === "bridge" ? "Downloading bridge..."
@@ -412,13 +412,13 @@ const TadpolePanel: VFC = () => {
               padding: "12px", borderRadius: 10, backgroundColor: C.surface,
               border: `1px solid ${C.border}`, textAlign: "center",
             }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🐸</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: C.accent }}>TADPOLE</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>Welcome to Tadpole!</div>
               <div style={{ fontSize: 12, color: C.textDim, marginBottom: 8 }}>
                 Let's set up everything you need.
               </div>
               <ButtonItem layout="below" onClick={() => { runDiagnostics(); setShowSetup(true); }}>
-                🚀 One-Click Setup
+                One-Click Setup
               </ButtonItem>
             </div>
           </PanelSectionRow>
@@ -428,7 +428,7 @@ const TadpolePanel: VFC = () => {
       {/* ── Connection ── */}
       {!showSetup && (
         <PanelSection title="">
-          <SectionHeader title="Connection" icon="🔗" />
+          <SectionHeader title="Connection" />
           <PanelSectionRow>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <StatusBadge
@@ -452,7 +452,7 @@ const TadpolePanel: VFC = () => {
           <PanelSectionRow>
             <ButtonItem layout="below" disabled={loading || nodeMissing} onClick={bridgeRunning ? stopBridge : startBridge}>
               <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                {loading ? "⟳" : bridgeRunning ? "■" : "▶"}
+                {loading ? "..." : bridgeRunning ? "[Stop]" : "[Start]"}
                 {loading ? "Working..." : bridgeRunning ? "Stop Bridge" : "Start Bridge"}
               </span>
             </ButtonItem>
@@ -463,7 +463,7 @@ const TadpolePanel: VFC = () => {
       {/* ── Game ── */}
       {!showSetup && (
         <PanelSection title="">
-          <SectionHeader title="Game" icon="🎮" />
+          <SectionHeader title="Game" />
           <PanelSectionRow>
             <StatusBadge label={bg3Running ? "BG3 Running" : "BG3 Not Detected"} active={bg3Running} activeColor={C.accent} inactiveColor={C.textDim} />
           </PanelSectionRow>
@@ -483,7 +483,7 @@ const TadpolePanel: VFC = () => {
       {/* ── Live Game ── */}
       {gameState && bg3Running && !showSetup && (
         <PanelSection title="">
-          <SectionHeader title="Live" icon="📊" />
+          <SectionHeader title="Live" />
           <PanelSectionRow>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
               {gameState.area && <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{gameState.area}</span>}
@@ -497,7 +497,7 @@ const TadpolePanel: VFC = () => {
           <Divider />
           <PanelSectionRow>
             <div style={{ display: "flex", gap: 12 }}>
-              {typeof gameState.gold === "number" && <StatRow label="Gold" value={`🪙 ${gameState.gold}`} color={C.gold} />}
+              {typeof gameState.gold === "number" && <StatRow label="Gold" value={`Gold: ${gameState.gold}`} color={C.gold} />}
               {totalHp.m > 0 && <StatRow label="Party HP" value={`${totalHp.c}/${totalHp.m}`} color={totalHp.c / totalHp.m > 0.5 ? C.green : C.red} />}
               {gameState.party && <StatRow label="Party" value={`${gameState.party.length + 1} members`} color={C.accent} />}
             </div>
@@ -521,7 +521,7 @@ const TadpolePanel: VFC = () => {
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Recent</div>
                   {recentEvents.slice(-5).reverse().map((evt: any, i: number) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-                      <span>{EVENT_ICONS[evt.type] || "•"}</span>
+                      <span>{EVENT_ICONS[evt.type] || "-"}</span>
                       <span style={{ color: C.textDim }}>{evt.type.replace(/_/g, " ")}{evt.detail ? ` — ${evt.detail}` : ""}</span>
                     </div>
                   ))}
@@ -535,7 +535,7 @@ const TadpolePanel: VFC = () => {
       {/* ── Phone App ── */}
       {!showSetup && (
         <PanelSection title="">
-          <SectionHeader title="Phone App" icon="📱" />
+          <SectionHeader title="Phone App" />
           <PanelSectionRow>
             <div style={{
               padding: "10px 12px", borderRadius: 8, backgroundColor: C.surface, border: `1px solid ${C.border}`,
@@ -557,7 +557,7 @@ const TadpolePanel: VFC = () => {
 
       {/* ── Settings ── */}
       <PanelSection title="">
-        <SectionHeader title="Settings" icon="⚙️" />
+        <SectionHeader title="Settings" />
 
         <PanelSectionRow>
           <ToggleField label="Auto-start with BG3" checked={settings.autoStart}
@@ -567,7 +567,7 @@ const TadpolePanel: VFC = () => {
         {/* Update checker */}
         <PanelSectionRow>
           <ButtonItem layout="below" onClick={handleCheckUpdate} disabled={checkingUpdate}>
-            {checkingUpdate ? "⟳ Checking..." : "🔄 Check for Updates"}
+            {checkingUpdate ? "Checking..." : "Check for Updates"}
           </ButtonItem>
         </PanelSectionRow>
 
@@ -584,7 +584,7 @@ const TadpolePanel: VFC = () => {
                 Current: v{updateInfo.current_version}
               </div>
               <ButtonItem layout="below" onClick={() => handlePerformUpdate(updateInfo.download_url)} disabled={updating}>
-                {updating ? "⟳ Updating..." : "Install Update"}
+                {updating ? "Updating..." : "Install Update"}
               </ButtonItem>
             </div>
           </PanelSectionRow>
@@ -593,7 +593,7 @@ const TadpolePanel: VFC = () => {
         {/* Re-run setup */}
         <PanelSectionRow>
           <ButtonItem layout="below" onClick={() => { runDiagnostics(); setShowSetup(true); }}>
-            🔍 Run Setup / Diagnostics
+            Run Setup / Diagnostics
           </ButtonItem>
         </PanelSectionRow>
 
@@ -623,7 +623,7 @@ const TadpolePanel: VFC = () => {
         {/* Log viewer */}
         <PanelSectionRow>
           <ButtonItem layout="below" onClick={handleViewLog}>
-            📋 {showLog ? "Hide Log" : "View Log"}
+            {showLog ? "Hide Log" : "View Log"}
           </ButtonItem>
         </PanelSectionRow>
         {showLog && (

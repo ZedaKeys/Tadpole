@@ -496,19 +496,25 @@ def _install_lua_mod():
 def _check_for_update():
     """Check GitHub releases for a newer plugin version."""
     try:
+        # Try GitHub API first
         url = f"{GITHUB_API}/releases/latest"
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        _log(f"Checking for updates: {url}")
+        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.4.2"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode())
 
         tag = data.get("tag_name", "")
-        # Extract version from tag like "decky-plugin-v0.4.0" or "v0.4.0"
-        match = re.search(r"v?(\d+\.\d+\.\d+)", tag)
+        _log(f"Latest release tag: {tag}")
+
+        # Extract version from tag like "decky-plugin-v0.4.2" or "v0.4.2"
+        match = re.search(r"(\d+\.\d+\.\d+)", tag)
         if not match:
-            return {"update_available": False, "error": "Could not parse version from tag"}
+            _log(f"Could not parse version from tag: {tag}")
+            return {"update_available": False, "error": f"Could not parse version from tag: {tag}"}
 
         latest = match.group(1)
         current = PLUGIN_VERSION
+        _log(f"Current: {current}, Latest: {latest}")
 
         # Simple semver comparison
         def parse_ver(v):
@@ -528,11 +534,18 @@ def _check_for_update():
             for asset in data.get("assets", []):
                 if asset["name"].endswith(".zip"):
                     result["download_url"] = asset["browser_download_url"]
-                    result["release_notes"] = data.get("body", "")
+                    result["release_notes"] = data.get("body", "") or ""
                     break
+            _log(f"Update available! {result.get('download_url', 'no zip found')}")
+        else:
+            _log("Already up to date")
 
         return result
+    except urllib.error.URLError as e:
+        _log(f"Update check failed (network): {e}")
+        return {"update_available": False, "error": f"Network error: {e}"}
     except Exception as e:
+        _log(f"Update check failed: {e}")
         return {"update_available": False, "error": str(e)}
 
 
