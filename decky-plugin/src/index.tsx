@@ -766,9 +766,19 @@ const TadpolePanel: VFC = () => {
                   cursor: "pointer",
                 }} onClick={() => {
                   navigator.clipboard.writeText('WINEDLLOVERRIDES="DWrite.dll=n,b" %command%');
-                  toaster.toast({ title: "Copied!", body: "Paste this in BG3 Properties > Launch Options" });
+                  toaster.toast({ title: "Copied!", body: "Paste in BG3 Properties > Launch Options" });
                 }}>
                   WINEDLLOVERRIDES="DWrite.dll=n,b" %command%
+                </div>
+                <div style={{ fontSize: 10, color: C.textDim, marginTop: 6, lineHeight: 1.4 }}>
+                  If you already have launch options, put this before your existing command. Example:
+                </div>
+                <div style={{
+                  marginTop: 4, padding: "4px 6px", borderRadius: 3, backgroundColor: "#0d0d1a",
+                  fontFamily: "monospace", fontSize: 10, color: C.gold,
+                  border: `1px solid ${C.border}40`,
+                }}>
+                  WINEDLLOVERRIDES="DWrite.dll=n,b" ~/lsfg %command%
                 </div>
               </div>
             </PanelSectionRow>

@@ -443,8 +443,12 @@ const TadpolePanel = () => {
                                                 cursor: "pointer",
                                             }, onClick: () => {
                                                 navigator.clipboard.writeText('WINEDLLOVERRIDES="DWrite.dll=n,b" %command%');
-                                                toaster.toast({ title: "Copied!", body: "Paste this in BG3 Properties > Launch Options" });
-                                            }, children: "WINEDLLOVERRIDES=\"DWrite.dll=n,b\" %command%" })] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Port", value: String(settings.port), onChange: (v) => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0)
+                                                toaster.toast({ title: "Copied!", body: "Paste in BG3 Properties > Launch Options" });
+                                            }, children: "WINEDLLOVERRIDES=\"DWrite.dll=n,b\" %command%" }), SP_JSX.jsx("div", { style: { fontSize: 10, color: C.textDim, marginTop: 6, lineHeight: 1.4 }, children: "If you already have launch options, put this before your existing command. Example:" }), SP_JSX.jsx("div", { style: {
+                                                marginTop: 4, padding: "4px 6px", borderRadius: 3, backgroundColor: "#0d0d1a",
+                                                fontFamily: "monospace", fontSize: 10, color: C.gold,
+                                                border: `1px solid ${C.border}40`,
+                                            }, children: "WINEDLLOVERRIDES=\"DWrite.dll=n,b\" ~/lsfg %command%" })] }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Port", value: String(settings.port), onChange: (v) => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0)
                                         updateSettings({ ...settings, port: n }); } }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.TextField, { label: "Bridge Directory", value: settings.bridgeDir, onChange: (v) => updateSettings({ ...settings, bridgeDir: v }) }) })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setShowSettings(!showSettings), children: showSettings ? "Hide Advanced" : "Show Advanced" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: handleViewLog, children: showLog ? "Hide Log" : "View Log" }) }), showLog && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx("div", { style: {
                                 padding: "8px 10px", borderRadius: 8, backgroundColor: "#0d0d1a",
                                 border: `1px solid ${C.border}`, fontFamily: "monospace",
