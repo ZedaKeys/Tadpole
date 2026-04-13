@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getGameConnection, resetGameConnection, isHttpsContext, ConnectionStatus } from '@/lib/game-connection';
+import { getGameConnection, isHttpsContext, ConnectionStatus } from '@/lib/game-connection';
 import { GameState } from '@/types';
 import { safeGet, safeSet } from '@/lib/storage';
 
@@ -28,6 +28,9 @@ export function useGameConnection() {
       setConnectionDetail(detail || '');
     });
 
+    // Set initial connection state
+    setIsConnected(conn.isConnected());
+
     // Poll connection status
     const interval = setInterval(() => {
       setIsConnected(conn.isConnected());
@@ -37,9 +40,7 @@ export function useGameConnection() {
       clearInterval(interval);
       unsubscribeState();
       unsubscribeStatus();
-      conn.disconnect();
-      // Null out singleton when all consumers are done
-      resetGameConnection();
+      // Do NOT disconnect or reset -- keep the singleton alive across tab changes
     };
   }, []);
 
