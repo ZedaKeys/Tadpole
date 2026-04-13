@@ -1,163 +1,193 @@
 'use client';
 
-import {
-  Swords,
-  BookOpen,
-  Users,
-  Map,
-  Sparkles,
-  Dice5,
-  ScrollText,
-  Compass,
-  Gamepad2,
-  Wrench,
-} from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
-import { APP_NAME, APP_TAGLINE, VERSION } from '@/lib/version';
 import { useGameConnection } from '@/hooks/useGameConnection';
-import ConnectionPanel from '@/components/game/ConnectionPanel';
-import LiveDashboard from '@/components/game/LiveDashboard';
-import CombatTracker from '@/components/game/CombatTracker';
+import { Coins, Swords, Wifi, WifiOff, Shield } from 'lucide-react';
 
-const features = [
-  { href: '/builds', icon: Swords, label: 'Build Planner', desc: 'Plan characters & classes' },
-  { href: '/spells', icon: BookOpen, label: 'Spell Reference', desc: 'Browse & search all spells' },
-  { href: '/companions', icon: Users, label: 'Companions', desc: 'Approval & romance guides' },
-  { href: '/quests', icon: ScrollText, label: 'Quest Guide', desc: 'Decisions & consequences' },
-  { href: '/items', icon: Sparkles, label: 'Item Database', desc: 'Notable gear & locations' },
-  { href: '/areas', icon: Map, label: 'Areas', desc: 'Completion checklists' },
-  { href: '/dice', icon: Dice5, label: 'Dice Calculator', desc: 'Probability & rolls' },
-  { href: '/lore', icon: Compass, label: 'Lore Vault', desc: 'World history & factions' },
-  { href: '/tours', icon: Compass, label: 'Guided Tours', desc: 'Curated playthroughs' },
-  { href: '/games', icon: Gamepad2, label: 'Mini-Games', desc: 'Trivia & dice poker' },
-  { href: '/settings', icon: Wrench, label: 'Settings', desc: 'Preferences & PWA' },
-];
+function hpColor(ratio: number): string {
+  if (ratio > 0.6) return '#52b788';
+  if (ratio > 0.3) return '#f4a261';
+  return '#e76f51';
+}
+
+function HpBar({ name, hp, maxHp, level }: { name: string; hp: number; maxHp: number; level: number }) {
+  const ratio = maxHp > 0 ? hp / maxHp : 0;
+  const color = hpColor(ratio);
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: '#e2e0d8' }}>{name}</span>
+        <span style={{ fontSize: 12, color: '#9ca3af' }}>Lv {level} · {hp}/{maxHp}</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${Math.max(ratio * 100, 0)}%`, borderRadius: 4, background: color, transition: 'width 0.3s, background 0.3s' }} />
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
-  const { gameState, isConnected } = useGameConnection();
-  const [showConnect, setShowConnect] = useState(false);
+  const { gameState, isConnected, connectionStatus, disconnect, connect, getLastHost } = useGameConnection();
+  const [ip, setIp] = useState(() => getLastHost() || '');
+  const [connecting, setConnecting] = useState(false);
+
+  const handleConnect = () => {
+    if (!ip.trim()) return;
+    setConnecting(true);
+    connect(ip.trim(), 3456);
+    // connecting state will clear when isConnected changes
+  };
+
+  // Clear connecting flag once connected or on error (status changes)
+  if (connecting && isConnected) setConnecting(false);
+
+  // ── Connection Panel ──
+  if (!isConnected || !gameState) {
+    return (
+      <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '48px 24px 32px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <Shield size={40} style={{ color: '#c6a255', marginBottom: 16 }} />
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#e2e0d8', letterSpacing: '0.04em' }}>Tadpole</h1>
+          <p style={{ color: '#6b7280', fontSize: 14, marginTop: 6 }}>BG3 Live Companion</p>
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            {isConnected ? <Wifi size={18} style={{ color: '#22c55e' }} /> : <WifiOff size={18} style={{ color: '#6b7280' }} />}
+            <span style={{ fontSize: 13, color: '#9ca3af' }}>
+              {isConnected ? 'Connected — waiting for data...' : connectionStatus === 'connecting' ? 'Connecting...' : 'Not connected'}
+            </span>
+          </div>
+
+          <input
+            type="text"
+            value={ip}
+            onChange={(e) => setIp(e.target.value)}
+            placeholder="192.168.1.x"
+            style={{
+              width: '100%',
+              height: 44,
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(0,0,0,0.3)',
+              color: '#e2e0d8',
+              fontSize: 15,
+              padding: '0 14px',
+              outline: 'none',
+              boxSizing: 'border-box',
+              marginBottom: 12,
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+          />
+
+          <button
+            onClick={handleConnect}
+            disabled={connecting || !ip.trim()}
+            style={{
+              width: '100%',
+              height: 44,
+              borderRadius: 10,
+              border: 'none',
+              background: connecting || !ip.trim() ? 'rgba(198,162,85,0.3)' : '#c6a255',
+              color: connecting || !ip.trim() ? '#888' : '#0d0c1d',
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: connecting || !ip.trim() ? 'default' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxShadow: (!connecting && ip.trim()) ? '0 0 16px rgba(198,162,85,0.3)' : 'none',
+              transition: 'box-shadow 0.2s',
+            }}
+          >
+            <Wifi size={16} />
+            {connecting ? 'Connecting...' : 'Connect'}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Live Dashboard ──
+  const recentEvents = (gameState.events || []).slice(-5).reverse();
 
   return (
-    <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
-      {/* Header with gradient glow */}
-      <div className="text-center mb-8">
-        <div
-          className="mb-4"
+    <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '16px 20px 32px' }}>
+      {/* Status bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#52b788', boxShadow: '0 0 8px rgba(82,183,136,0.5)' }} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#52b788', letterSpacing: '0.08em' }}>LIVE</span>
+        </div>
+        <button
+          onClick={disconnect}
           style={{
-            position: 'relative',
-            display: 'inline-block',
+            height: 36,
+            padding: '0 14px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'transparent',
+            color: '#9ca3af',
+            fontSize: 12,
+            cursor: 'pointer',
           }}
         >
-          <h1
-            className="text-4xl font-bold tracking-tight"
-            style={{
-              color: 'var(--accent)',
-              position: 'relative',
-              zIndex: 1,
-            }}
-          >
-            {APP_NAME}
-          </h1>
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 200,
-              height: 60,
-              background: 'radial-gradient(ellipse, rgba(168, 85, 247, 0.2) 0%, transparent 70%)',
-              filter: 'blur(8px)',
-              pointerEvents: 'none',
-            }}
-          />
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
-          {APP_TAGLINE}
-        </p>
-        <p
-          className="mt-1"
-          style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}
-        >
-          v{VERSION}
-        </p>
+          Disconnect
+        </button>
       </div>
 
-      {/* Live game connection */}
-      {gameState && isConnected ? (
-        <>
-          <LiveDashboard state={gameState} />
-          {gameState.inCombat && <CombatTracker state={gameState} />}
-        </>
-      ) : showConnect || isConnected ? (
-        <div className="mb-6">
-          <ConnectionPanel />
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowConnect(true)}
-          className="w-full mb-6 touch-target rounded-xl p-4 flex items-center gap-4 feature-card"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            textAlign: 'left',
-          }}
-        >
-          <div
-            className="flex-shrink-0 flex items-center justify-center rounded-xl"
-            style={{
-              width: 48,
-              height: 48,
-              background: 'var(--accent-muted)',
-            }}
-          >
-            <span style={{ color: 'var(--accent)', fontSize: '1.5rem' }}>📡</span>
-          </div>
-          <div className="flex-1">
-            <span className="font-semibold text-sm">Connect to Game</span>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-              Live sync your BG3 playthrough
-            </p>
-          </div>
-          <span
-            className="px-2 py-0.5 rounded-full text-xs font-semibold"
-            style={{
-              background: 'var(--accent-muted)',
-              color: 'var(--accent)',
-              fontSize: '0.65rem',
-            }}
-          >
-            NEW
+      {/* Area + Combat */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 18, fontWeight: 600, color: '#e2e0d8' }}>{gameState.area || 'Unknown'}</span>
+        {gameState.inCombat && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(231,111,81,0.12)', color: '#e76f51', fontSize: 12, fontWeight: 600 }}>
+            <Swords size={12} /> COMBAT
           </span>
-        </button>
-      )}
+        )}
+      </div>
 
-      {/* Feature Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        {features.map((f) => (
-          <Link
-            key={f.href}
-            href={f.href}
-            className="feature-card touch-target rounded-xl p-4 flex flex-col items-center text-center"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <f.icon size={28} style={{ color: 'var(--accent)' }} className="mb-2" />
-            <span className="text-sm font-medium leading-tight">
-              {f.label}
-            </span>
-            <span
-              className="text-xs mt-1 leading-tight"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {f.desc}
-            </span>
-          </Link>
+      {/* Gold */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, padding: '12px 16px', borderRadius: 16, background: 'rgba(198,162,85,0.06)', border: '1px solid rgba(198,162,85,0.1)', boxShadow: '0 0 12px rgba(198,162,85,0.08)' }}>
+        <Coins size={16} style={{ color: '#c6a255' }} />
+        <span style={{ fontSize: 16, fontWeight: 600, color: '#c6a255' }}>{gameState.gold.toLocaleString()}</span>
+        <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 2 }}>Gold</span>
+      </div>
+
+      {/* HP Bars */}
+      <div style={{ marginBottom: 20 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Party Health</span>
+        {gameState.host && <HpBar name={gameState.host.name} hp={gameState.host.hp} maxHp={gameState.host.maxHp} level={gameState.host.level} />}
+        {gameState.party.map((c) => (
+          <HpBar key={c.guid} name={c.name} hp={c.hp} maxHp={c.maxHp} level={c.level} />
         ))}
       </div>
+
+      {/* Event Feed */}
+      {recentEvents.length > 0 && (
+        <div>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Recent Events</span>
+          <div style={{ borderRadius: 16, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+            {recentEvents.map((ev, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 14px',
+                  borderBottom: i < recentEvents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                }}
+              >
+                <span style={{ fontSize: 13, color: '#d1d5db' }}>{ev.type}</span>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>
+                  {ev.area || new Date(ev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

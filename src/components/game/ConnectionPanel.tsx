@@ -40,7 +40,7 @@ export default function ConnectionPanel() {
       className="rounded-xl p-4"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
     >
-      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--accent)' }}>
+      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--gold)' }}>
         Connect to Game
       </h3>
 
@@ -102,7 +102,7 @@ export default function ConnectionPanel() {
               disabled={!host.trim() || connecting}
               className="touch-target rounded-lg px-4 flex items-center justify-center"
               style={{
-                background: connecting ? 'var(--surface-active)' : 'var(--accent)',
+                background: connecting ? 'var(--surface-active)' : 'var(--gold)',
                 color: '#fff',
                 opacity: !host.trim() || connecting ? 0.5 : 1,
               }}

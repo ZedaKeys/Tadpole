@@ -1,6 +1,7 @@
 'use client';
 
 import { Search, Settings } from 'lucide-react';
+import Link from 'next/link';
 
 interface HeaderProps {
   title: string;
@@ -10,51 +11,60 @@ interface HeaderProps {
 export function Header({ title, onSearchClick }: HeaderProps) {
   return (
     <header
-      className="flex items-center justify-between px-4 py-3 sticky top-0 z-30"
+      className="sticky top-0 z-30 glass-panel"
       style={{
-        background: 'var(--bg)',
-        borderBottom: '1px solid var(--border)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
       }}
     >
-      <h1
-        className="text-lg font-bold tracking-tight truncate"
-        style={{ color: 'var(--text-primary)' }}
-      >
-        {title}
-      </h1>
+      <div className="flex items-center justify-between px-4 py-3">
+        {/* Title — Cinzel serif, clean gold */}
+        <h1
+          className="font-heading text-lg truncate"
+          style={{
+            fontWeight: 700,
+            letterSpacing: '0.04em',
+            color: 'var(--gold)',
+          }}
+        >
+          {title}
+        </h1>
 
-      <div className="flex items-center gap-1">
-        {onSearchClick && (
-          <button
-            onClick={onSearchClick}
-            className="touch-target flex items-center justify-center rounded-lg transition-colors"
+        {/* Action icons */}
+        <div className="flex items-center gap-1">
+          {onSearchClick && (
+            <button
+              onClick={onSearchClick}
+              className="touch-target flex items-center justify-center rounded-lg"
+              style={{
+                minWidth: 44,
+                minHeight: 44,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--gold-dim)',
+                transition: 'color 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+              }}
+              aria-label="Search"
+            >
+              <Search size={20} strokeWidth={1.8} />
+            </button>
+          )}
+
+          <Link
+            href="/settings"
+            className="touch-target flex items-center justify-center rounded-lg"
             style={{
               minWidth: 44,
               minHeight: 44,
               background: 'transparent',
               border: 'none',
-              color: 'var(--text-secondary)',
+              color: 'var(--gold-dim)',
+              transition: 'color 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
             }}
-            aria-label="Search"
+            aria-label="Settings"
           >
-            <Search size={22} />
-          </button>
-        )}
-
-        <a
-          href="/settings"
-          className="touch-target flex items-center justify-center rounded-lg transition-colors"
-          style={{
-            minWidth: 44,
-            minHeight: 44,
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-secondary)',
-          }}
-          aria-label="Settings"
-        >
-          <Settings size={22} />
-        </a>
+            <Settings size={20} strokeWidth={1.8} />
+          </Link>
+        </div>
       </div>
     </header>
   );

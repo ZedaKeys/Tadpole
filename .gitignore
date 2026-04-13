@@ -40,5 +40,9 @@ next-env.d.ts
 
 # bridge server deps
 bridge/node_modules/
+bridge/phone-app/
 decky-plugin/backend/__pycache__/
 decky-plugin/__pycache__/
+
+# project cache
+PROJECT_CACHE.md

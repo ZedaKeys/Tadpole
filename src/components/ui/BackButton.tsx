@@ -17,7 +17,7 @@ export function BackButton({ href, label = 'Back' }: BackButtonProps) {
   const style: React.CSSProperties = {
     background: 'transparent',
     border: 'none',
-    color: 'var(--accent)',
+    color: 'var(--text-primary)',
     fontSize: '0.875rem',
     padding: 0,
     minHeight: 44,
@@ -27,12 +27,23 @@ export function BackButton({ href, label = 'Back' }: BackButtonProps) {
     gap: 4,
     textDecoration: 'none',
     fontFamily: 'inherit',
+    transition: 'text-shadow 0.2s ease',
   };
 
   if (href) {
     return (
-      <Link href={href} className="touch-target rounded-lg" style={style}>
-        <ArrowLeft size={18} />
+      <Link
+        href={href}
+        className="touch-target rounded-lg"
+        style={style}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.textShadow = '0 0 8px rgba(198, 162, 85, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.textShadow = 'none';
+        }}
+      >
+        <ArrowLeft size={18} style={{ color: 'var(--gold-dim)' }} />
         <span>{label}</span>
       </Link>
     );
@@ -43,8 +54,14 @@ export function BackButton({ href, label = 'Back' }: BackButtonProps) {
       onClick={() => router.back()}
       className="touch-target rounded-lg"
       style={style}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.textShadow = '0 0 8px rgba(198, 162, 85, 0.5)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.textShadow = 'none';
+      }}
     >
-      <ArrowLeft size={18} />
+      <ArrowLeft size={18} style={{ color: 'var(--gold-dim)' }} />
       <span>{label}</span>
     </button>
   );

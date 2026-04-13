@@ -76,8 +76,8 @@ export default function GlobalError({
           onClick={() => reset()}
           className="touch-target rounded-xl px-6 py-3 font-semibold"
           style={{
-            background: 'var(--accent)',
-            color: '#fff',
+            background: 'var(--gold)',
+            color: '#1a1830',
             border: 'none',
             cursor: 'pointer',
             minHeight: 44,

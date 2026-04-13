@@ -9,14 +9,17 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { AppShell } from '@/components/layout/AppShell';
 import type { Companion } from '@/types';
 
-function actBadgeColor(act: number): string {
-  switch (act) {
-    case 1: return '#4caf50';
-    case 2: return '#ff9800';
-    case 3: return '#f44336';
-    default: return 'var(--accent)';
-  }
-}
+const COMPANION_ACCENT: Record<string, string> = {
+  shadowheart: '#6366f1',
+  laezel: '#ef4444',
+  gale: '#3b82f6',
+  astarion: '#ec4899',
+  wyll: '#f59e0b',
+  karlach: '#f97316',
+  halsin: '#22c55e',
+  minsc: '#10b981',
+  jaheira: '#8b5cf6',
+};
 
 export default function CompanionsPage() {
   const [actFilter, setActFilter] = useState<number>(0);
@@ -30,28 +33,35 @@ export default function CompanionsPage() {
   }, [actFilter]);
 
   const selectStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 8,
     color: 'var(--text-primary)',
     fontSize: '0.8rem',
-    minHeight: 36,
-    paddingLeft: 8,
-    paddingRight: 8,
+    minHeight: 32,
+    paddingLeft: 10,
+    paddingRight: 10,
   };
 
   return (
     <AppShell title="Companions">
       {/* Count */}
       <p
-        className="mb-3"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
+        className="stagger-in mb-5"
+        style={{
+          color: 'var(--text-secondary)',
+          fontSize: '0.85rem',
+          animationDelay: '0.05s',
+        }}
       >
         {filteredCompanions.length} companion{filteredCompanions.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div className="flex gap-2 mb-4">
+      <div
+        className="stagger-in flex gap-3 mb-6"
+        style={{ animationDelay: '0.1s' }}
+      >
         <select
           value={actFilter}
           onChange={(e) => setActFilter(Number(e.target.value))}
@@ -72,18 +82,20 @@ export default function CompanionsPage() {
           icon={<Users size={40} />}
         />
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {filteredCompanions.map((companion) => (
+        <div className="grid grid-cols-2 gap-4">
+          {filteredCompanions.map((companion, i) => (
             <Card
               key={companion.id}
               title={companion.name}
               href={`/companions/${companion.id}`}
               description={`${companion.race} ${companion.class}`}
+              accentColor={COMPANION_ACCENT[companion.id] ?? 'var(--gold)'}
+              delay={i * 0.05}
               icon={
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-2">
                   <Badge
                     label={`Act ${companion.act}`}
-                    color={actBadgeColor(companion.act)}
+                    color="var(--gold)"
                   />
                   {companion.romanceable && (
                     <Badge label="Romance" color="#ec407a" />

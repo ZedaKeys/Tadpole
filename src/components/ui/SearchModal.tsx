@@ -45,16 +45,16 @@ export function SearchModal({
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col"
-      style={{ background: 'var(--bg)' }}
+      style={{ background: 'rgba(13, 12, 29, 0.95)' }}
     >
       {/* Search input bar */}
       <div
         className="flex items-center gap-2 px-4 py-3"
         style={{
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--border-strong)',
         }}
       >
-        <Search size={20} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+        <Search size={20} style={{ color: 'var(--gold-dim)', flexShrink: 0 }} />
         <input
           type="text"
           value={query}
@@ -67,6 +67,7 @@ export function SearchModal({
             fontSize: '1rem',
             border: 'none',
             minHeight: 44,
+            caretColor: 'var(--gold)',
           }}
         />
         <button
@@ -75,7 +76,7 @@ export function SearchModal({
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'var(--text-secondary)',
+            color: 'var(--gold-dim)',
             minWidth: 44,
             minHeight: 44,
           }}
@@ -90,7 +91,7 @@ export function SearchModal({
         {query && results.length === 0 && (
           <p
             className="text-center py-8"
-            style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}
+            style={{ color: 'var(--gold-dim)', fontSize: '0.9rem' }}
           >
             No results found for &quot;{query}&quot;
           </p>
@@ -100,8 +101,9 @@ export function SearchModal({
             key={idx}
             className="rounded-lg px-3 py-3 mb-2"
             style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
+              background: 'var(--parchment)',
+              border: '1px solid var(--border-strong)',
+              borderLeft: '3px solid var(--gold-dim)',
             }}
           >
             <span style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>

@@ -77,14 +77,15 @@ export default function TriviaPage() {
       <AppShell title="BG3 Trivia">
         <button
           onClick={() => router.push('/games')}
-          className="touch-target flex items-center gap-1 mb-4 rounded-lg"
+          className="touch-target stagger-in flex items-center gap-1 mb-5 rounded-lg"
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'var(--accent)',
+            color: 'var(--gold)',
             fontSize: '0.875rem',
             padding: 0,
             minHeight: 44,
+            animationDelay: '0s',
           }}
         >
           <ArrowLeft size={18} />
@@ -92,18 +93,18 @@ export default function TriviaPage() {
         </button>
 
         <div
-          className="rounded-xl p-6 text-center"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          className="stagger-in p-6 text-center"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, animationDelay: '0.1s' }}
         >
-          <Trophy size={48} style={{ color: 'var(--accent)', marginBottom: 12 }} />
+          <Trophy size={48} style={{ color: 'var(--gold-bright)', marginBottom: 12 }} />
           <h2
-            className="text-2xl font-bold mb-2"
+            className="text-2xl font-bold mb-2 font-heading"
             style={{ color: 'var(--text-primary)' }}
           >
             Game Over!
           </h2>
           <p
-            className="mb-4"
+            className="mb-5"
             style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}
           >
             You answered {score} out of {answered} questions correctly.
@@ -111,10 +112,10 @@ export default function TriviaPage() {
 
           {/* Score display */}
           <div
-            className="rounded-lg p-4 mb-5 inline-block"
+            className="rounded-lg p-4 mb-6 inline-block"
             style={{
-              background: 'var(--surface-hover)',
-              border: '1px solid var(--border)',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
               minWidth: 120,
             }}
           >
@@ -136,12 +137,14 @@ export default function TriviaPage() {
 
           <button
             onClick={handleRestart}
-            className="touch-target w-full rounded-xl py-3 flex items-center justify-center gap-2 font-semibold"
+            className="touch-target w-full py-3 flex items-center justify-center gap-3 font-semibold"
             style={{
-              background: 'var(--accent)',
+              background: 'var(--gold)',
               color: '#fff',
               border: 'none',
               minHeight: 44,
+              borderRadius: 9999,
+              padding: '12px 24px',
             }}
           >
             <RotateCcw size={18} />
@@ -158,31 +161,34 @@ export default function TriviaPage() {
       <AppShell title="BG3 Trivia">
         <button
           onClick={() => router.push('/games')}
-          className="touch-target flex items-center gap-1 mb-4 rounded-lg"
+          className="touch-target stagger-in flex items-center gap-1 mb-5 rounded-lg"
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'var(--accent)',
+            color: 'var(--gold)',
             fontSize: '0.875rem',
             padding: 0,
             minHeight: 44,
+            animationDelay: '0s',
           }}
         >
           <ArrowLeft size={18} />
           <span>Back to Games</span>
         </button>
 
-        <div className="text-center py-12">
+        <div className="stagger-in text-center py-12" style={{ animationDelay: '0.1s' }}>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>
             No questions available for this difficulty.
           </p>
           <button
             onClick={() => handleDifficultyChange('all')}
-            className="touch-target mt-4 rounded-lg px-6 py-3 font-medium"
+            className="touch-target mt-5 px-6 py-3 font-medium"
             style={{
-              background: 'var(--accent)',
+              background: 'var(--gold)',
               color: '#fff',
               border: 'none',
+              borderRadius: 9999,
+              padding: '12px 24px',
             }}
           >
             Show All Questions
@@ -197,14 +203,15 @@ export default function TriviaPage() {
       {/* Back button */}
       <button
         onClick={() => router.push('/games')}
-        className="touch-target flex items-center gap-1 mb-4 rounded-lg"
+        className="touch-target stagger-in flex items-center gap-1 mb-5 rounded-lg"
         style={{
           background: 'transparent',
           border: 'none',
-          color: 'var(--accent)',
+          color: 'var(--gold)',
           fontSize: '0.875rem',
           padding: 0,
           minHeight: 44,
+          animationDelay: '0s',
         }}
       >
         <ArrowLeft size={18} />
@@ -213,11 +220,11 @@ export default function TriviaPage() {
 
       {/* Score bar */}
       <div
-        className="flex items-center justify-between mb-4 rounded-lg p-3"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        className="stagger-in flex items-center justify-between mb-5 rounded-lg p-3"
+        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, animationDelay: '0.05s' }}
       >
-        <div className="flex items-center gap-2">
-          <Trophy size={16} style={{ color: 'var(--accent)' }} />
+        <div className="flex items-center gap-3">
+          <Trophy size={16} style={{ color: 'var(--gold)' }} />
           <span
             className="font-mono-num"
             style={{ color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 600 }}
@@ -225,7 +232,7 @@ export default function TriviaPage() {
             {score}/{answered}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Badge
             label={currentQuestion.difficulty}
             color={DIFFICULTY_COLORS[currentQuestion.difficulty]}
@@ -239,15 +246,15 @@ export default function TriviaPage() {
       </div>
 
       {/* Difficulty filter */}
-      <div className="flex gap-2 mb-4">
+      <div className="stagger-in flex gap-3 mb-5" style={{ animationDelay: '0.1s' }}>
         {(['all', 'easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
           <button
             key={d}
             onClick={() => handleDifficultyChange(d)}
-            className="touch-target rounded-lg px-3 py-2 capitalize"
+            className="touch-compact rounded-lg px-3 py-2 capitalize"
             style={{
-              background: difficulty === d ? 'var(--accent)' : 'var(--surface)',
-              border: `1px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
+              background: difficulty === d ? 'var(--gold)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${difficulty === d ? 'var(--gold)' : 'rgba(255,255,255,0.06)'}`,
               color: difficulty === d ? '#fff' : 'var(--text-primary)',
               fontSize: '0.75rem',
               fontWeight: 600,
@@ -261,29 +268,29 @@ export default function TriviaPage() {
 
       {/* Progress bar */}
       <div
-        className="w-full rounded-full overflow-hidden mb-5"
-        style={{ height: 6, background: 'var(--surface-active)' }}
+        className="stagger-in w-full rounded-full overflow-hidden mb-6"
+        style={{ height: 6, background: 'var(--surface-active)', animationDelay: '0.15s' }}
       >
         <div
           className="rounded-full transition-all duration-300 ease-out"
           style={{
             width: `${((currentIndex + (selectedAnswer !== null ? 1 : 0)) / filteredQuestions.length) * 100}%`,
             height: '100%',
-            background: 'var(--accent)',
+            background: 'var(--gold)',
           }}
         />
       </div>
 
       {/* Question */}
       <div
-        className="rounded-xl p-5 mb-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        className="stagger-in p-5 mb-5"
+        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, animationDelay: '0.2s' }}
       >
-        <div className="mb-2">
+        <div className="mb-3">
           <Badge label={currentQuestion.category} color="#6366f1" />
         </div>
         <h3
-          className="font-semibold text-base leading-relaxed"
+          className="font-heading font-semibold text-base leading-relaxed"
           style={{ color: 'var(--text-primary)' }}
         >
           {currentQuestion.question}
@@ -291,14 +298,14 @@ export default function TriviaPage() {
       </div>
 
       {/* Answer options */}
-      <div className="space-y-2 mb-4">
+      <div className="stagger-in space-y-3 mb-5" style={{ animationDelay: '0.3s' }}>
         {currentQuestion.options.map((option, i) => {
           const isSelected = selectedAnswer === i;
           const isCorrectOption = i === currentQuestion.correctIndex;
           const answeredState = selectedAnswer !== null;
 
-          let bg = 'var(--surface)';
-          let borderColor = 'var(--border)';
+          let bg = 'rgba(255,255,255,0.03)';
+          let borderColor = 'rgba(255,255,255,0.06)';
           let textColor = 'var(--text-primary)';
 
           if (answeredState) {
@@ -320,7 +327,7 @@ export default function TriviaPage() {
               key={i}
               onClick={() => handleAnswer(i)}
               disabled={answeredState}
-              className="touch-target w-full rounded-xl p-4 text-left flex items-center gap-3 transition-all duration-200"
+              className="touch-target w-full rounded-2xl p-4 text-left flex items-center gap-3 transition-all duration-200"
               style={{
                 background: bg,
                 border: `2px solid ${borderColor}`,
@@ -328,6 +335,7 @@ export default function TriviaPage() {
                 cursor: answeredState ? 'default' : 'pointer',
                 opacity: answeredState && !isCorrectOption && !isSelected ? 0.5 : 1,
                 minHeight: 44,
+                borderRadius: 16,
               }}
             >
               <span
@@ -352,7 +360,7 @@ export default function TriviaPage() {
                   String.fromCharCode(65 + i)
                 )}
               </span>
-              <span className="text-sm leading-relaxed">{option}</span>
+              <span className="text-sm leading-relaxed break-words">{option}</span>
             </button>
           );
         })}
@@ -361,13 +369,15 @@ export default function TriviaPage() {
       {/* Explanation (after answering) */}
       {selectedAnswer !== null && (
         <div
-          className="rounded-xl p-4 mb-4"
+          className="stagger-in p-4 mb-5"
           style={{
             background: isCorrect ? '#22c55e10' : '#ef444410',
             border: `1px solid ${isCorrect ? '#22c55e40' : '#ef444440'}`,
+            borderRadius: 16,
+            animationDelay: '0.35s',
           }}
         >
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-3 mb-3">
             {isCorrect ? (
               <CheckCircle size={16} style={{ color: '#22c55e' }} />
             ) : (
@@ -395,12 +405,15 @@ export default function TriviaPage() {
       {selectedAnswer !== null && (
         <button
           onClick={handleNext}
-          className="touch-target w-full rounded-xl py-3 font-semibold"
+          className="stagger-in touch-target w-full py-3 font-semibold"
           style={{
-            background: 'var(--accent)',
+            background: 'var(--gold)',
             color: '#fff',
             border: 'none',
             minHeight: 44,
+            borderRadius: 9999,
+            padding: '12px 24px',
+            animationDelay: '0.4s',
           }}
         >
           {currentIndex + 1 >= filteredQuestions.length ? 'See Results' : 'Next Question'}

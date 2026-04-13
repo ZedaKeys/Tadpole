@@ -1,66 +1,36 @@
-import type { Metadata, Viewport } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
-import './globals.css';
-import { APP_NAME, APP_TAGLINE, DISCLAIMER, VERSION } from '@/lib/version';
-import PWAMount from '@/components/pwa/PWAMount';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-jetbrains',
-  display: 'swap',
-});
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import BottomNav from "@/components/layout/BottomNav";
 
 export const metadata: Metadata = {
-  title: {
-    default: `${APP_NAME} — ${APP_TAGLINE}`,
-    template: `%s | ${APP_NAME}`,
-  },
-  description: `${APP_TAGLINE}. A mobile-first companion app for Baldur's Gate 3 with spell reference, build planner, companion guide, and more.`,
-  manifest: '/manifest.json',
-  applicationName: APP_NAME,
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: APP_NAME,
-  },
-  other: {
-    'mobile-web-app-capable': 'yes',
-  },
+  title: "Tadpole",
+  description: "BG3 Live Companion",
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0a0a0a',
+  themeColor: "#0a0a0f",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en">
       <head>
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
-        <meta name="disclaimer" content={DISCLAIMER} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="font-sans safe-top">
-        <div className="min-h-dvh flex flex-col">
+      <body style={{ margin: 0, padding: 0, fontFamily: "Inter, system-ui, sans-serif", background: "#0a0a0f", color: "#e8e8ef" }}>
+        <main style={{ minHeight: "100vh", paddingBottom: 64 }}>
           {children}
-        </div>
-        <footer className="text-center py-3 px-4" style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-          {DISCLAIMER} · v{VERSION}
-        </footer>
-        <PWAMount />
+        </main>
+        <BottomNav />
       </body>
     </html>
   );

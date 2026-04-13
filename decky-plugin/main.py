@@ -40,8 +40,8 @@ _bridge_process = None
 _bridge_port = 3456
 
 # Error reporting
-PB_ERROR_ENDPOINT = "http://192.168.1.78:8095/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.6.0"
+PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
+PLUGIN_VERSION = "0.7.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -206,6 +206,18 @@ def _is_bridge_running():
     if _bridge_process is None:
         return False
     return _bridge_process.poll() is None
+
+
+def _is_systemd_bridge_running():
+    """Check if the bridge is running via systemd user service."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", "tadpole-bridge"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.stdout.strip() == "active"
+    except Exception:
+        return False
 
 
 def _is_node_installed():
@@ -554,7 +566,11 @@ BG3SE_STEAM_APPID = "1086940"
 
 
 def _get_bg3_mod_dir():
-    """Find the BG3 ScriptExtender LuaScripts directory."""
+    """Find or create the BG3 ScriptExtender LuaScripts directory.
+    
+    If BG3SE is installed (DWrite.dll exists) but the LuaScripts folder
+    hasn't been created yet (BG3 not launched with SE), we create it ourselves.
+    """
     home = os.path.expanduser("~")
     candidates = [
         os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
@@ -562,10 +578,28 @@ def _get_bg3_mod_dir():
         os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
         os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
     ]
+    # Check if any already exist
     for c in candidates:
         if os.path.isdir(c):
             return c
+    
     # Try to find via Steam library
+    bg3_dir = _find_bg3_install_dir()
+    if bg3_dir:
+        lua_dir = os.path.join(bg3_dir, "Data", "LuaScripts")
+        if os.path.isdir(lua_dir):
+            return lua_dir
+        # BG3SE is installed but LuaScripts doesn't exist yet -- create it
+        # This happens when DWrite.dll was placed but BG3 hasn't been launched with SE
+        if _is_bg3se_installed():
+            try:
+                os.makedirs(lua_dir, exist_ok=True)
+                _log(f"Created LuaScripts directory: {lua_dir}")
+                return lua_dir
+            except Exception as e:
+                _log(f"Failed to create LuaScripts dir: {e}")
+    
+    # Library folders fallback
     try:
         vdf_path = os.path.join(home, ".steam", "steam", "steamapps", "libraryfolders.vdf")
         if not os.path.exists(vdf_path):
@@ -573,15 +607,12 @@ def _get_bg3_mod_dir():
         if os.path.exists(vdf_path):
             with open(vdf_path) as f:
                 content = f.read()
-            # Extract paths from VDF
             for match in re.finditer(r'"path"\s+"([^"]+)"', content):
                 lib_path = match.group(1)
-                bg3_lua = os.path.join(lib_path, "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts")
-                if os.path.isdir(bg3_lua):
-                    return bg3_lua
-                bg3_lua = os.path.join(lib_path, "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts")
-                if os.path.isdir(bg3_lua):
-                    return bg3_lua
+                for name in ["Baldurs Gate 3", "Baldur's Gate 3"]:
+                    bg3_lua = os.path.join(lib_path, "steamapps", "common", name, "Data", "LuaScripts")
+                    if os.path.isdir(bg3_lua):
+                        return bg3_lua
     except Exception:
         pass
     return None
@@ -591,7 +622,7 @@ def _download_file(url, dest_path):
     """Download a file from URL to a local path."""
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": f"Tadpole-Decky/{PLUGIN_VERSION}"})
         ctx = _get_ssl_context()
         with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
             with open(dest_path, "wb") as f:
@@ -622,7 +653,7 @@ def _install_node():
         decky.logger.info(f"Downloading Node.js {node_version} from {url}")
 
         # Download
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": f"Tadpole-Decky/{PLUGIN_VERSION}"})
         ctx = _get_ssl_context()
         with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
             with open(tmp_tarball, "wb") as f:
@@ -715,10 +746,16 @@ def _install_bridge(progress_cb=None):
         # Run npm install
         if os.path.exists(os.path.join(bridge_dir, "package.json")):
             node_bin = _get_node_binary()
-            npm_bin = os.path.join(os.path.dirname(node_bin), "npm") if os.path.dirname(node_bin) != "" else "npm"
+            node_dir = os.path.dirname(node_bin)  # e.g. ~/tadpole/node/bin
+            npm_bin = os.path.join(node_dir, "npm") if node_dir != "." else "npm"
+            # Ensure npm can find node by setting PATH
+            install_env = os.environ.copy()
+            if node_dir and os.path.isdir(node_dir):
+                install_env["PATH"] = node_dir + ":" + install_env.get("PATH", "")
             result = subprocess.run(
                 [npm_bin, "install", "--production"],
                 cwd=bridge_dir, capture_output=True, text=True, timeout=120,
+                env=install_env,
             )
             if result.returncode != 0:
                 return {"success": False, "message": f"npm install failed: {result.stderr[-200:]}"}
@@ -771,7 +808,7 @@ def _check_for_update():
         # Try GitHub API first
         url = f"{GITHUB_API}/releases/latest"
         _log(f"Checking for updates: {url}")
-        req = urllib.request.Request(url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": f"Tadpole-Decky/{PLUGIN_VERSION}"})
         ctx = _get_ssl_context()
         with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
             data = json.loads(resp.read().decode())
@@ -830,7 +867,7 @@ def _perform_update(download_url):
             return {"success": False, "message": "Cannot determine plugin directory"}
 
         # Download the zip
-        req = urllib.request.Request(download_url, headers={"User-Agent": "Tadpole-Decky/0.5.1"})
+        req = urllib.request.Request(download_url, headers={"User-Agent": f"Tadpole-Decky/{PLUGIN_VERSION}"})
         ctx = _get_ssl_context()
         with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             zip_bytes = resp.read()
@@ -1006,7 +1043,7 @@ class Plugin:
                 "bg3_running": bg3_running,
                 "bg3_mod_dir": bg3_mod_dir,
                 "ip": _get_ip(),
-                "ready": node_installed and bridge_found is not None and bg3se_installed,
+                "ready": node_installed and bridge_found is not None and bg3se_installed and lua_installed,
                 "paths_checked": paths_checked,
                 "plugin_version": PLUGIN_VERSION,
                 "home": home,
@@ -1220,7 +1257,8 @@ class Plugin:
                 decky.logger.warn("Bridge process died (possibly from sleep/wake), cleaning up handle")
                 _bridge_process = None
 
-            bridge_running = _is_bridge_running()
+            # Check both plugin-managed and systemd-managed bridge
+            bridge_running = _is_bridge_running() or _is_systemd_bridge_running()
             bg3_running = _is_bg3_running()
             ip = _get_ip()
             node_installed = _is_node_installed()
@@ -1305,7 +1343,11 @@ class Plugin:
             if not os.path.exists(os.path.join(bridge_dir, "node_modules")):
                 decky.logger.info("node_modules not found, running npm install...")
                 # Find npm binary (bundled or system)
-                npm_bin = os.path.join(os.path.dirname(node_bin), "npm") if os.path.dirname(node_bin) != "" else "npm"
+                node_dir = os.path.dirname(node_bin)
+                npm_bin = os.path.join(node_dir, "npm") if node_dir != "." else "npm"
+                npm_env = os.environ.copy()
+                if node_dir and os.path.isdir(node_dir):
+                    npm_env["PATH"] = node_dir + ":" + npm_env.get("PATH", "")
                 try:
                     subprocess.run(
                         [npm_bin, "install", "--production"],
@@ -1313,6 +1355,7 @@ class Plugin:
                         capture_output=True,
                         text=True,
                         timeout=120,
+                        env=npm_env,
                     )
                 except Exception as e:
                     return {

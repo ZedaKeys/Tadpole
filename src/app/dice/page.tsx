@@ -100,12 +100,12 @@ export default function DicePage() {
   }, []);
 
   const selectStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 8,
     color: 'var(--text-primary)',
     fontSize: '0.8rem',
-    minHeight: 44,
+    minHeight: 32,
     paddingLeft: 10,
     paddingRight: 10,
     minWidth: 0,
@@ -113,27 +113,27 @@ export default function DicePage() {
   };
 
   const inputStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 12,
     color: 'var(--text-primary)',
     fontSize: '0.875rem',
     minHeight: 44,
-    padding: '0 12px',
+    padding: '10px 14px',
     width: '100%',
   };
 
   const labelStyle: React.CSSProperties = {
     color: 'var(--text-secondary)',
     fontSize: '0.8rem',
-    marginBottom: 4,
+    marginBottom: 6,
     display: 'block',
   };
 
   return (
     <AppShell title="Dice Calculator">
       {/* Notation input */}
-      <div className="mb-4">
+      <div className="mb-5 stagger-in" style={{ animationDelay: '0s' }}>
         <label style={labelStyle}>Dice Notation</label>
         <input
           type="text"
@@ -150,15 +150,15 @@ export default function DicePage() {
       </div>
 
       {/* Preset buttons */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-3 mb-5 flex-wrap stagger-in" style={{ animationDelay: '0.05s' }}>
         {PRESETS.map((preset) => (
           <button
             key={preset.label}
             onClick={() => handlePreset(preset)}
-            className="touch-target rounded-lg px-3 py-2"
+            className="touch-compact rounded-lg px-3 py-1"
             style={{
-              background: notation === preset.notation ? 'var(--accent)' : 'var(--surface)',
-              border: `1px solid ${notation === preset.notation ? 'var(--accent)' : 'var(--border)'}`,
+              background: notation === preset.notation ? 'var(--gold)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${notation === preset.notation ? 'var(--gold)' : 'rgba(255,255,255,0.06)'}`,
               color: notation === preset.notation ? '#fff' : 'var(--text-primary)',
               fontSize: '0.8rem',
               fontWeight: 600,
@@ -170,7 +170,7 @@ export default function DicePage() {
       </div>
 
       {/* DC and Modifier */}
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-4 mb-5 stagger-in" style={{ animationDelay: '0.1s' }}>
         <div className="flex-1">
           <label style={labelStyle}>DC (Target)</label>
           <input
@@ -193,23 +193,24 @@ export default function DicePage() {
       </div>
 
       {/* Roll mode */}
-      <div className="mb-5">
+      <div className="mb-6 stagger-in" style={{ animationDelay: '0.15s' }}>
         <label style={labelStyle}>Roll Mode</label>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           {(['normal', 'advantage', 'disadvantage'] as RollMode[]).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className="touch-target rounded-lg px-3 py-2 flex-1 capitalize"
+              className="touch-compact rounded-lg px-2 py-1 flex-1 capitalize"
               style={{
-                background: mode === m ? 'var(--accent)' : 'var(--surface)',
-                border: `1px solid ${mode === m ? 'var(--accent)' : 'var(--border)'}`,
+                background: mode === m ? 'var(--gold)' : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${mode === m ? 'var(--gold)' : 'rgba(255,255,255,0.06)'}`,
                 color: mode === m ? '#fff' : 'var(--text-primary)',
-                fontSize: '0.8rem',
+                fontSize: '0.75rem',
                 fontWeight: 600,
+                minWidth: 0,
               }}
             >
-              {m}
+              {m === 'disadvantage' ? 'Disadv' : m}
             </button>
           ))}
         </div>
@@ -218,16 +219,16 @@ export default function DicePage() {
       {/* Statistics */}
       {stats && (
         <div
-          className="rounded-xl p-4 mb-4"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          className="p-4 mb-5 stagger-in"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, animationDelay: '0.2s' }}
         >
           <h3
-            className="font-semibold text-sm mb-3"
+            className="font-heading font-semibold text-sm mb-4"
             style={{ color: 'var(--text-secondary)' }}
           >
             Statistics
           </h3>
-          <div className="flex justify-between mb-3">
+          <div className="flex justify-between mb-4">
             <div className="text-center flex-1">
               <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Min</div>
               <div className="font-mono-num" style={{ color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600 }}>
@@ -250,9 +251,9 @@ export default function DicePage() {
 
           {/* Probability of meeting DC */}
           {probability !== null && (
-            <div className="mt-4">
+            <div className="mt-5">
               <p
-                className="text-center mb-2"
+                className="text-center mb-3"
                 style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}
               >
                 Chance to meet DC {dc}
@@ -267,12 +268,15 @@ export default function DicePage() {
       <button
         onClick={handleRoll}
         disabled={!stats}
-        className="touch-target w-full rounded-xl py-4 flex items-center justify-center gap-2 font-bold text-lg mb-4"
+        className="touch-target w-full py-4 flex items-center justify-center gap-3 font-bold text-lg mb-5 stagger-in"
         style={{
-          background: stats ? 'var(--accent)' : 'var(--surface-active)',
+          background: stats ? 'var(--gold)' : 'var(--surface-active)',
           color: stats ? '#fff' : 'var(--text-muted)',
           border: 'none',
           cursor: stats ? 'pointer' : 'not-allowed',
+          borderRadius: 9999,
+          padding: '12px 24px',
+          animationDelay: '0.25s',
         }}
       >
         <Dices size={24} />
@@ -281,15 +285,15 @@ export default function DicePage() {
 
       {lastRoll !== null && (
         <div
-          className="rounded-xl p-6 text-center mb-4"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          className="p-6 text-center mb-5 break-words"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }}
         >
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: 4 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: 8 }}>
             Result
           </p>
           <p
             className="font-mono-num"
-            style={{ color: 'var(--accent)', fontSize: '3rem', fontWeight: 700, lineHeight: 1 }}
+            style={{ color: 'var(--gold-bright)', fontSize: '3rem', fontWeight: 700, lineHeight: 1, textShadow: '0 0 20px rgba(198, 162, 85, 0.5), 0 0 40px rgba(198, 162, 85, 0.2)', marginBottom: 12 }}
           >
             {lastRoll}
           </p>

@@ -9,7 +9,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import type { LoreCategory } from '@/types';
 
 const CATEGORIES: { value: LoreCategory | 'all'; label: string; color: string }[] = [
-  { value: 'all', label: 'All', color: 'var(--accent)' },
+  { value: 'all', label: 'All', color: 'var(--gold)' },
   { value: 'world', label: 'World', color: '#3b82f6' },
   { value: 'history', label: 'History', color: '#8b5cf6' },
   { value: 'factions', label: 'Factions', color: '#f59e0b' },
@@ -54,7 +54,6 @@ export default function LorePage() {
 
   const scrollToEntry = useCallback((id: string) => {
     setExpandedId(id);
-    // Small delay to ensure expansion renders
     setTimeout(() => {
       entryRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
@@ -64,29 +63,24 @@ export default function LorePage() {
     <AppShell title="Lore Vault">
       {/* Count */}
       <p
-        className="mb-3"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
+        className="mb-5 stagger-in"
+        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', animationDelay: '0s' }}
       >
         {filteredLore.length} entr{filteredLore.length !== 1 ? 'ies' : 'y'}
       </p>
 
       {/* Category tabs */}
-      <div className="flex gap-2 mb-4 overflow-x-auto" style={{ paddingBottom: 4 }}>
+      <div className="filter-row mb-6 stagger-in" style={{ animationDelay: '0.06s' }}>
         {CATEGORIES.map((cat) => (
           <button
             key={cat.value}
             onClick={() => setCategoryFilter(cat.value)}
-            className="touch-target rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap"
-            style={{
-              background:
-                categoryFilter === cat.value ? `${cat.color}22` : 'var(--surface)',
-              color: categoryFilter === cat.value ? cat.color : 'var(--text-secondary)',
-              border:
-                categoryFilter === cat.value
-                  ? `1px solid ${cat.color}44`
-                  : '1px solid var(--border)',
-              minHeight: 36,
-            }}
+            className={`pill-btn pill-btn-ghost pill-sm whitespace-nowrap ${categoryFilter === cat.value ? 'pill-btn-ghost-active' : ''}`}
+            style={categoryFilter === cat.value ? {
+              background: `${cat.color}22`,
+              color: cat.color,
+              border: `1px solid ${cat.color}44`,
+            } : undefined}
           >
             {cat.label}
           </button>
@@ -94,7 +88,7 @@ export default function LorePage() {
       </div>
 
       {/* Search input */}
-      <div className="relative mb-4">
+      <div className="relative mb-6 stagger-in" style={{ animationDelay: '0.12s' }}>
         <Search
           size={18}
           style={{
@@ -102,7 +96,7 @@ export default function LorePage() {
             left: 12,
             top: '50%',
             transform: 'translateY(-50%)',
-            color: 'var(--text-muted)',
+            color: 'var(--gold-dim)',
           }}
         />
         <input
@@ -110,13 +104,14 @@ export default function LorePage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search lore..."
-          className="w-full rounded-lg pl-10 pr-3 py-2.5"
+          className="w-full pl-10 pr-3 py-2.5"
           style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 12,
             color: 'var(--text-primary)',
             fontSize: '0.875rem',
-            minHeight: 44,
+            padding: '10px 14px 10px 40px',
           }}
         />
       </div>
@@ -129,106 +124,109 @@ export default function LorePage() {
           icon={<BookOpen size={40} />}
         />
       ) : (
-        <div className="space-y-3">
-          {filteredLore.map((entry) => {
+        <div className="space-y-4">
+          {filteredLore.map((entry, index) => {
             const isExpanded = expandedId === entry.id;
-            const categoryColor = CATEGORY_COLORS[entry.category] ?? 'var(--accent)';
+            const categoryColor = CATEGORY_COLORS[entry.category] ?? 'var(--gold)';
 
             return (
               <div
                 key={entry.id}
                 ref={(el) => { entryRefs.current[entry.id] = el; }}
-                className="rounded-xl overflow-hidden"
+                className="bg3-card-premium stagger-in"
                 style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
+                  animationDelay: `${0.18 + index * 0.05}s`,
                 }}
               >
-                {/* Header - clickable */}
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                  className="touch-target w-full text-left px-4 py-3"
+                <div
+                  className="card-inner"
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    minHeight: 44,
+                    background: `linear-gradient(160deg, ${categoryColor}0C, rgba(255,255,255,0.02))`,
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge label={entry.category} color={categoryColor} />
-                    {entry.act && (
-                      <Badge label={`Act ${entry.act}`} color="var(--accent)" />
+                  {/* Header - clickable */}
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                    className="touch-target w-full text-left px-2 py-1"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      minHeight: 44,
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge label={entry.category} color={categoryColor} />
+                      {entry.act && (
+                        <Badge label={`Act ${entry.act}`} color="var(--gold)" />
+                      )}
+                    </div>
+                    <h3
+                      className="font-heading font-semibold text-sm"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {entry.title}
+                    </h3>
+                    {!isExpanded && (
+                      <p
+                        className="text-xs mt-2 leading-snug"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {entry.content.slice(0, 120)}...
+                      </p>
                     )}
-                  </div>
-                  <h3
-                    className="font-semibold text-sm"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    {entry.title}
-                  </h3>
-                  {!isExpanded && (
-                    <p
-                      className="text-xs mt-1 leading-snug"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {entry.content.slice(0, 120)}...
-                    </p>
-                  )}
-                </button>
+                  </button>
 
-                {/* Expanded content */}
-                {isExpanded && (
-                  <div
-                    className="px-4 pb-4"
-                    style={{ borderTop: '1px solid var(--border)' }}
-                  >
-                    <p
-                      className="pt-3"
-                      style={{
-                        color: 'var(--text-primary)',
-                        fontSize: '0.875rem',
-                        lineHeight: 1.8,
-                      }}
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div
+                      className="px-2 pb-2"
+                      style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
                     >
-                      {entry.content}
-                    </p>
+                      <p
+                        className="pt-4"
+                        style={{
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem',
+                          lineHeight: 1.8,
+                        }}
+                      >
+                        {entry.content}
+                      </p>
 
-                    {/* Related entries */}
-                    {entry.relatedEntries.length > 0 && (
-                      <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                        <p
-                          className="text-xs font-semibold mb-2"
-                          style={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                        >
-                          Related Entries
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {entry.relatedEntries.map((relatedId) => {
-                            const relatedEntry = lore.find((l) => l.id === relatedId);
-                            const isVisible = filteredLore.some((l) => l.id === relatedId);
-                            return (
-                              <button
-                                key={relatedId}
-                                onClick={() => scrollToEntry(relatedId)}
-                                className="touch-target rounded-full px-2.5 py-1 text-xs font-medium"
-                                style={{
-                                  background: isVisible ? `${CATEGORY_COLORS[relatedEntry?.category ?? 'magic']}22` : 'var(--surface-active)',
-                                  color: isVisible ? (CATEGORY_COLORS[relatedEntry?.category ?? 'magic']) : 'var(--text-muted)',
-                                  border: '1px solid var(--border)',
-                                  cursor: 'pointer',
-                                  minHeight: 36,
-                                }}
-                              >
-                                {relatedEntry?.title ?? relatedId}
-                              </button>
-                            );
-                          })}
+                      {/* Related entries */}
+                      {entry.relatedEntries.length > 0 && (
+                        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          <p
+                            className="text-xs font-semibold mb-3"
+                            style={{ color: 'var(--gold-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                          >
+                            Related Entries
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {entry.relatedEntries.map((relatedId) => {
+                              const relatedEntry = lore.find((l) => l.id === relatedId);
+                              const isVisible = filteredLore.some((l) => l.id === relatedId);
+                              return (
+                                <button
+                                  key={relatedId}
+                                  onClick={() => scrollToEntry(relatedId)}
+                                  className={`pill-btn pill-btn-ghost pill-sm ${isVisible ? 'pill-btn-ghost-active' : ''}`}
+                                  style={isVisible ? {
+                                    background: `${CATEGORY_COLORS[relatedEntry?.category ?? 'magic']}22`,
+                                    color: CATEGORY_COLORS[relatedEntry?.category ?? 'magic'],
+                                  } : undefined}
+                                >
+                                  {relatedEntry?.title ?? relatedId}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

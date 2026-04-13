@@ -140,7 +140,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
           style={{
             width: i + 1 === current ? 24 : 8,
             height: 8,
-            background: i + 1 === current ? 'var(--accent)' : i + 1 < current ? 'var(--accent-muted)' : 'var(--border)',
+            background: i + 1 === current ? 'var(--gold-bright)' : i + 1 < current ? 'var(--gold-muted)' : 'var(--border)',
+            boxShadow: i + 1 === current ? '0 0 8px rgba(198, 162, 85, 0.4)' : 'none',
           }}
         />
       ))}
@@ -159,7 +160,7 @@ function NavButtons({ onBack, onNext, canNext, isLast }: {
       <button
         onClick={onBack}
         className="flex-1 py-3 rounded-xl font-semibold text-sm"
-        style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', minHeight: 44 }}
+        style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--gold)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9999, minHeight: 44, padding: '12px 24px' }}
       >
         Back
       </button>
@@ -168,9 +169,11 @@ function NavButtons({ onBack, onNext, canNext, isLast }: {
         disabled={!canNext}
         className="flex-1 py-3 rounded-xl font-semibold text-sm"
         style={{
-          background: canNext ? 'var(--accent)' : 'var(--border)',
-          color: canNext ? '#fff' : 'var(--text-secondary)',
+          background: canNext ? 'linear-gradient(135deg, var(--gold), var(--gold-bright))' : 'var(--border)',
+          color: canNext ? 'var(--bg)' : 'var(--text-secondary)',
           minHeight: 44,
+          fontWeight: canNext ? 700 : 400,
+          letterSpacing: canNext ? '0.02em' : 'normal',
         }}
       >
         {isLast ? 'Save Build' : 'Next'}
@@ -189,24 +192,24 @@ function StepBasics({ state, dispatch }: { state: WizardState; dispatch: React.D
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Build Name</h2>
+      <h2 className="font-heading text-lg font-bold mb-3" style={{ color: 'var(--gold-bright)' }}>Build Name</h2>
       <input
         type="text"
         value={state.name}
         onChange={e => dispatch({ type: 'SET_NAME', name: e.target.value })}
         placeholder="My awesome build..."
-        className="w-full px-4 py-3 rounded-xl text-sm"
-        style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', minHeight: 44 }}
+        className="w-full px-4 py-3 text-sm"
+        style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '10px 14px' }}
       />
 
-      <h2 className="text-lg font-bold mt-6 mb-3" style={{ color: 'var(--text-primary)' }}>Race</h2>
+      <h2 className="font-heading text-lg font-bold mt-6 mb-3" style={{ color: 'var(--gold-bright)' }}>Race</h2>
       <input
         type="text"
         value={searchRace}
         onChange={e => setSearchRace(e.target.value)}
         placeholder="Search races..."
-        className="w-full px-4 py-2 rounded-lg text-sm mb-3"
-        style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+        className="w-full px-4 py-2 text-sm mb-3"
+        style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '10px 14px' }}
       />
       <div className="grid grid-cols-2 gap-2">
         {filteredRaces.map(race => (
@@ -215,9 +218,9 @@ function StepBasics({ state, dispatch }: { state: WizardState; dispatch: React.D
             onClick={() => dispatch({ type: 'SET_RACE', raceId: race.id })}
             className="text-left p-3 rounded-xl"
             style={{
-              background: state.raceId === race.id ? 'var(--accent)' : 'var(--surface)',
-              color: state.raceId === race.id ? '#fff' : 'var(--text-primary)',
-              border: `1px solid ${state.raceId === race.id ? 'var(--accent)' : 'var(--border)'}`,
+              background: state.raceId === race.id ? 'var(--gold-muted)' : 'rgba(255,255,255,0.03)',
+              color: state.raceId === race.id ? 'var(--gold-bright)' : 'var(--text-primary)',
+              border: `1px solid ${state.raceId === race.id ? 'var(--gold)' : 'var(--border)'}`,
               minHeight: 44,
             }}
           >
@@ -235,7 +238,7 @@ function StepBasics({ state, dispatch }: { state: WizardState; dispatch: React.D
 
       {selectedRace && selectedRace.subraces.length > 0 && (
         <>
-          <h2 className="text-lg font-bold mt-6 mb-3" style={{ color: 'var(--text-primary)' }}>Subrace</h2>
+          <h2 className="font-heading text-lg font-bold mt-6 mb-3" style={{ color: 'var(--gold-bright)' }}>Subrace</h2>
           <div className="grid grid-cols-2 gap-2">
             {selectedRace.subraces.map(sub => (
               <button
@@ -243,9 +246,9 @@ function StepBasics({ state, dispatch }: { state: WizardState; dispatch: React.D
                 onClick={() => dispatch({ type: 'SET_SUBRACE', subraceId: sub.id })}
                 className="text-left p-3 rounded-xl"
                 style={{
-                  background: state.subraceId === sub.id ? 'var(--accent)' : 'var(--surface)',
-                  color: state.subraceId === sub.id ? '#fff' : 'var(--text-primary)',
-                  border: `1px solid ${state.subraceId === sub.id ? 'var(--accent)' : 'var(--border)'}`,
+                  background: state.subraceId === sub.id ? 'var(--gold-muted)' : 'rgba(255,255,255,0.03)',
+                  color: state.subraceId === sub.id ? 'var(--gold-bright)' : 'var(--text-primary)',
+                  border: `1px solid ${state.subraceId === sub.id ? 'var(--gold)' : 'var(--border)'}`,
                   minHeight: 44,
                 }}
               >
@@ -263,14 +266,14 @@ function StepBasics({ state, dispatch }: { state: WizardState; dispatch: React.D
         </>
       )}
 
-      <h2 className="text-lg font-bold mt-6 mb-3" style={{ color: 'var(--text-primary)' }}>Background</h2>
+      <h2 className="font-heading text-lg font-bold mt-6 mb-3" style={{ color: 'var(--gold-bright)' }}>Background</h2>
       <input
         type="text"
         value={searchBg}
         onChange={e => setSearchBg(e.target.value)}
         placeholder="Search backgrounds..."
-        className="w-full px-4 py-2 rounded-lg text-sm mb-3"
-        style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+        className="w-full px-4 py-2 text-sm mb-3"
+        style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '10px 14px' }}
       />
       <div className="flex flex-col gap-2">
         {filteredBgs.map(bg => (
@@ -279,9 +282,9 @@ function StepBasics({ state, dispatch }: { state: WizardState; dispatch: React.D
             onClick={() => dispatch({ type: 'SET_BACKGROUND', backgroundId: bg.id })}
             className="text-left p-3 rounded-xl"
             style={{
-              background: state.backgroundId === bg.id ? 'var(--accent)' : 'var(--surface)',
-              color: state.backgroundId === bg.id ? '#fff' : 'var(--text-primary)',
-              border: `1px solid ${state.backgroundId === bg.id ? 'var(--accent)' : 'var(--border)'}`,
+              background: state.backgroundId === bg.id ? 'var(--gold-muted)' : 'rgba(255,255,255,0.03)',
+              color: state.backgroundId === bg.id ? 'var(--gold-bright)' : 'var(--text-primary)',
+              border: `1px solid ${state.backgroundId === bg.id ? 'var(--gold)' : 'var(--border)'}`,
               minHeight: 44,
             }}
           >
@@ -301,9 +304,9 @@ function StepAbilities({ state, dispatch }: { state: WizardState; dispatch: Reac
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Ability Scores</h2>
+      <h2 className="font-heading text-lg font-bold mb-1" style={{ color: 'var(--gold-bright)' }}>Ability Scores</h2>
       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-        Points remaining: <strong style={{ color: 27 - used > 0 ? 'var(--accent)' : 'var(--text-primary)' }}>{27 - used}</strong> / 27
+        Points remaining: <strong style={{ color: 27 - used > 0 ? 'var(--gold-bright)' : 'var(--text-primary)' }}>{27 - used}</strong> / 27
       </p>
 
       <div className="flex flex-col gap-3">
@@ -319,9 +322,9 @@ function StepAbilities({ state, dispatch }: { state: WizardState; dispatch: Reac
             <div
               key={ability}
               className="flex items-center gap-3 p-3 rounded-xl"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16 }}
             >
-              <span className="font-bold text-sm w-10" style={{ color: 'var(--accent)' }}>{ABILITY_SHORT[ability]}</span>
+              <span className="font-bold text-sm w-10" style={{ color: 'var(--gold)' }}>{ABILITY_SHORT[ability]}</span>
 
               <button
                 onClick={() => canDec && dispatch({ type: 'SET_SCORE', ability, value: base - 1 })}
@@ -336,7 +339,7 @@ function StepAbilities({ state, dispatch }: { state: WizardState; dispatch: Reac
 
               <div className="flex-1 text-center">
                 <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{base}</span>
-                {bonus > 0 && <span className="text-sm ml-1" style={{ color: 'var(--accent)' }}>+{bonus}</span>}
+                {bonus > 0 && <span className="text-sm ml-1" style={{ color: 'var(--gold-bright)' }}>+{bonus}</span>}
                 <span className="text-sm ml-1" style={{ color: 'var(--text-secondary)' }}>= {final_} ({modifier(final_)})</span>
               </div>
 
@@ -346,8 +349,8 @@ function StepAbilities({ state, dispatch }: { state: WizardState; dispatch: Reac
                 className="flex items-center justify-center rounded-lg font-bold"
                 style={{
                   width: 36, height: 36,
-                  background: canInc ? 'var(--accent)' : 'transparent',
-                  color: canInc ? '#fff' : 'var(--text-secondary)',
+                  background: canInc ? 'var(--gold)' : 'transparent',
+                  color: canInc ? 'var(--bg)' : 'var(--text-secondary)',
                 }}
               >+</button>
             </div>
@@ -383,14 +386,14 @@ function StepClassLevels({ state, dispatch }: { state: WizardState; dispatch: Re
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Class Levels</h2>
+      <h2 className="font-heading text-lg font-bold mb-1" style={{ color: 'var(--gold-bright)' }}>Class Levels</h2>
       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
         {totalLevels} / 12 levels assigned
       </p>
 
       {/* Progress bar */}
       <div className="w-full rounded-full h-2 mb-5" style={{ background: 'var(--border)' }}>
-        <div className="h-2 rounded-full transition-all" style={{ width: `${(totalLevels / 12) * 100}%`, background: 'var(--accent)' }} />
+        <div className="h-2 rounded-full transition-all" style={{ width: `${(totalLevels / 12) * 100}%`, background: 'linear-gradient(90deg, var(--gold), var(--gold-bright))' }} />
       </div>
 
       {/* Active classes */}
@@ -401,13 +404,13 @@ function StepClassLevels({ state, dispatch }: { state: WizardState; dispatch: Re
         const subclass = state.levels.find(l => l.classId === classId && l.subclassId);
 
         return (
-          <div key={classId} className="p-3 rounded-xl mb-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div key={classId} className="p-3 rounded-xl mb-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, borderLeft: '3px solid var(--gold)' }}>
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{cls.name}</span>
+              <span className="font-semibold text-sm" style={{ color: 'var(--gold-bright)' }}>{cls.name}</span>
               <div className="flex items-center gap-2">
                 <button onClick={() => removeLevel(classId)} className="flex items-center justify-center rounded-lg" style={{ width: 32, height: 32, background: 'var(--border)', color: 'var(--text-primary)' }}>-</button>
-                <span className="font-bold text-sm w-6 text-center" style={{ color: 'var(--accent)' }}>{count}</span>
-                <button onClick={() => addLevel(classId)} disabled={totalLevels >= 12} className="flex items-center justify-center rounded-lg" style={{ width: 32, height: 32, background: totalLevels < 12 ? 'var(--accent)' : 'var(--border)', color: totalLevels < 12 ? '#fff' : 'var(--text-secondary)' }}>+</button>
+                <span className="font-bold text-sm w-6 text-center" style={{ color: 'var(--gold-bright)' }}>{count}</span>
+                <button onClick={() => addLevel(classId)} disabled={totalLevels >= 12} className="flex items-center justify-center rounded-lg" style={{ width: 32, height: 32, background: totalLevels < 12 ? 'var(--gold)' : 'var(--border)', color: totalLevels < 12 ? 'var(--bg)' : 'var(--text-secondary)' }}>+</button>
               </div>
             </div>
 
@@ -426,8 +429,8 @@ function StepClassLevels({ state, dispatch }: { state: WizardState; dispatch: Re
                       }}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium"
                       style={{
-                        background: subclass?.subclassId === sub.id ? 'var(--accent)' : 'var(--border)',
-                        color: subclass?.subclassId === sub.id ? '#fff' : 'var(--text-primary)',
+                        background: subclass?.subclassId === sub.id ? 'var(--gold-muted)' : 'var(--border)',
+                        color: subclass?.subclassId === sub.id ? 'var(--gold-bright)' : 'var(--text-primary)',
                         minHeight: 36,
                       }}
                     >{sub.name}</button>
@@ -442,7 +445,7 @@ function StepClassLevels({ state, dispatch }: { state: WizardState; dispatch: Re
                 .filter(f => f.level <= count)
                 .map(f => (
                   <div key={f.name} className="flex items-start gap-1.5 mt-1">
-                    <span className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Lv{f.level}</span>
+                    <span className="text-xs font-medium" style={{ color: 'var(--gold)' }}>Lv{f.level}</span>
                     <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{f.name}</span>
                   </div>
                 ))}
@@ -461,7 +464,7 @@ function StepClassLevels({ state, dispatch }: { state: WizardState; dispatch: Re
                 key={cls.id}
                 onClick={() => addLevel(cls.id)}
                 className="p-2.5 rounded-xl text-left text-xs"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', minHeight: 44, color: 'var(--text-primary)' }}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', minHeight: 44, color: 'var(--text-primary)', borderRadius: 16 }}
               >
                 <span className="font-semibold">{cls.name}</span>
                 <span className="block" style={{ color: 'var(--text-secondary)' }}>{cls.hitDie} / {cls.primaryAbility}</span>
@@ -488,7 +491,7 @@ function StepFeats({ state, dispatch }: { state: WizardState; dispatch: React.Di
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Feats & ASI</h2>
+      <h2 className="font-heading text-lg font-bold mb-1" style={{ color: 'var(--gold-bright)' }}>Feats & ASI</h2>
       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
         Choose a feat or Ability Score Improvement at each feat level
       </p>
@@ -498,16 +501,16 @@ function StepFeats({ state, dispatch }: { state: WizardState; dispatch: React.Di
         const isASI = choice?.featId === 'ability-improvement';
 
         return (
-          <div key={level} className="p-3 rounded-xl mb-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="font-semibold text-sm mb-2" style={{ color: 'var(--accent)' }}>Level {level}</p>
+          <div key={level} className="p-3 rounded-xl mb-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, borderLeft: '3px solid var(--gold)' }}>
+            <p className="font-semibold text-sm mb-2" style={{ color: 'var(--gold-bright)' }}>Level {level}</p>
 
             <div className="flex gap-2 mb-2">
               <button
                 onClick={() => dispatch({ type: 'SET_FEAT', atLevel: level, featId: 'ability-improvement' })}
                 className="px-3 py-2 rounded-lg text-xs font-medium"
                 style={{
-                  background: isASI ? 'var(--accent)' : 'var(--border)',
-                  color: isASI ? '#fff' : 'var(--text-primary)',
+                  background: isASI ? 'var(--gold)' : 'var(--border)',
+                  color: isASI ? 'var(--bg)' : 'var(--text-primary)',
                   minHeight: 36,
                 }}
               >ASI (+2 / +1+1)</button>
@@ -533,8 +536,8 @@ function StepFeats({ state, dispatch }: { state: WizardState; dispatch: React.Di
                         onClick={() => dispatch({ type: 'SET_FEAT', atLevel: level, featId: feat.id })}
                         className="text-left p-2 rounded-lg text-xs"
                         style={{
-                          background: choice?.featId === feat.id ? 'var(--accent)' : 'transparent',
-                          color: choice?.featId === feat.id ? '#fff' : 'var(--text-primary)',
+                          background: choice?.featId === feat.id ? 'var(--gold-muted)' : 'transparent',
+                          color: choice?.featId === feat.id ? 'var(--gold-bright)' : 'var(--text-primary)',
                           minHeight: 36,
                         }}
                       >
@@ -583,7 +586,7 @@ function StepSkills({ state, dispatch }: { state: WizardState; dispatch: React.D
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Skills</h2>
+      <h2 className="font-heading text-lg font-bold mb-1" style={{ color: 'var(--gold-bright)' }}>Skills</h2>
       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
         Pick {remainingPicks} skill{remainingPicks !== 1 ? 's' : ''} from your class list
       </p>
@@ -591,10 +594,10 @@ function StepSkills({ state, dispatch }: { state: WizardState; dispatch: React.D
       {/* Auto-granted */}
       {autoSkills.length > 0 && (
         <div className="mb-4">
-          <p className="text-xs font-medium mb-2" style={{ color: 'var(--accent)' }}>Auto-granted</p>
+          <p className="text-xs font-medium mb-2" style={{ color: 'var(--gold)' }}>Auto-granted</p>
           <div className="flex flex-wrap gap-1.5">
             {autoSkills.map(skill => (
-              <Badge key={skill} label={skill} color="var(--accent)" />
+              <Badge key={skill} label={skill} color="var(--gold)" />
             ))}
           </div>
         </div>
@@ -614,9 +617,9 @@ function StepSkills({ state, dispatch }: { state: WizardState; dispatch: React.D
               disabled={isAuto || (!canPick && !isPicked)}
               className="flex items-center justify-between p-3 rounded-xl text-left"
               style={{
-                background: isAuto ? 'var(--accent)' : isPicked ? 'var(--accent)' : 'var(--surface)',
-                color: isAuto || isPicked ? '#fff' : 'var(--text-primary)',
-                border: `1px solid ${isAuto || isPicked ? 'var(--accent)' : 'var(--border)'}`,
+                background: isAuto ? 'var(--gold-muted)' : isPicked ? 'var(--gold-muted)' : 'rgba(255,255,255,0.03)',
+                color: isAuto || isPicked ? 'var(--gold-bright)' : 'var(--text-primary)',
+                border: `1px solid ${isAuto || isPicked ? 'var(--gold)' : 'var(--border)'}`,
                 opacity: isAuto ? 0.7 : !canPick && !isPicked ? 0.4 : 1,
                 minHeight: 44,
               }}
@@ -643,7 +646,7 @@ function StepSpells({ state, dispatch }: { state: WizardState; dispatch: React.D
   if (castingClasses.length === 0) {
     return (
       <div>
-        <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Spells</h2>
+        <h2 className="font-heading text-lg font-bold mb-1" style={{ color: 'var(--gold-bright)' }}>Spells</h2>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           No spellcasting classes selected. Skip this step.
         </p>
@@ -653,7 +656,7 @@ function StepSpells({ state, dispatch }: { state: WizardState; dispatch: React.D
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Spells</h2>
+      <h2 className="font-heading text-lg font-bold mb-1" style={{ color: 'var(--gold-bright)' }}>Spells</h2>
       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
         Select cantrips and spells for your casting classes
       </p>
@@ -682,8 +685,8 @@ function StepSpells({ state, dispatch }: { state: WizardState; dispatch: React.D
         }
 
         return (
-          <div key={classId} className="p-3 rounded-xl mb-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="font-semibold text-sm mb-2" style={{ color: 'var(--accent)' }}>{cls.name} (Lv {classLevel})</p>
+          <div key={classId} className="p-3 rounded-xl mb-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }}>
+            <p className="font-semibold text-sm mb-2" style={{ color: 'var(--gold)' }}>{cls.name} (Lv {classLevel})</p>
             <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
               {spellData.cantrips.length} cantrip(s), {spellData.spells.length} spell(s) selected
             </p>
@@ -710,8 +713,8 @@ function StepSpells({ state, dispatch }: { state: WizardState; dispatch: React.D
                     onClick={() => toggleSpell(spell.name, isCantrip)}
                     className="flex items-center justify-between p-2 rounded-lg text-xs text-left"
                     style={{
-                      background: isSelected ? 'var(--accent)' : 'transparent',
-                      color: isSelected ? '#fff' : 'var(--text-primary)',
+                      background: isSelected ? 'var(--gold-muted)' : 'transparent',
+                      color: isSelected ? 'var(--gold-bright)' : 'var(--text-primary)',
                       minHeight: 36,
                     }}
                   >
@@ -743,10 +746,10 @@ function StepSummary({ state }: { state: WizardState }) {
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Build Summary</h2>
+      <h2 className="font-heading text-lg font-bold mb-3" style={{ color: 'var(--gold-bright)' }}>Build Summary</h2>
 
-      <div className="p-4 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <h3 className="font-bold text-base mb-3" style={{ color: 'var(--accent)' }}>{state.name || 'Unnamed Build'}</h3>
+      <div className="p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }}>
+        <h3 className="font-bold text-base mb-3" style={{ color: 'var(--gold)' }}>{state.name || 'Unnamed Build'}</h3>
 
         {/* Race & Background */}
         <div className="flex flex-wrap gap-1.5 mb-3">
@@ -784,7 +787,7 @@ function StepSummary({ state }: { state: WizardState }) {
                 <div key={ability} className="text-center p-2 rounded-lg" style={{ background: 'var(--border)' }}>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{ABILITY_SHORT[ability]}</p>
                   <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{final_}</p>
-                  <p className="text-xs" style={{ color: 'var(--accent)' }}>{modifier(final_)}</p>
+                  <p className="text-xs" style={{ color: 'var(--gold)' }}>{modifier(final_)}</p>
                 </div>
               );
             })}
@@ -822,7 +825,7 @@ function StepSummary({ state }: { state: WizardState }) {
             <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Spells</p>
             {state.chosenSpells.map(sp => (
               <div key={sp.classId}>
-                <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>{sp.classId}</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--gold)' }}>{sp.classId}</p>
                 <p className="text-xs" style={{ color: 'var(--text-primary)' }}>
                   {sp.cantrips.join(', ')} {sp.cantrips.length > 0 && '|'} {sp.spells.join(', ')}
                 </p>

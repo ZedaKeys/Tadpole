@@ -119,6 +119,89 @@ const stateHistory = [];          // rolling buffer of last 100 snapshots
 const eventLog = [];              // recent detected events
 
 // JSON status endpoint for DeckyLoader plugin & programmatic consumers
+// ---------------------------------------------------------------------------
+// Serve phone app (static export) from bridge/phone-app/ directory
+// This lets users access the app via HTTP directly, bypassing the HTTPS/mixed-content issue.
+// To populate: build the Next.js app as static export (npm run build) and copy `out/` to `bridge/phone-app/`
+// ---------------------------------------------------------------------------
+const PHONE_APP_DIR = path.join(__dirname, 'phone-app');
+
+app.use('/phone', safeWrap((req, res, next) => {
+  // Try to serve the static phone app from bridge/phone-app/
+  const subpath = req.path === '/' ? '/index.html' : req.path;
+  const filePath = path.join(PHONE_APP_DIR, subpath);
+
+  // Security: prevent directory traversal
+  if (!filePath.startsWith(PHONE_APP_DIR)) {
+    return res.status(403).send('Forbidden');
+  }
+
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    return res.sendFile(filePath);
+  }
+
+  // For SPA: fall back to index.html for client-side routing
+  const indexPath = path.join(PHONE_APP_DIR, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+
+  // No phone app deployed — show instruction page
+  res.send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tadpole - Access via HTTP</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:480px;margin:2em auto;padding:0 1.5em;background:#1a1a2e;color:#eee;text-align:center}
+  h1{color:#48bfe3;font-size:1.5em}
+  .box{background:#16213e;border-radius:12px;padding:1.5em;margin:1em 0;text-align:left}
+  .step{margin:0.75em 0;padding-left:1.5em;position:relative}
+  .step::before{content:attr(data-n);position:absolute;left:0;color:#48bfe3;font-weight:bold}
+  code{background:#0d1b2a;padding:2px 6px;border-radius:4px;font-size:0.9em;color:#72ddf7}
+  .ok{color:#52b788} .warn{color:#f4a261}
+  a{color:#48bfe3}
+  .ip{font-size:1.3em;color:#52b788;font-weight:bold;letter-spacing:0.5px}
+</style></head><body>
+<h1>🐸 Tadpole</h1>
+<p style="color:#8d99ae">Game Companion App</p>
+
+<div class="box">
+  <h2 style="color:#72ddf7;font-size:1em;margin-top:0">✅ You're on the right page!</h2>
+  <p>You accessed the app via <strong>HTTP</strong>, which means WebSocket connections will work.</p>
+  <p>Your Steam Deck IP: <span class="ip">${req.hostname || '192.168.1.136'}</span></p>
+</div>
+
+<div class="box">
+  <h2 style="color:#f4a261;font-size:1em;margin-top:0">⚠️ If you came from the HTTPS version</h2>
+  <p><strong>Bookmark this page instead!</strong> The HTTPS version at
+  <code>tadpole-omega.vercel.app</code> cannot connect to the bridge because browsers
+  block <code>ws://</code> from HTTPS pages.</p>
+  <p>This HTTP version works perfectly because everything is on the same network.</p>
+</div>
+
+<div class="box">
+  <h2 style="color:#72ddf7;font-size:1em;margin-top:0">📋 Full Setup</h2>
+  <div class="step" data-n="1.">
+    Make sure the bridge server is running on your Steam Deck.
+  </div>
+  <div class="step" data-n="2.">
+    Open this URL <strong>on your phone</strong>:<br>
+    <code>http://${req.hostname || '192.168.1.136'}:${PORT}/phone</code>
+  </div>
+  <div class="step" data-n="3.">
+    Enter the Deck's IP in the connection panel and tap Connect.
+  </div>
+  <div class="step" data-n="4.">
+    Done! Your game data will appear live.
+  </div>
+</div>
+
+<p style="color:#8d99ae;font-size:0.8em">
+  Bridge v${BRIDGE_VERSION} &middot; Port ${PORT} &middot;
+  <span class="${currentState ? 'ok' : 'warn'}">${currentState ? 'Game connected' : 'Waiting for game data'}</span>
+</p>
+</body></html>`);
+}, 'GET /phone'));
+
 app.get('/status', safeWrap((req, res) => {
   res.json({
     name: 'Tadpole Bridge Server',
@@ -498,6 +581,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   Version:  ${BRIDGE_VERSION}`);
   console.log(`   HTTP:     http://${lanIp}:${PORT}`);
   console.log(`   WebSocket: ws://${lanIp}:${PORT}/ws`);
+  console.log(`   Phone App: http://${lanIp}:${PORT}/phone`);
   console.log(`   State:    ${STATE_FILE}`);
   console.log(`   Commands: ${COMMAND_FILE}`);
   console.log(`   ErrorLog: ${ERROR_LOG_FILE}`);

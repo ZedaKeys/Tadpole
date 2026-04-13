@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Header } from './Header';
-import { BottomNav } from './BottomNav';
+import BottomNav from './BottomNav';
 
 interface AppShellProps {
   title: string;
@@ -15,7 +15,7 @@ export function AppShell({ title, children, onSearchClick }: AppShellProps) {
     <div className="flex flex-col min-h-dvh">
       <Header title={title} onSearchClick={onSearchClick} />
       <main
-        className="flex-1 px-4 py-4 max-w-lg mx-auto w-full"
+        className="flex-1 px-5 py-4 max-w-lg mx-auto w-full"
         style={{ paddingBottom: 100 }}
       >
         {children}

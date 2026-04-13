@@ -26,6 +26,7 @@ export function Accordion({ title, children, defaultOpen = false }: AccordionPro
         style={{
           background: 'transparent',
           border: 'none',
+          borderLeft: '3px solid var(--gold)',
           color: 'var(--text-primary)',
           cursor: 'pointer',
           textAlign: 'left',
@@ -36,7 +37,7 @@ export function Accordion({ title, children, defaultOpen = false }: AccordionPro
         <ChevronDown
           size={18}
           style={{
-            color: 'var(--text-secondary)',
+            color: 'var(--gold-dim)',
             transition: 'transform 0.2s ease',
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
           }}
@@ -49,7 +50,8 @@ export function Accordion({ title, children, defaultOpen = false }: AccordionPro
           style={{
             color: 'var(--text-secondary)',
             fontSize: '0.875rem',
-            borderTop: '1px solid var(--border)',
+            borderTop: '1px solid var(--border-strong)',
+            background: 'var(--parchment)',
           }}
         >
           <div className="pt-3">{children}</div>

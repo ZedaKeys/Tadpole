@@ -25,41 +25,43 @@ export default function BuildsPage() {
   return (
     <AppShell title="Build Planner">
       {/* Quick actions */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-3 mb-6">
         <Link
           href="/builds/new"
-          className="flex-1 py-3 rounded-xl font-semibold text-sm text-center"
-          style={{ background: 'var(--accent)', color: '#fff', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          className="stagger-in flex-1 py-3 font-semibold text-sm text-center"
+          style={{ background: 'linear-gradient(135deg, var(--gold), var(--gold-bright))', color: 'var(--bg)', borderRadius: 9999, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, letterSpacing: '0.02em', padding: '12px 24px', animationDelay: '0.05s' }}
         >
           + New Build
         </Link>
         <Link
           href="/builds/saved"
-          className="flex-1 py-3 rounded-xl font-semibold text-sm text-center"
-          style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          className="stagger-in flex-1 py-3 font-semibold text-sm text-center"
+          style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--gold)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9999, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 24px', animationDelay: '0.1s' }}
         >
           Saved Builds
         </Link>
       </div>
 
       <p
-        className="mb-3"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
+        className="stagger-in mb-5"
+        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', animationDelay: '0.15s' }}
       >
         {classes.length} class{classes.length !== 1 ? 'es' : ''}
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
-        {classes.map((cls) => (
+      <div className="grid grid-cols-2 gap-4">
+        {classes.map((cls, i) => (
           <Card
             key={cls.id}
             title={cls.name}
             href={`/builds/${cls.id}`}
-            description={`${cls.description.slice(0, 70)}...`}
+            description={cls.description}
+            accentColor={CLASS_COLORS[cls.id]}
+            delay={i * 0.05}
             icon={
-              <div className="flex flex-wrap gap-1.5">
-                <Badge label={cls.hitDie} color={CLASS_COLORS[cls.id] ?? 'var(--accent)'} />
-                <Badge label={cls.primaryAbility} color="#6366f1" />
+              <div className="flex flex-wrap gap-2">
+                <Badge label={cls.hitDie} color={CLASS_COLORS[cls.id] ?? 'var(--gold)'} />
+                <Badge label={cls.primaryAbility} color="var(--gold)" />
               </div>
             }
           />

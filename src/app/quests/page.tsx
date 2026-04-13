@@ -20,6 +20,13 @@ const COMPANION_COLORS: Record<string, string> = {
   halsin: '#22c55e',
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  completed: '#22c55e',
+  active: '#3b82f6',
+  failed: '#ef4444',
+  available: '#f59e0b',
+};
+
 export default function QuestsPage() {
   const [actFilter, setActFilter] = useState<number>(0);
   const [query, setQuery] = useState('');
@@ -54,34 +61,33 @@ export default function QuestsPage() {
     return groups;
   }, [filteredQuests]);
 
-  const selectStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    color: 'var(--text-primary)',
-    fontSize: '0.8rem',
-    minHeight: 36,
-    paddingLeft: 8,
-    paddingRight: 8,
-    minWidth: 0,
-  };
-
   return (
     <AppShell title="Quests">
       {/* Count */}
       <p
-        className="mb-3"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
+        className="mb-3 stagger-in"
+        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', animationDelay: '0.05s' }}
       >
         {filteredQuests.length} quest{filteredQuests.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div className="flex gap-2 mb-4 overflow-x-auto" style={{ paddingBottom: 4 }}>
+      <div className="flex gap-3 mb-4 stagger-in" style={{ paddingBottom: 4, animationDelay: '0.1s' }}>
         <select
           value={actFilter}
           onChange={(e) => setActFilter(Number(e.target.value))}
-          style={selectStyle}
+          className="bg3-select"
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 8,
+            color: 'var(--text-primary)',
+            fontSize: '0.8rem',
+            minHeight: 32,
+            paddingLeft: 10,
+            paddingRight: 10,
+            minWidth: 0,
+          }}
         >
           <option value={0}>All Acts</option>
           {ACTS.map((a) => (
@@ -93,7 +99,7 @@ export default function QuestsPage() {
       </div>
 
       {/* Search input */}
-      <div className="relative mb-4">
+      <div className="relative mb-5 stagger-in" style={{ animationDelay: '0.15s' }}>
         <Search
           size={18}
           style={{
@@ -101,7 +107,7 @@ export default function QuestsPage() {
             left: 12,
             top: '50%',
             transform: 'translateY(-50%)',
-            color: 'var(--text-muted)',
+            color: 'var(--gold-dim)',
           }}
         />
         <input
@@ -109,13 +115,14 @@ export default function QuestsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search quests..."
-          className="w-full rounded-lg pl-10 pr-3 py-2.5"
+          className="w-full pl-10 pr-3 py-2.5"
           style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 12,
             color: 'var(--text-primary)',
             fontSize: '0.875rem',
-            minHeight: 44,
+            padding: '10px 14px 10px 40px',
           }}
         />
       </div>
@@ -129,127 +136,117 @@ export default function QuestsPage() {
         />
       ) : actFilter > 0 ? (
         <div className="grid grid-cols-1 gap-3">
-          {filteredQuests.map((quest) => (
-            <a
-              key={quest.id}
-              href={`/quests/${quest.id}`}
-              className="touch-target rounded-xl p-4 flex flex-col transition-colors"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                textDecoration: 'none',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = 'var(--surface-hover)')
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = 'var(--surface)')
-              }
-            >
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <Badge label={`Act ${quest.act}`} color="var(--accent)" />
-                <Badge
-                  label={quest.status}
-                  color={
-                    quest.status === 'completed'
-                      ? '#22c55e'
-                      : quest.status === 'active'
-                        ? '#3b82f6'
-                        : quest.status === 'failed'
-                          ? '#ef4444'
-                          : '#f59e0b'
-                  }
-                />
-              </div>
-              <h3
-                className="font-semibold text-sm leading-tight mb-1"
-                style={{ color: 'var(--text-primary)' }}
+          {filteredQuests.map((quest, i) => {
+            const statusColor = STATUS_COLORS[quest.status] ?? '#6b7280';
+            return (
+              <a
+                key={quest.id}
+                href={`/quests/${quest.id}`}
+                className="bg3-card-premium touch-target stagger-in"
+                style={{
+                  textDecoration: 'none',
+                  display: 'block',
+                  animationDelay: `${0.2 + i * 0.04}s`,
+                }}
               >
-                {quest.name}
-              </h3>
-              <p
-                className="text-xs leading-snug mb-2"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {quest.description}
-              </p>
-              {quest.relatedCompanions.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {quest.relatedCompanions.map((c) => (
-                    <Badge
-                      key={c}
-                      label={c}
-                      color={COMPANION_COLORS[c] ?? 'var(--accent)'}
-                    />
-                  ))}
+                <div
+                  className="card-inner"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative',
+                    background: `linear-gradient(160deg, ${statusColor}0C, rgba(255,255,255,0.02))`,
+                  }}
+                >
+                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <Badge label={`Act ${quest.act}`} color="var(--gold)" />
+                    <Badge label={quest.status} color={statusColor} />
+                  </div>
+                  <h3
+                    className="font-heading font-semibold text-sm leading-tight mb-1"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    {quest.name}
+                  </h3>
+                  <p
+                    className="text-xs leading-snug mb-2 truncate-3"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    {quest.description}
+                  </p>
+                  {quest.relatedCompanions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {quest.relatedCompanions.map((c) => (
+                        <Badge
+                          key={c}
+                          label={c}
+                          color={COMPANION_COLORS[c] ?? 'var(--gold)'}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </a>
-          ))}
+              </a>
+            );
+          })}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {Object.entries(groupedByAct).map(([act, actQuests]) => (
             <Accordion key={act} title={`Act ${act} (${actQuests.length})`} defaultOpen={act === '1'}>
               <div className="grid grid-cols-1 gap-3">
-                {actQuests.map((quest) => (
-                  <a
-                    key={quest.id}
-                    href={`/quests/${quest.id}`}
-                    className="touch-target rounded-xl p-4 flex flex-col transition-colors"
-                    style={{
-                      background: 'var(--surface-hover)',
-                      border: '1px solid var(--border)',
-                      textDecoration: 'none',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--surface)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'var(--surface-hover)')
-                    }
-                  >
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <Badge
-                        label={quest.status}
-                        color={
-                          quest.status === 'completed'
-                            ? '#22c55e'
-                            : quest.status === 'active'
-                              ? '#3b82f6'
-                              : quest.status === 'failed'
-                                ? '#ef4444'
-                                : '#f59e0b'
-                        }
-                      />
-                    </div>
-                    <h3
-                      className="font-semibold text-sm leading-tight mb-1"
-                      style={{ color: 'var(--text-primary)' }}
+                {actQuests.map((quest, i) => {
+                  const statusColor = STATUS_COLORS[quest.status] ?? '#6b7280';
+                  return (
+                    <a
+                      key={quest.id}
+                      href={`/quests/${quest.id}`}
+                      className="bg3-card-premium touch-target stagger-in"
+                      style={{
+                        textDecoration: 'none',
+                        display: 'block',
+                        animationDelay: `${0.2 + i * 0.04}s`,
+                      }}
                     >
-                      {quest.name}
-                    </h3>
-                    <p
-                      className="text-xs leading-snug mb-2"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {quest.description}
-                    </p>
-                    {quest.relatedCompanions.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {quest.relatedCompanions.map((c) => (
-                          <Badge
-                            key={c}
-                            label={c}
-                            color={COMPANION_COLORS[c] ?? 'var(--accent)'}
-                          />
-                        ))}
+                      <div
+                        className="card-inner"
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          position: 'relative',
+                          background: `linear-gradient(160deg, ${statusColor}0C, rgba(255,255,255,0.02))`,
+                        }}
+                      >
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
+                          <Badge label={quest.status} color={statusColor} />
+                        </div>
+                        <h3
+                          className="font-heading font-semibold text-sm leading-tight mb-1"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          {quest.name}
+                        </h3>
+                        <p
+                          className="text-xs leading-snug mb-2 truncate-3"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          {quest.description}
+                        </p>
+                        {quest.relatedCompanions.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {quest.relatedCompanions.map((c) => (
+                              <Badge
+                                key={c}
+                                label={c}
+                                color={COMPANION_COLORS[c] ?? 'var(--gold)'}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </a>
-                ))}
+                    </a>
+                  );
+                })}
               </div>
             </Accordion>
           ))}

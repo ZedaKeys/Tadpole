@@ -11,7 +11,7 @@ export default function NotFound() {
           width: 80,
           height: 80,
           borderRadius: '50%',
-          background: 'var(--accent-muted)',
+          background: 'var(--gold-muted)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -47,8 +47,8 @@ export default function NotFound() {
         href="/"
         className="touch-target rounded-xl px-8 py-3 font-semibold"
         style={{
-          background: 'var(--accent)',
-          color: '#fff',
+          background: 'var(--gold)',
+          color: '#1a1830',
           textDecoration: 'none',
           minHeight: 44,
         }}

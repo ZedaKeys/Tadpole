@@ -17,11 +17,11 @@ export function ProgressBar({ current, total, label }: ProgressBarProps) {
           style={{ fontSize: '0.8rem' }}
         >
           {label && (
-            <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+            <span style={{ color: 'var(--text-primary)' }}>{label}</span>
           )}
           <span
             className="font-mono-num"
-            style={{ color: 'var(--text-secondary)' }}
+            style={{ color: 'var(--gold)' }}
           >
             {current}/{total}
           </span>
@@ -32,7 +32,8 @@ export function ProgressBar({ current, total, label }: ProgressBarProps) {
         className="w-full rounded-full overflow-hidden"
         style={{
           height: 8,
-          background: 'var(--surface-active)',
+          background: 'var(--surface)',
+          border: '1px solid var(--border-strong)',
         }}
       >
         <div
@@ -40,7 +41,7 @@ export function ProgressBar({ current, total, label }: ProgressBarProps) {
           style={{
             width: `${percentage}%`,
             height: '100%',
-            background: 'var(--accent)',
+            background: 'linear-gradient(90deg, var(--gold-dim), var(--gold))',
           }}
         />
       </div>
@@ -48,7 +49,7 @@ export function ProgressBar({ current, total, label }: ProgressBarProps) {
       <div className="text-right mt-1">
         <span
           className="font-mono-num"
-          style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}
+          style={{ color: 'var(--gold)', fontSize: '0.7rem' }}
         >
           {percentage}%
         </span>

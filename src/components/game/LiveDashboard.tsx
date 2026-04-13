@@ -35,7 +35,7 @@ export default function LiveDashboard({ state }: { state: GameState }) {
   return (
     <div
       className="rounded-xl p-4 mb-4"
-      style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderWidth: '1px' }}
+      style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', borderWidth: '1px' }}
     >
       {/* Status bar */}
       <div className="flex items-center justify-between mb-3">
@@ -61,13 +61,13 @@ export default function LiveDashboard({ state }: { state: GameState }) {
       {/* Area & info */}
       <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="flex items-center gap-1.5">
-          <MapPin size={14} style={{ color: 'var(--accent)' }} />
+          <MapPin size={14} style={{ color: 'var(--gold)' }} />
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             {state.area || 'Unknown'}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Coins size={14} style={{ color: 'var(--warning)' }} />
+          <Coins size={14} style={{ color: 'var(--gold-bright)' }} />
           <span className="text-xs font-mono-num">{state.gold}</span>
         </div>
       </div>

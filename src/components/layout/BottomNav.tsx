@@ -1,58 +1,46 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Swords, BookOpen, Users, Wrench } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { usePathname, useRouter } from "next/navigation";
+import { Activity, Zap, Settings } from "lucide-react";
 
-interface NavTab {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-const tabs: NavTab[] = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/builds', label: 'Builds', icon: Swords },
-  { href: '/spells', label: 'Spells', icon: BookOpen },
-  { href: '/companions', label: 'Party', icon: Users },
-  { href: '/settings', label: 'Settings', icon: Wrench },
+const tabs = [
+  { href: "/", label: "Live", icon: Activity },
+  { href: "/cheats", label: "Cheats", icon: Zap },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function BottomNav() {
+export default function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-40 flex"
-      style={{
-        background: 'var(--surface)',
-        borderTop: '1px solid var(--border)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}
-    >
+    <nav style={{
+      position: "fixed", bottom: 0, left: 0, right: 0,
+      height: 56, display: "flex", alignItems: "center",
+      background: "rgba(10,10,15,0.95)",
+      borderTop: "1px solid rgba(255,255,255,0.06)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      zIndex: 1000,
+    }}>
       {tabs.map((tab) => {
-        const isActive =
-          tab.href === '/'
-            ? pathname === '/'
-            : pathname.startsWith(tab.href);
-
+        const active = pathname === tab.href;
         return (
-          <Link
+          <button
             key={tab.href}
-            href={tab.href}
-            className="touch-target flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors"
+            onClick={() => router.push(tab.href)}
             style={{
-              background: isActive ? 'var(--accent-muted)' : 'transparent',
-              color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-              textDecoration: 'none',
+              flex: 1, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 2,
+              background: "none", border: "none", cursor: "pointer",
+              color: active ? "#48bfe3" : "rgba(255,255,255,0.3)",
+              transition: "color 0.15s",
+              padding: 0, height: "100%",
             }}
           >
-            <tab.icon size={22} />
-            <span style={{ fontSize: '0.65rem', fontWeight: 500 }}>
-              {tab.label}
-            </span>
-          </Link>
+            <tab.icon size={20} strokeWidth={active ? 2.2 : 1.5} />
+            <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, letterSpacing: 0.3 }}>{tab.label}</span>
+          </button>
         );
       })}
     </nav>

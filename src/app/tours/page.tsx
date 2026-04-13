@@ -11,39 +11,48 @@ export default function ToursPage() {
     <AppShell title="Guided Tours">
       {/* Count */}
       <p
-        className="mb-3"
+        className="stagger-in mb-5"
         style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
       >
         {tours.length} tour{tours.length !== 1 ? 's' : ''}
       </p>
 
       {/* Tour cards */}
-      <div className="space-y-3">
-        {tours.map((tour) => (
+      <div className="space-y-4">
+        {tours.map((tour, i) => (
           <Card
             key={tour.id}
             title={tour.name}
             href={`/tours/${tour.id}`}
-            description={tour.description.slice(0, 120) + (tour.description.length > 120 ? '...' : '')}
-            icon={
-              <div className="flex flex-wrap gap-1.5 items-center">
-                <Badge label={`Act ${tour.act}`} color="var(--accent)" />
+            accentColor="#a855f7"
+            delay={i * 0.06}
+            description={
+              <>
                 <span
-                  className="flex items-center gap-1"
-                  style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}
+                  className="flex flex-wrap items-center gap-2 mb-1"
                 >
-                  <Layers size={12} />
-                  {tour.steps.length} steps
+                  <Badge label={`Act ${tour.act}`} color="var(--gold)" />
+                  <span
+                    className="flex items-center gap-1"
+                    style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}
+                  >
+                    <Layers size={12} />
+                    {tour.steps.length} steps
+                  </span>
+                  <span
+                    className="flex items-center gap-1"
+                    style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}
+                  >
+                    <Clock size={12} />
+                    {tour.estimatedTime}
+                  </span>
                 </span>
-                <span
-                  className="flex items-center gap-1"
-                  style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}
-                >
-                  <Clock size={12} />
-                  {tour.estimatedTime}
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {tour.description.slice(0, 120) + (tour.description.length > 120 ? '...' : '')}
                 </span>
-              </div>
+              </>
             }
+            icon={<Map size={20} style={{ color: 'var(--gold-bright)' }} />}
           />
         ))}
       </div>

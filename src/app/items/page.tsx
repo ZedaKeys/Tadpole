@@ -60,34 +60,22 @@ export default function ItemsPage() {
     return list;
   }, [query, rarityFilter, typeFilter, actFilter]);
 
-  const selectStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    color: 'var(--text-primary)',
-    fontSize: '0.8rem',
-    minHeight: 36,
-    paddingLeft: 8,
-    paddingRight: 8,
-    minWidth: 0,
-  };
-
   return (
     <AppShell title="Items">
       {/* Count */}
       <p
-        className="mb-3"
+        className="mb-5"
         style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
       >
         {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div className="flex gap-2 mb-4 overflow-x-auto" style={{ paddingBottom: 4 }}>
+      <div className="flex gap-3 mb-6 overflow-x-auto" style={{ paddingBottom: 4 }}>
         <select
           value={rarityFilter}
           onChange={(e) => setRarityFilter(e.target.value as ItemRarity | '')}
-          style={selectStyle}
+          className="bg3-select"
         >
           <option value="">All Rarities</option>
           {RARITIES.map((r) => (
@@ -100,7 +88,7 @@ export default function ItemsPage() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as ItemType | '')}
-          style={selectStyle}
+          className="bg3-select"
         >
           <option value="">All Types</option>
           {TYPES.map((t) => (
@@ -113,7 +101,7 @@ export default function ItemsPage() {
         <select
           value={actFilter}
           onChange={(e) => setActFilter(Number(e.target.value))}
-          style={selectStyle}
+          className="bg3-select"
         >
           <option value={0}>All Acts</option>
           {ACTS.map((a) => (
@@ -125,7 +113,7 @@ export default function ItemsPage() {
       </div>
 
       {/* Search input */}
-      <div className="relative mb-4">
+      <div className="relative mb-6">
         <Search
           size={18}
           style={{
@@ -133,7 +121,7 @@ export default function ItemsPage() {
             left: 12,
             top: '50%',
             transform: 'translateY(-50%)',
-            color: 'var(--text-muted)',
+            color: 'var(--gold-dim)',
           }}
         />
         <input
@@ -141,13 +129,14 @@ export default function ItemsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search items..."
-          className="w-full rounded-lg pl-10 pr-3 py-2.5"
+          className="w-full pl-10 pr-3 py-2.5"
           style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 12,
             color: 'var(--text-primary)',
             fontSize: '0.875rem',
-            minHeight: 44,
+            padding: '10px 14px 10px 40px',
           }}
         />
       </div>
@@ -161,46 +150,43 @@ export default function ItemsPage() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {filteredItems.map((item) => (
+          {filteredItems.map((item, i) => (
             <a
               key={item.id}
               href={`/items/${item.id}`}
-              className="touch-target rounded-xl p-4 flex flex-col transition-colors"
+              className="bg3-card-premium touch-target stagger-in"
               style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
                 textDecoration: 'none',
                 cursor: 'pointer',
+                animationDelay: `${0.05 + i * 0.04}s`,
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = 'var(--surface-hover)')
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = 'var(--surface)')
-              }
             >
-              <div className="flex flex-wrap gap-1 mb-2">
-                <Badge
-                  label={TYPE_LABELS[item.type]}
-                  color="var(--accent)"
-                />
-                <Badge
-                  label={item.rarity}
-                  color={RARITY_COLORS[item.rarity]}
-                />
+              <div
+                className="rounded-2xl p-4 flex flex-col"
+                style={{
+                  background: `linear-gradient(160deg, ${RARITY_COLORS[item.rarity]}0C, rgba(255,255,255,0.02))`,
+                }}
+              >
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <Badge
+                    label={TYPE_LABELS[item.type]}
+                    color="var(--gold)"
+                  />
+                  <Badge
+                    label={item.rarity}
+                    color={RARITY_COLORS[item.rarity]}
+                  />
+                </div>
+                <h3 className="font-heading font-semibold text-sm leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
+                  {item.name}
+                </h3>
+                <p
+                  className="text-xs mt-2 leading-snug"
+                  style={{ color: 'var(--gold-dim)' }}
+                >
+                  Act {item.act}
+                </p>
               </div>
-              <h3
-                className="font-semibold text-sm leading-tight"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                {item.name}
-              </h3>
-              <p
-                className="text-xs mt-1 leading-snug"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                Act {item.act}
-              </p>
             </a>
           ))}
         </div>
