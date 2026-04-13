@@ -32,6 +32,12 @@ export function useGameConnection() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsConnected(conn.isConnected());
 
+    // Auto-reconnect if we have a saved host but aren't connected
+    const savedHost = safeGet(LAST_HOST_KEY) as string;
+    if (savedHost && !conn.isConnected() && conn.getStatus() === 'idle') {
+      conn.connect(savedHost, 3456);
+    }
+
     // Poll connection status
     const interval = setInterval(() => {
       setIsConnected(conn.isConnected());

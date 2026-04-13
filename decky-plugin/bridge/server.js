@@ -1,6 +1,5 @@
 const express = require('express');
 const http = require('http');
-const https = require('https');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
@@ -13,8 +12,6 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const BRIDGE_VERSION = '0.7.1';
-const PB_ERROR_ENDPOINT = process.env.PB_ERROR_ENDPOINT || 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
-const ERROR_LOG_FILE = path.join(__dirname, 'bridge-error.log');
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
@@ -30,6 +27,9 @@ const ALLOWED_COMMANDS = new Set([
   'trigger_rest', 'add_gold', 'give_item', 'heal_party',
   'revive', 'god_mode', 'teleport_to_waypoint',
 ]);
+
+const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
+const ERROR_LOG_FILE = path.join(__dirname, 'bridge-error.log');
 
 // ---------------------------------------------------------------------------
 // Error logging & reporting
@@ -75,7 +75,7 @@ function reportBridgeError(message, stack, extra = {}) {
     // Report to PocketBase (fire and forget, 3s timeout)
     const postData = JSON.stringify(record);
     const url = new URL(PB_ERROR_ENDPOINT);
-    const req = https.request({
+    const req = http.request({
       hostname: url.hostname,
       port: 443,
       path: url.pathname,
@@ -314,30 +314,6 @@ app.use('/phone', safeWrap((req, res, next) => {
 </body></html>`);
 }, 'GET /phone'));
 
-app.get('/health', safeWrap((req, res) => {
-  // Quick health check for Decky plugin
-  const healthy = currentState !== null && fs.existsSync(STATE_FILE);
-  res.json({
-    healthy,
-    clients: connectedClients,
-    uptime: process.uptime(),
-    version: BRIDGE_VERSION,
-  });
-}, 'GET /health'));
-
-// Token endpoint — LAN-only, returns the bridge auth token for the phone app
-// This is safe because the bridge is on a local network (not exposed to internet)
-app.get('/token', safeWrap((req, res) => {
-  const ip = req.socket.remoteAddress || '';
-  // Only allow LAN access
-  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' ||
-      ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-    res.json({ token: BRIDGE_TOKEN });
-  } else {
-    res.status(403).json({ error: 'LAN access only' });
-  }
-}, 'GET /token'));
-
 app.get('/status', safeWrap((req, res) => {
   res.json({
     name: 'Tadpole Bridge Server',
@@ -352,6 +328,23 @@ app.get('/status', safeWrap((req, res) => {
     historyLength: stateHistory.length,
   });
 }, 'GET /status'));
+
+app.get('/health', safeWrap((req, res) => {
+  res.json({ healthy: true, version: BRIDGE_VERSION, uptime: process.uptime() });
+}, 'GET /health'));
+
+// Token endpoint — LAN-only, returns the bridge auth token for the phone app
+// This is safe because the bridge is on a local network (not exposed to internet)
+app.get('/token', safeWrap((req, res) => {
+  const ip = req.socket.remoteAddress || '';
+  // Only allow LAN access
+  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' ||
+      ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
+    res.json({ token: BRIDGE_TOKEN });
+  } else {
+    res.status(403).json({ error: 'LAN access only' });
+  }
+}, 'GET /token'));
 
 app.get('/', (req, res) => {
   const status = {
