@@ -17,6 +17,7 @@ import datetime
 import urllib.request
 import urllib.error
 import shutil
+import tempfile
 import zipfile
 import io
 import re
@@ -49,7 +50,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.7.3"
+PLUGIN_VERSION = "0.7.4"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -924,7 +925,12 @@ def _check_for_update():
 
 
 def _perform_update(download_url):
-    """Download and install the latest plugin release."""
+    """Download and install the latest plugin release.
+
+    Strategy: extract to a temp dir, chmod everything writable, then copy over.
+    Writing directly to plugin_dir fails because DeckyLoader sets files read-only.
+    """
+    tmp_dir = None
     try:
         # Security: only allow downloads from our own GitHub repo
         if not download_url.startswith("https://github.com/ZedaKeys/Tadpole/"):
@@ -943,13 +949,13 @@ def _perform_update(download_url):
         # Skip files that shouldn't be in the release
         _SKIP_PATTERNS = ["__pycache__", ".pyc", "package-lock.json", ".gitignore", "node_modules"]
 
-        # Extract
+        # Step 1: Extract to temp directory first
+        tmp_dir = tempfile.mkdtemp(prefix="tadpole_update_")
+        extracted_files = []
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
             for info in zf.infolist():
-                # Skip directories
                 if info.filename.endswith("/"):
                     continue
-                # Remove the TadpoleBG3/ prefix
                 rel_path = info.filename
                 for prefix in ["TadpoleBG3/", "tadpole-decky/", ""]:
                     if rel_path.startswith(prefix) and prefix:
@@ -957,42 +963,54 @@ def _perform_update(download_url):
                         break
                 if not rel_path:
                     continue
-                # Skip junk files
                 if any(pat in rel_path for pat in _SKIP_PATTERNS):
                     continue
 
-                dest = os.path.join(plugin_dir, rel_path)
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                tmp_dest = os.path.join(tmp_dir, rel_path)
+                os.makedirs(os.path.dirname(tmp_dest), exist_ok=True)
+                with zf.open(info) as src, open(tmp_dest, "wb") as dst:
+                    dst.write(src.read())
+                extracted_files.append(rel_path)
+
+        if not extracted_files:
+            return {"success": False, "message": "No files found in release zip"}
+
+        # Step 2: Make plugin directory writable
+        subprocess.run(["chmod", "-R", "u+rw", plugin_dir], capture_output=True, timeout=5)
+
+        # Step 3: Copy extracted files over the plugin directory
+        for rel_path in extracted_files:
+            src = os.path.join(tmp_dir, rel_path)
+            dest = os.path.join(plugin_dir, rel_path)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            # Remove old file first (handles read-only files)
+            if os.path.exists(dest):
                 try:
-                    with zf.open(info) as src, open(dest, "wb") as dst:
-                        dst.write(src.read())
-                except PermissionError:
-                    # Try removing the old file first (might be read-only)
-                    try:
-                        os.remove(dest)
-                        with zf.open(info) as src, open(dest, "wb") as dst:
-                            dst.write(src.read())
-                    except PermissionError:
-                        _log(f"Permission denied writing {dest}, trying chmod parent")
-                        # Last resort: chmod parent dir and retry
-                        parent = os.path.dirname(dest)
-                        os.chmod(parent, 0o755)
-                        try:
-                            os.remove(dest)
-                        except OSError:
-                            pass
-                        with zf.open(info) as src, open(dest, "wb") as dst:
-                            dst.write(src.read())
+                    os.remove(dest)
+                except OSError:
+                    os.chmod(dest, 0o644)
+                    os.remove(dest)
+            shutil.copy2(src, dest)
+
+        _log(f"Update complete: {len(extracted_files)} files installed")
 
         return {
             "success": True,
-            "message": "Update installed. Please restart DeckyLoader to apply.",
+            "message": f"Update installed ({len(extracted_files)} files). Please reload the plugin.",
         }
     except PermissionError as e:
         _log(f"Update failed - permission denied: {e}")
-        return {"success": False, "message": f"Permission denied: {e}. Try updating via DeckyLoader store or SSH."}
+        return {"success": False, "message": f"Permission denied: {e}. Try: sudo chmod -R u+rw /home/deck/homebrew/plugins/TadpoleBG3"}
     except Exception as e:
+        _log(f"Update failed: {e}")
         return {"success": False, "message": str(e)}
+    finally:
+        # Cleanup temp directory
+        if tmp_dir and os.path.isdir(tmp_dir):
+            try:
+                shutil.rmtree(tmp_dir)
+            except OSError:
+                pass
 
 
 def _read_state_file():
