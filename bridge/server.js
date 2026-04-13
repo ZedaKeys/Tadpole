@@ -11,7 +11,8 @@ const os = require('os');
 const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
-const BRIDGE_VERSION = '0.7.1';
+const NATIVE_SOCKET = process.env.NATIVE_SOCKET || '/tmp/tadpole_native.sock';
+const BRIDGE_VERSION = '0.8.0';
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
@@ -318,10 +319,13 @@ app.get('/status', safeWrap((req, res) => {
   res.json({
     name: 'Tadpole Bridge Server',
     version: BRIDGE_VERSION,
+    mode: currentState ? (currentState._source || 'luamod') : 'none',
     uptime: process.uptime(),
     stateFile: STATE_FILE,
     commandFile: COMMAND_FILE,
     stateFileExists: fs.existsSync(STATE_FILE),
+    nativeSocket: NATIVE_SOCKET,
+    nativeConnected,
     connectedClients,
     currentState,
     recentEvents: eventLog.slice(-20),
@@ -466,7 +470,7 @@ function broadcast(message) {
 }
 
 // ---------------------------------------------------------------------------
-// State file handling
+// State file handling (Lua mod / BG3SE)
 // ---------------------------------------------------------------------------
 function readStateFile() {
   try {
@@ -479,9 +483,113 @@ function readStateFile() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Native daemon communication (Unix socket fallback for Linux BG3)
+// ---------------------------------------------------------------------------
+let nativeClient = null;
+let nativeConnected = false;
+
+function connectNativeDaemon() {
+  if (nativeConnected && nativeClient) return true;
+
+  try {
+    nativeClient = require('net').createConnection({ path: NATIVE_SOCKET }, () => {
+      nativeConnected = true;
+      console.log('[native] Connected to native daemon');
+    });
+
+    nativeClient.on('error', (err) => {
+      nativeConnected = false;
+      // Don't log every error - just mark as disconnected
+      nativeClient = null;
+    });
+
+    nativeClient.on('close', () => {
+      nativeConnected = false;
+      nativeClient = null;
+    });
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function queryNativeDaemon(type, data = {}) {
+  return new Promise((resolve, reject) => {
+    if (!nativeConnected || !nativeClient) {
+      // Try to reconnect
+      if (!connectNativeDaemon()) {
+        return resolve(null);
+      }
+    }
+
+    const request = { type, ...data };
+    const requestStr = JSON.stringify(request) + '\n';
+
+    let response = '';
+    const timeout = setTimeout(() => {
+      resolve(null); // Timeout = no data
+    }, 2000);
+
+    nativeClient.once('data', (chunk) => {
+      clearTimeout(timeout);
+      response += chunk.toString();
+      try {
+        const result = JSON.parse(response.trim());
+        resolve(result.success ? result.data : null);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+
+    nativeClient.once('error', () => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+
+    try {
+      nativeClient.write(requestStr);
+    } catch (err) {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
+}
+
 function processStateUpdate() {
-  const newState = readStateFile();
-  if (!newState) return;
+  let newState = readStateFile();
+
+  // If Lua mod state file doesn't exist, try native daemon (Linux BG3)
+  if (!newState) {
+    queryNativeDaemon('get_state').then(nativeState => {
+      if (nativeState) {
+        newState = nativeState;
+        // Skip if timestamp hasn't changed (identical state)
+        if (!currentState || newState.timestamp !== currentState.timestamp) {
+          previousState = currentState;
+          currentState = newState;
+
+          // Rolling buffer
+          stateHistory.push({ ...newState, _receivedAt: Date.now() });
+          if (stateHistory.length > 100) stateHistory.shift();
+
+          // Detect events (limited support in native mode)
+          const events = detectEvents(previousState, currentState);
+          for (const evt of events) {
+            eventLog.push(evt);
+            if (eventLog.length > 200) eventLog.shift();
+          }
+
+          // Broadcast state + events to clients
+          broadcast({ type: 'state', data: currentState, events, source: 'native' });
+        }
+      }
+    }).catch(() => {
+      // Native daemon failed, stay in "waiting for game data" state
+    });
+    return;
+  }
 
   // Skip if timestamp hasn't changed (identical state)
   if (currentState && newState.timestamp === currentState.timestamp) return;
@@ -501,7 +609,7 @@ function processStateUpdate() {
   }
 
   // Broadcast state + events to clients
-  broadcast({ type: 'state', data: currentState, events });
+  broadcast({ type: 'state', data: currentState, events, source: 'luamod' });
 }
 
 // ---------------------------------------------------------------------------
@@ -548,9 +656,9 @@ function startStateWatcher() {
 }
 
 // ---------------------------------------------------------------------------
-// Command file handling
+// Command handling (Lua mod / Native daemon)
 // ---------------------------------------------------------------------------
-function writeCommand(command) {
+function writeCommandToLua(command) {
   try {
     // Read existing commands array, or start fresh
     let commands = [];
@@ -576,6 +684,24 @@ function writeCommand(command) {
     reportBridgeError(`writeCommand: ${err.message}`, err.stack, { commandFile: COMMAND_FILE });
     return false;
   }
+}
+
+async function writeCommand(command) {
+  // Try Lua mod first (preferred - more features)
+  const luaSuccess = writeCommandToLua(command);
+  if (luaSuccess) return true;
+
+  // Fallback: try native daemon
+  if (nativeConnected || connectNativeDaemon()) {
+    try {
+      const result = await queryNativeDaemon('execute', command);
+      return result !== null;
+    } catch (err) {
+      console.error('[commands] Native daemon command failed:', err.message);
+    }
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 const express = require('express');
 const http = require('http');
-const https = require('https');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +11,8 @@ const os = require('os');
 const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
-const BRIDGE_VERSION = '0.7.1';
+const NATIVE_SOCKET = process.env.NATIVE_SOCKET || '/tmp/tadpole_native.sock';
+const BRIDGE_VERSION = '0.8.0';
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
@@ -76,9 +76,9 @@ function reportBridgeError(message, stack, extra = {}) {
     // Report to PocketBase (fire and forget, 3s timeout)
     const postData = JSON.stringify(record);
     const url = new URL(PB_ERROR_ENDPOINT);
-    const req = (url.protocol === 'https:' ? https : http).request({
+    const req = http.request({
       hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      port: 443,
       path: url.pathname,
       method: 'POST',
       headers: {
@@ -147,16 +147,6 @@ app.use(express.json());
 const rateLimitMap = new Map(); // ip -> { count, resetAt }
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const RATE_LIMIT_MAX = 120; // requests per window
-
-// Cleanup old rate limit entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitMap.entries()) {
-    if (now > entry.resetAt) {
-      rateLimitMap.delete(ip);
-    }
-  }
-}, 300000); // 5 minutes
 
 function rateLimiter(req, res, next) {
   const ip = req.socket.remoteAddress || 'unknown';
@@ -329,10 +319,13 @@ app.get('/status', safeWrap((req, res) => {
   res.json({
     name: 'Tadpole Bridge Server',
     version: BRIDGE_VERSION,
+    mode: currentState ? (currentState._source || 'luamod') : 'none',
     uptime: process.uptime(),
     stateFile: STATE_FILE,
     commandFile: COMMAND_FILE,
     stateFileExists: fs.existsSync(STATE_FILE),
+    nativeSocket: NATIVE_SOCKET,
+    nativeConnected,
     connectedClients,
     currentState,
     recentEvents: eventLog.slice(-20),
@@ -358,48 +351,10 @@ app.get('/token', safeWrap((req, res) => {
 }, 'GET /token'));
 
 app.get('/', (req, res) => {
-  const status = {
-    name: 'Tadpole Bridge Server',
-    version: BRIDGE_VERSION,
-    uptime: process.uptime(),
-    stateFile: STATE_FILE,
-    commandFile: COMMAND_FILE,
-    stateFileExists: fs.existsSync(STATE_FILE),
-    connectedClients,
-    currentState,
-    recentEvents: eventLog.slice(-20),
-    historyLength: stateHistory.length,
-  };
-  res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Tadpole Bridge</title>
-<style>
-  body{font-family:system-ui,sans-serif;max-width:720px;margin:2em auto;padding:0 1em;background:#1a1a2e;color:#eee}
-  h1{color:#48bfe3} h2{color:#72ddf7}
-  pre{background:#16213e;padding:1em;border-radius:8px;overflow-x:auto;font-size:0.85em}
-  .ok{color:#52b788} .warn{color:#f4a261} .err{color:#e76f51}
-  .meta{color:#8d99ae;font-size:0.85em}
-</style></head><body>
-<h1>🐸 Tadpole Bridge</h1>
-<p class="meta">v0.1.0 &middot; uptime ${Math.floor(status.uptime)}s &middot; port ${PORT}</p>
-
-<h2>Connections</h2>
-<p>Connected phone apps: <strong>${status.connectedClients}</strong></p>
-
-<h2>State File</h2>
-<p>Path: <code>${status.stateFile}</code> &mdash; <span class="${status.stateFileExists ? 'ok' : 'warn'}">${status.stateFileExists ? 'found' : 'not yet written by Lua mod'}</span></p>
-<p>Command file: <code>${status.commandFile}</code></p>
-
-<h2>Current State</h2>
-<pre>${status.currentState ? escapeHtml(JSON.stringify(status.currentState, null, 2)) : 'No state received yet.'}</pre>
-
-<h2>Recent Events (${status.recentEvents.length})</h2>
-${status.recentEvents.length
-  ? status.recentEvents.map(e => `<div><strong>${escapeHtml(e.type)}</strong> <span class="meta">${new Date(e.timestamp * 1000).toLocaleTimeString()}</span> ${escapeHtml(e.detail || '')}</div>`).reverse().join('\n')
-  : '<p>No events detected yet.</p>'}
-
-<h2>History</h2>
-<p>${status.historyLength} snapshots buffered (max 100)</p>
-</body></html>`);
+  // Redirect to phone app for better UX
+  // Use the host from the request so the phone app can auto-connect
+  const host = req.headers.host?.split(':')[0] || 'localhost';
+  return res.redirect(`/phone`);
 });
 
 // ---------------------------------------------------------------------------
@@ -515,7 +470,7 @@ function broadcast(message) {
 }
 
 // ---------------------------------------------------------------------------
-// State file handling
+// State file handling (Lua mod / BG3SE)
 // ---------------------------------------------------------------------------
 function readStateFile() {
   try {
@@ -528,9 +483,113 @@ function readStateFile() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Native daemon communication (Unix socket fallback for Linux BG3)
+// ---------------------------------------------------------------------------
+let nativeClient = null;
+let nativeConnected = false;
+
+function connectNativeDaemon() {
+  if (nativeConnected && nativeClient) return true;
+
+  try {
+    nativeClient = require('net').createConnection({ path: NATIVE_SOCKET }, () => {
+      nativeConnected = true;
+      console.log('[native] Connected to native daemon');
+    });
+
+    nativeClient.on('error', (err) => {
+      nativeConnected = false;
+      // Don't log every error - just mark as disconnected
+      nativeClient = null;
+    });
+
+    nativeClient.on('close', () => {
+      nativeConnected = false;
+      nativeClient = null;
+    });
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function queryNativeDaemon(type, data = {}) {
+  return new Promise((resolve, reject) => {
+    if (!nativeConnected || !nativeClient) {
+      // Try to reconnect
+      if (!connectNativeDaemon()) {
+        return resolve(null);
+      }
+    }
+
+    const request = { type, ...data };
+    const requestStr = JSON.stringify(request) + '\n';
+
+    let response = '';
+    const timeout = setTimeout(() => {
+      resolve(null); // Timeout = no data
+    }, 2000);
+
+    nativeClient.once('data', (chunk) => {
+      clearTimeout(timeout);
+      response += chunk.toString();
+      try {
+        const result = JSON.parse(response.trim());
+        resolve(result.success ? result.data : null);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+
+    nativeClient.once('error', () => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+
+    try {
+      nativeClient.write(requestStr);
+    } catch (err) {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
+}
+
 function processStateUpdate() {
-  const newState = readStateFile();
-  if (!newState) return;
+  let newState = readStateFile();
+
+  // If Lua mod state file doesn't exist, try native daemon (Linux BG3)
+  if (!newState) {
+    queryNativeDaemon('get_state').then(nativeState => {
+      if (nativeState) {
+        newState = nativeState;
+        // Skip if timestamp hasn't changed (identical state)
+        if (!currentState || newState.timestamp !== currentState.timestamp) {
+          previousState = currentState;
+          currentState = newState;
+
+          // Rolling buffer
+          stateHistory.push({ ...newState, _receivedAt: Date.now() });
+          if (stateHistory.length > 100) stateHistory.shift();
+
+          // Detect events (limited support in native mode)
+          const events = detectEvents(previousState, currentState);
+          for (const evt of events) {
+            eventLog.push(evt);
+            if (eventLog.length > 200) eventLog.shift();
+          }
+
+          // Broadcast state + events to clients
+          broadcast({ type: 'state', data: currentState, events, source: 'native' });
+        }
+      }
+    }).catch(() => {
+      // Native daemon failed, stay in "waiting for game data" state
+    });
+    return;
+  }
 
   // Skip if timestamp hasn't changed (identical state)
   if (currentState && newState.timestamp === currentState.timestamp) return;
@@ -550,7 +609,7 @@ function processStateUpdate() {
   }
 
   // Broadcast state + events to clients
-  broadcast({ type: 'state', data: currentState, events });
+  broadcast({ type: 'state', data: currentState, events, source: 'luamod' });
 }
 
 // ---------------------------------------------------------------------------
@@ -597,9 +656,9 @@ function startStateWatcher() {
 }
 
 // ---------------------------------------------------------------------------
-// Command file handling
+// Command handling (Lua mod / Native daemon)
 // ---------------------------------------------------------------------------
-function writeCommand(command) {
+function writeCommandToLua(command) {
   try {
     // Read existing commands array, or start fresh
     let commands = [];
@@ -625,6 +684,24 @@ function writeCommand(command) {
     reportBridgeError(`writeCommand: ${err.message}`, err.stack, { commandFile: COMMAND_FILE });
     return false;
   }
+}
+
+async function writeCommand(command) {
+  // Try Lua mod first (preferred - more features)
+  const luaSuccess = writeCommandToLua(command);
+  if (luaSuccess) return true;
+
+  // Fallback: try native daemon
+  if (nativeConnected || connectNativeDaemon()) {
+    try {
+      const result = await queryNativeDaemon('execute', command);
+      return result !== null;
+    } catch (err) {
+      console.error('[commands] Native daemon command failed:', err.message);
+    }
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -886,7 +963,6 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
   reportBridgeError(`uncaughtException: ${err.message}`, err.stack);
-  process.exit(1); // Exit to prevent running in corrupted state
 });
 
 process.on('unhandledRejection', (reason) => {

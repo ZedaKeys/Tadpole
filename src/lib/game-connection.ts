@@ -115,6 +115,13 @@ export class GameConnection {
                 this.eventCallbacks.forEach(cb => cb(evt));
               });
             }
+          } else if (data.type === 'command_rejected') {
+            // Command was rejected by bridge - notify via event callbacks
+            this.eventCallbacks.forEach(cb => cb({
+              type: 'command_error',
+              timestamp: Date.now() / 1000,
+              detail: `${data.action}: ${data.reason}`,
+            }));
           }
         } catch (err) {
           console.warn('[GameConnection] Failed to parse message:', err);
