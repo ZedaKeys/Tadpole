@@ -28,7 +28,8 @@ export function useGameConnection() {
       setConnectionDetail(detail || '');
     });
 
-    // Set initial connection state
+    // Set initial connection state from WebSocket (external system sync)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsConnected(conn.isConnected());
 
     // Poll connection status

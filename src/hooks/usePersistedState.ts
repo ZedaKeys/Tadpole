@@ -13,6 +13,8 @@ export function usePersistedState<T>(
   useEffect(() => {
     const stored = safeGet<T>(key);
     if (stored !== null) {
+      // Load from localStorage (external system sync)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState(stored);
     }
     setLoaded(true);

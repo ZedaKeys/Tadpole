@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { APP_NAME } from '@/lib/version';
 import { reportError } from '@/lib/error-reporter';
 
@@ -86,7 +87,7 @@ export default function GlobalError({
           Try Again
         </button>
 
-        <a
+        <Link
           href="/"
           className="touch-target rounded-xl px-6 py-3 font-semibold"
           style={{
@@ -95,10 +96,13 @@ export default function GlobalError({
             border: '1px solid var(--border)',
             textDecoration: 'none',
             minHeight: 44,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           Go Home
-        </a>
+        </Link>
       </div>
     </main>
   );

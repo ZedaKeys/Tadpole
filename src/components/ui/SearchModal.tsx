@@ -36,6 +36,8 @@ export function SearchModal({
 
   useEffect(() => {
     if (isOpen) {
+      // Reset query when modal opens
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery('');
     }
   }, [isOpen]);

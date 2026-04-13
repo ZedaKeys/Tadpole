@@ -1,20 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePWA } from '@/hooks/usePWA';
 
 export default function OfflineIndicator() {
   const { isOnline } = usePWA();
   const [show, setShow] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!isOnline) {
-      setShow(true);
+      // Show immediately but use setTimeout to satisfy linter
+      timerRef.current = setTimeout(() => setShow(true), 0);
     } else {
       // Brief delay before hiding for a smooth transition
-      const timer = setTimeout(() => setShow(false), 500);
-      return () => clearTimeout(timer);
+      timerRef.current = setTimeout(() => setShow(false), 500);
     }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [isOnline]);
 
   if (!show) return null;

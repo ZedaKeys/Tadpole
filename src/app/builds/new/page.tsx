@@ -668,10 +668,10 @@ function StepSpells({ state, dispatch }: { state: WizardState; dispatch: React.D
 
         // Get spells for this class — use dynamic import via window or inline
         // We import at the top and use the module-level reference
-        const classSpells = (spellsData as any[]).filter((s: any) => s.classes.some((c: string) => c.toLowerCase() === cls.name.toLowerCase()));
-        const cantrips = classSpells.filter((s: any) => s.level === 0);
-        const leveled = classSpells.filter((s: any) => s.level > 0 && s.level <= Math.ceil(classLevel / 2));
-        const filtered = [...cantrips, ...leveled].filter((s: any) => s.name.toLowerCase().includes(searchSpell.toLowerCase()));
+        const classSpells = spellsData.filter((s) => s.classes.some((c: string) => c.toLowerCase() === cls.name.toLowerCase()));
+        const cantrips = classSpells.filter((s) => s.level === 0);
+        const leveled = classSpells.filter((s) => s.level > 0 && s.level <= Math.ceil(classLevel / 2));
+        const filtered = [...cantrips, ...leveled].filter((s) => s.name.toLowerCase().includes(searchSpell.toLowerCase()));
 
         function toggleSpell(spellName: string, isCantrip: boolean) {
           const list = isCantrip ? spellData.cantrips : spellData.spells;
@@ -701,7 +701,7 @@ function StepSpells({ state, dispatch }: { state: WizardState; dispatch: React.D
             />
 
             <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
-              {filtered.map((spell: any) => {
+              {filtered.map((spell) => {
                 const isCantrip = spell.level === 0;
                 const isSelected = isCantrip
                   ? spellData.cantrips.includes(spell.name)

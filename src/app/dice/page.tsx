@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Dices, RotateCcw } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Dices } from 'lucide-react';
 import { rollDice, calculateProbability, getDiceStatistics, parseDiceNotation } from '@/lib/dice';
 import { Badge } from '@/components/ui/Badge';
 import { AppShell } from '@/components/layout/AppShell';
@@ -62,9 +62,8 @@ export default function DicePage() {
   const [modifier, setModifier] = useState(0);
   const [mode, setMode] = useState<RollMode>('normal');
   const [lastRoll, setLastRoll] = useState<number | null>(null);
-  const [parseError, setParseError] = useState('');
 
-  // Derive stats - error set in useEffect, not here
+  // Derive stats from notation
   const stats = useMemo(() => {
     try {
       const s = getDiceStatistics(notation);
@@ -74,13 +73,9 @@ export default function DicePage() {
     }
   }, [notation]);
 
-  // Update parse error when stats fails
-  useEffect(() => {
-    if (stats === null) {
-      setParseError('Invalid notation');
-    } else {
-      setParseError('');
-    }
+  // Derive parse error from stats
+  const parseError = useMemo(() => {
+    return stats === null ? 'Invalid notation' : '';
   }, [stats]);
 
   const probability = useMemo(() => {
@@ -98,27 +93,14 @@ export default function DicePage() {
       const result = rollDice(notation) + modifier;
       setLastRoll(result);
     } catch {
-      setParseError('Invalid notation');
+      // Error is shown via parseError derived from stats
     }
   }, [notation, modifier]);
 
   const handlePreset = useCallback((preset: Preset) => {
     setNotation(preset.notation);
-    setParseError('');
+    // Error will clear automatically when new notation is parsed
   }, []);
-
-  const selectStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    color: 'var(--text-primary)',
-    fontSize: '0.8rem',
-    minHeight: 32,
-    paddingLeft: 10,
-    paddingRight: 10,
-    minWidth: 0,
-    flex: 1,
-  };
 
   const inputStyle: React.CSSProperties = {
     background: 'rgba(255,255,255,0.03)',

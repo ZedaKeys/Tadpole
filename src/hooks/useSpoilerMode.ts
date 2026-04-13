@@ -14,6 +14,8 @@ export function useSpoilerMode() {
   useEffect(() => {
     const stored = safeGet<SpoilerMode>(SPOILER_KEY);
     if (stored === 'none' || stored === 'hints' || stored === 'full') {
+      // Load from localStorage (external system sync)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setModeState(stored);
     }
     setLoaded(true);

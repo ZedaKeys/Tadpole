@@ -100,7 +100,7 @@ export default function HomePage() {
           </div>
 
           <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.4 }}>
-            Enter your Steam Deck IP address, or tap "Auto" to discover via mDNS (tadpole.local)
+            Enter your Steam Deck IP address, or tap &ldquo;Auto&rdquo; to discover via mDNS (tadpole.local)
           </p>
 
           <button

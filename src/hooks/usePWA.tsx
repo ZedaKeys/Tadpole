@@ -62,7 +62,10 @@ export function PWAProvider({ children }: { children: ReactNode }) {
       window.matchMedia('(display-mode: standalone)').matches ||
       (navigator as unknown as { standalone: boolean }).standalone === true;
 
+    // Read from browser APIs (external system sync)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsInstalled(standalone);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsOnline(navigator.onLine);
   }, []);
 
