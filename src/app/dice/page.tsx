@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Dices, RotateCcw } from 'lucide-react';
 import { rollDice, calculateProbability, getDiceStatistics, parseDiceNotation } from '@/lib/dice';
 import { Badge } from '@/components/ui/Badge';
@@ -64,16 +64,24 @@ export default function DicePage() {
   const [lastRoll, setLastRoll] = useState<number | null>(null);
   const [parseError, setParseError] = useState('');
 
+  // Derive stats - error set in useEffect, not here
   const stats = useMemo(() => {
     try {
       const s = getDiceStatistics(notation);
-      setParseError('');
       return s;
     } catch {
-      setParseError('Invalid notation');
       return null;
     }
   }, [notation]);
+
+  // Update parse error when stats fails
+  useEffect(() => {
+    if (stats === null) {
+      setParseError('Invalid notation');
+    } else {
+      setParseError('');
+    }
+  }, [stats]);
 
   const probability = useMemo(() => {
     if (!stats) return null;

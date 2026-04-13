@@ -128,12 +128,6 @@ const TadpolePanel = () => {
     const [logText, setLogText] = SP_REACT.useState("");
     const pollRef = SP_REACT.useRef(null);
     const autoStartRef = SP_REACT.useRef(false);
-    // Load settings + diagnostics on mount
-    SP_REACT.useEffect(() => {
-        callGetSettings().then((s) => { if (s && Object.keys(s).length > 0)
-            setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => { });
-        runDiagnostics();
-    }, []);
     const runDiagnostics = SP_REACT.useCallback(async () => {
         try {
             const d = await callGetDiagnostics();
@@ -144,6 +138,12 @@ const TadpolePanel = () => {
         }
         catch { }
     }, [tab]);
+    // Load settings + diagnostics on mount
+    SP_REACT.useEffect(() => {
+        callGetSettings().then((s) => { if (s && Object.keys(s).length > 0)
+            setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => { });
+        runDiagnostics();
+    }, [runDiagnostics]);
     const fetchStatus = SP_REACT.useCallback(async () => {
         try {
             const data = await callGetStatus();

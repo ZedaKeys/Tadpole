@@ -85,12 +85,6 @@ const TadpolePanel: FunctionComponent = () => {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartRef = useRef(false);
 
-  // Load settings + diagnostics on mount
-  useEffect(() => {
-    callGetSettings().then((s: any) => { if (s && Object.keys(s).length > 0) setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => {});
-    runDiagnostics();
-  }, []);
-
   const runDiagnostics = useCallback(async () => {
     try {
       const d = await callGetDiagnostics();
@@ -99,6 +93,12 @@ const TadpolePanel: FunctionComponent = () => {
       if (!d.ready && tab === "live") setTab("setup");
     } catch {}
   }, [tab]);
+
+  // Load settings + diagnostics on mount
+  useEffect(() => {
+    callGetSettings().then((s: any) => { if (s && Object.keys(s).length > 0) setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => {});
+    runDiagnostics();
+  }, [runDiagnostics]);
 
   const fetchStatus = useCallback(async () => {
     try {
