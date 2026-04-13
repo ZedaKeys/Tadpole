@@ -340,6 +340,7 @@ def _get_steam_launch_options(appid):
     """Read the current Steam launch options for a given appid.
 
     Returns the LaunchOptions string, or None if not set or unreadable.
+    Uses brace counting to handle nested VDF structures correctly.
     """
     home = os.path.expanduser("~")
     userdata_dir = os.path.join(home, ".local", "share", "Steam", "userdata")
@@ -355,14 +356,41 @@ def _get_steam_launch_options(appid):
         try:
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
-            # Find the appid block - look for LaunchOptions within the app section
-            # VDF format: "appid" { "LaunchOptions" "value" ... }
-            # Use regex to find LaunchOptions for our appid
-            app_pattern = re.compile(
-                rf'"{appid}"\s*\{{[^}}]*"LaunchOptions"\s+"([^"]*)"',
-                re.DOTALL,
-            )
-            match = app_pattern.search(content)
+
+            # Find the appid block using brace counting
+            app_search = f'"{appid}"'
+            app_start = content.find(app_search)
+            if app_start == -1:
+                continue
+
+            # Find the opening brace after appid
+            brace_start = content.find("{", app_start)
+            if brace_start == -1:
+                continue
+
+            # Count braces to find the matching closing brace
+            depth = 1
+            i = brace_start + 1
+            app_section_end = -1
+            while i < len(content) and depth > 0:
+                if content[i] == "{":
+                    depth += 1
+                elif content[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        app_section_end = i
+                        break
+                i += 1
+
+            if app_section_end == -1:
+                continue
+
+            # Extract the app section content
+            app_section = content[brace_start:app_section_end]
+
+            # Now search for LaunchOptions in this section
+            launch_pattern = re.compile(r'"LaunchOptions"\s+"([^"]*)"')
+            match = launch_pattern.search(app_section)
             if match:
                 return match.group(1)
         except Exception:
@@ -376,6 +404,7 @@ def _set_steam_launch_options(appid, launch_options):
     This modifies the localconfig.vdf file. Steam needs to be restarted
     (or at least the game) for changes to take effect.
     Returns True if successful.
+    Uses brace counting to handle nested VDF structures correctly.
     """
     home = os.path.expanduser("~")
     userdata_dir = os.path.join(home, ".local", "share", "Steam", "userdata")
@@ -392,27 +421,54 @@ def _set_steam_launch_options(appid, launch_options):
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
-            # Check if the appid section exists
-            app_section_pattern = re.compile(
-                rf'("{appid}"\s*\{{[^}}]*?)("LaunchOptions"\s+"[^"]*")?',
-                re.DOTALL,
-            )
-            match = app_section_pattern.search(content)
-            if match:
-                if match.group(2):
-                    # Replace existing LaunchOptions
-                    content = content[:match.start(2)] + f'"LaunchOptions"\t\t"{launch_options}"' + content[match.end(2):]
-                else:
-                    # Add LaunchOptions at end of app section (before closing })
-                    # Find the closing brace of this app section
-                    insert_point = match.end()
-                    # Find the next } after our match
-                    brace_pos = content.find("}", insert_point)
-                    if brace_pos > 0:
-                        content = content[:brace_pos] + f'\t\t\t\t\t"LaunchOptions"\t\t"{launch_options}"\n' + content[brace_pos:]
-            else:
-                # App section doesn't exist - this is unusual, skip
+            # Find the appid block using brace counting
+            app_search = f'"{appid}"'
+            app_start = content.find(app_search)
+            if app_start == -1:
                 continue
+
+            # Find the opening brace after appid
+            brace_start = content.find("{", app_start)
+            if brace_start == -1:
+                continue
+
+            # Count braces to find the matching closing brace
+            depth = 1
+            i = brace_start + 1
+            app_section_end = -1
+            while i < len(content) and depth > 0:
+                if content[i] == "{":
+                    depth += 1
+                elif content[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        app_section_end = i
+                        break
+                i += 1
+
+            if app_section_end == -1:
+                continue
+
+            # Extract the app section content (including braces)
+            app_section = content[brace_start:app_section_end + 1]
+
+            # Check if LaunchOptions already exists in this section
+            launch_pattern = re.compile(r'("LaunchOptions"\s+"[^"]*")')
+            match = launch_pattern.search(app_section)
+
+            if match:
+                # Replace existing LaunchOptions
+                old_line = match.group(1)
+                new_line = f'"LaunchOptions"\t\t"{launch_options}"'
+                # Replace in the full content, using the absolute positions
+                abs_start = brace_start + match.start(1)
+                abs_end = brace_start + match.end(1)
+                content = content[:abs_start] + new_line + content[abs_end:]
+            else:
+                # Add LaunchOptions at end of app section (before closing })
+                # Insert before the final }
+                insert_pos = brace_start + app_section_end
+                content = content[:insert_pos] + f'\t\t\t\t\t"LaunchOptions"\t\t"{launch_options}"\n' + content[insert_pos:]
 
             with open(config_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -465,7 +521,7 @@ def _install_bg3se():
 
         # Step 1: Download BG3SE updater zip
         _log(f"Downloading BG3 Script Extender from {BG3SE_DOWNLOAD_URL}")
-        req = urllib.request.Request(BG3SE_DOWNLOAD_URL, headers={"User-Agent": "Tadpole-Decky/0.6.0"})
+        req = urllib.request.Request(BG3SE_DOWNLOAD_URL, headers={"User-Agent": "Tadpole-Decky/0.7.0"})
         ctx = _get_ssl_context()
         with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             zip_bytes = resp.read()
