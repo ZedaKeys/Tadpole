@@ -11,9 +11,10 @@ local Tadpole = {
 }
 
 local MAX_EVENTS = 50
--- Use forward slashes for cross-platform compatibility (works on Windows, Linux, Proton)
-local OUTPUT_PATH = os.getenv("TEMP") .. "/tadpole_state.json"
-local COMMAND_PATH = os.getenv("TEMP") .. "/tadpole_commands.json"
+-- Cross-platform temp directory (Linux TMPDIR, Windows TEMP, or fallback to /tmp)
+local TEMP_DIR = os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp"
+local OUTPUT_PATH = TEMP_DIR .. "/tadpole_state.json"
+local COMMAND_PATH = TEMP_DIR .. "/tadpole_commands.json"
 
 -- Utility: safely get entity data
 local function safeGetEntity(guid)
