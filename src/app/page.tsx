@@ -59,26 +59,49 @@ export default function HomePage() {
             </span>
           </div>
 
-          <input
-            type="text"
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-            placeholder="192.168.1.x"
-            style={{
-              width: '100%',
-              height: 44,
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(0,0,0,0.3)',
-              color: '#e2e0d8',
-              fontSize: 15,
-              padding: '0 14px',
-              outline: 'none',
-              boxSizing: 'border-box',
-              marginBottom: 12,
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-          />
+          <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              value={ip}
+              onChange={(e) => setIp(e.target.value)}
+              placeholder="192.168.1.x or tadpole.local"
+              style={{
+                flex: 1,
+                height: 44,
+                borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(0,0,0,0.3)',
+                color: '#e2e0d8',
+                fontSize: 15,
+                padding: '0 14px',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+            />
+            <button
+              onClick={() => setIp('tadpole.local')}
+              disabled={connecting}
+              style={{
+                height: 44,
+                padding: '0 12px',
+                borderRadius: 10,
+                border: '1px solid rgba(198,162,85,0.3)',
+                background: 'transparent',
+                color: '#c6a255',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: connecting ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Auto
+            </button>
+          </div>
+
+          <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.4 }}>
+            Enter your Steam Deck IP address, or tap "Auto" to discover via mDNS (tadpole.local)
+          </p>
 
           <button
             onClick={handleConnect}
