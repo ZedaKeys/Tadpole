@@ -10,7 +10,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SpoilerText } from '@/components/ui/SpoilerText';
 import { AppShell } from '@/components/layout/AppShell';
 import { useChecklist } from '@/hooks/useChecklist';
-import type { Area, PointOfInterest } from '@/types';
+import type { Area } from '@/types';
 
 const POI_TYPE_COLORS: Record<string, string> = {
   quest: '#3b82f6',

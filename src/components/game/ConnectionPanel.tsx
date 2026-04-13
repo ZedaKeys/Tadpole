@@ -66,7 +66,7 @@ export default function ConnectionPanel() {
                 To connect, open this app directly from your Steam Deck instead:
               </p>
               <div className="mt-1 font-mono" style={{ color: '#52b788' }}>
-                http://{host || '192.168.1.136'}:3456/phone
+                {host ? `http://${host}:3456/phone` : 'http://your-deck-ip:3456/phone'}
               </div>
               <p className="mt-1" style={{ color: '#999' }}>
                 Or, if the bridge server serves this app, bookmark the HTTP URL above.
@@ -137,8 +137,9 @@ export default function ConnectionPanel() {
                     {connectionDetail || 'Mixed content: HTTPS page cannot open ws:// connections.'}
                   </p>
                   <a
-                    href={`http://${host || '192.168.1.136'}:3456/phone`}
-                    className="inline-flex items-center gap-1 mt-1 underline"
+                    href={host ? `http://${host}:3456/phone` : '#'}
+                    onClick={(e) => { if (!host) e.preventDefault(); }}
+                    className={`inline-flex items-center gap-1 mt-1 underline ${!host ? 'cursor-not-allowed opacity-50' : ''}`}
                     style={{ color: '#48bfe3' }}
                     target="_blank"
                     rel="noopener noreferrer"

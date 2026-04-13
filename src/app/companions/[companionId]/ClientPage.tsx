@@ -8,8 +8,6 @@ import {
   Heart,
   ThumbsUp,
   ThumbsDown,
-  Sparkles,
-  User,
   BookOpen,
 } from 'lucide-react';
 import { companions } from '@/data/companions';

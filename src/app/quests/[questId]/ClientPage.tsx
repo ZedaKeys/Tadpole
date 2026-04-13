@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BookOpen, GitBranch, Users, MapPin } from 'lucide-react';
+import { ArrowLeft, BookOpen, GitBranch } from 'lucide-react';
 import { quests } from '@/data/quests';
 import { Badge } from '@/components/ui/Badge';
 import { Accordion } from '@/components/ui/Accordion';

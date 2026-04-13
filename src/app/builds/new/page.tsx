@@ -1,17 +1,15 @@
 'use client';
 
-import { useReducer, useState, useMemo } from 'react';
+import { useReducer, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { BackButton } from '@/components/ui/BackButton';
 import { Badge } from '@/components/ui/Badge';
-import { Card } from '@/components/ui/Card';
 import { races } from '@/data/races';
 import { classes } from '@/data/classes';
 import { feats } from '@/data/feats';
 import { backgrounds } from '@/data/backgrounds';
 import { skills as allSkills } from '@/data/skills';
-import { fullCasterTable, halfCasterTable, warlockTable, getMulticlassSpellSlots } from '@/data/spell-slots';
 import { saveBuild } from '@/lib/build-storage';
 import { spells as spellsData } from '@/data/spells';
 import type { AbilityType, BuildLevel, FeatChoice, BuildSpells, SavedBuild } from '@/types';

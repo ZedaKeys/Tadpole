@@ -48,7 +48,7 @@ function FeatureRow({ feature }: { feature: ClassFeature }) {
   );
 }
 
-function SubclassSection({ subclass, classColor }: { subclass: Subclass; classColor: string }) {
+function SubclassSection({ subclass }: { subclass: Subclass }) {
   return (
     <Accordion title={subclass.name}>
       <p
@@ -259,7 +259,6 @@ export default function ClassDetailClientPage({ params }: { params: { classId: s
               <SubclassSection
                 key={subclass.id}
                 subclass={subclass}
-                classColor={classColor}
               />
             ))}
           </div>

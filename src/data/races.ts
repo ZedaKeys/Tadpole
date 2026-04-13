@@ -1,4 +1,4 @@
-import { Race, RaceSubrace } from '@/types';
+import { Race } from '@/types';
 
 export const races: Race[] = [
   // ── Human ──────────────────────────────────────────────────────────────────

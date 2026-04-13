@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Clock, MapPin, Lightbulb } from 'lucide-react';
 import { tours } from '@/data/tours';

@@ -104,7 +104,8 @@ export class GameConnection {
         }
       };
 
-      this.ws.onclose = (event) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      this.ws.onclose = (_event) => {
         this.connected = false;
         this.stopHealthCheck();
         // If we were in HTTPS context and never successfully connected,

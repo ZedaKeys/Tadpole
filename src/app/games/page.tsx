@@ -1,6 +1,6 @@
 'use client';
 
-import { Brain, Dices, Lock } from 'lucide-react';
+import { Brain, Dices } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AppShell } from '@/components/layout/AppShell';

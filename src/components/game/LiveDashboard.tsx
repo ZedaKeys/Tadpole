@@ -1,7 +1,7 @@
 'use client';
 
 import { GameState } from '@/types';
-import { Heart, Swords, MapPin, Coins } from 'lucide-react';
+import { Swords, MapPin, Coins } from 'lucide-react';
 
 function HpBar({ current, max, name }: { current: number; max: number; name: string }) {
   const pct = max > 0 ? (current / max) * 100 : 0;
