@@ -49,22 +49,96 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.8.1"
+PLUGIN_VERSION = "0.8.2"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
 # Local debug log -- always works, no network needed
 PLUGIN_LOG = "/tmp/tadpole-plugin.log"
+_DIAGNOSTIC_LOG = "/tmp/tadpole-diagnostic.json"
 
-def _log(msg):
-    """Write to local log file so user can check what happened."""
+def _log(msg, level="INFO"):
+    """Write to local log file with level tracking."""
     try:
-        ts = datetime.datetime.now().strftime("%H:%M:%S")
-        line = f"[{ts}] {msg}\n"
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{ts}] [{level}] {msg}\n"
         with open(PLUGIN_LOG, "a") as f:
             f.write(line)
+        # Rotate if over 2MB
+        try:
+            if os.path.getsize(PLUGIN_LOG) > 2 * 1024 * 1024:
+                with open(PLUGIN_LOG, "r") as f:
+                    lines = f.readlines()
+                with open(PLUGIN_LOG, "w") as f:
+                    f.writelines(lines[-1000:])
+        except Exception:
+            pass
     except Exception:
         pass
+
+def _capture_diagnostic(event: str, data: dict = None):
+    """Capture a diagnostic snapshot for remote debugging.
+    
+    Writes to /tmp/tadpole-diagnostic.json with the current state of everything.
+    This file can be fetched via the plugin's get_log API for remote debugging.
+    """
+    try:
+        diag = {
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "event": event,
+            "version": PLUGIN_VERSION,
+            "bridge": {
+                "process_running": _bridge_process is not None and _bridge_process.poll() is None if _bridge_process else False,
+                "pid": _bridge_process.pid if _bridge_process and _bridge_process.poll() is None else None,
+                "port": _bridge_port,
+                "pid_file_exists": os.path.exists(_BRIDGE_PID_FILE),
+                "pid_file_content": None,
+            },
+            "system": {
+                "bg3_running": _is_bg3_running(),
+                "ip": _try_get_ip(),
+                "node_installed": _is_node_installed(),
+                "node_version": _get_node_version() if _is_node_installed() else None,
+                "bridge_found": bool(_find_bridge_server()),
+                "lua_installed": _is_lua_mod_installed(),
+                "bg3se_installed": _is_bg3se_installed(),
+            },
+            "state_file": {
+                "exists": os.path.exists(STATE_FILE),
+                "size": os.path.getsize(STATE_FILE) if os.path.exists(STATE_FILE) else 0,
+                "modified": datetime.datetime.fromtimestamp(os.path.getmtime(STATE_FILE)).isoformat() if os.path.exists(STATE_FILE) else None,
+                "parseable": False,
+            },
+            "data": data or {},
+        }
+        # Try to parse state file
+        if os.path.exists(STATE_FILE):
+            try:
+                with open(STATE_FILE, "r") as f:
+                    content = f.read().strip()
+                if content:
+                    json.loads(content)
+                    diag["state_file"]["parseable"] = True
+            except Exception as e:
+                diag["state_file"]["parse_error"] = str(e)
+        # Read PID file content
+        if os.path.exists(_BRIDGE_PID_FILE):
+            try:
+                with open(_BRIDGE_PID_FILE, "r") as f:
+                    diag["bridge"]["pid_file_content"] = f.read().strip()
+            except Exception:
+                pass
+        with open(_DIAGNOSTIC_LOG, "w") as f:
+            f.write(json.dumps(diag, indent=2))
+    except Exception as e:
+        _log(f"Diagnostic capture failed: {e}", "ERROR")
+
+def _try_get_ip():
+    """Get IP without raising."""
+    try:
+        return _get_ip()
+    except Exception:
+        return "unknown"
 
 
 def _get_ssl_context():
@@ -1011,6 +1085,7 @@ class Plugin:
         _log(f"Node binary: {_get_node_binary()}")
         _log(f"Bridge found: {_find_bridge_server()}")
         _log(f"BG3 mod dir: {_get_bg3_mod_dir()}")
+        _capture_diagnostic("plugin_start")
 
         decky.logger.info("Tadpole BG3 Companion plugin loaded")
         decky.logger.info(f"Plugin version: {PLUGIN_VERSION}")
@@ -1304,15 +1379,29 @@ class Plugin:
         return _perform_update(download_url)
 
     async def get_log(self) -> dict:
-        """Return the last 100 lines of the plugin log."""
+        """Return the plugin log and diagnostic snapshot for remote debugging."""
         try:
-            if not os.path.exists(PLUGIN_LOG):
-                return {"log": "No log file yet. Plugin may not have loaded."}
-            with open(PLUGIN_LOG, "r") as f:
-                lines = f.readlines()
-            return {"log": "".join(lines[-100:])}
+            log_content = ""
+            if os.path.exists(PLUGIN_LOG):
+                with open(PLUGIN_LOG, "r") as f:
+                    lines = f.readlines()
+                log_content = "".join(lines[-200:])
+            
+            # Capture fresh diagnostic snapshot
+            _capture_diagnostic("get_log")
+            
+            diag_content = ""
+            if os.path.exists(_DIAGNOSTIC_LOG):
+                with open(_DIAGNOSTIC_LOG, "r") as f:
+                    diag_content = f.read()
+            
+            return {
+                "log": log_content,
+                "diagnostic": diag_content,
+                "version": PLUGIN_VERSION,
+            }
         except Exception as e:
-            return {"log": f"Error reading log: {e}"}
+            return {"log": f"Error reading log: {e}", "diagnostic": "", "version": PLUGIN_VERSION}
 
     async def get_manual_commands(self) -> dict:
         """Return terminal commands the user can run manually to install deps."""
@@ -1531,6 +1620,7 @@ class Plugin:
                 preexec_fn=os.setsid,
             )
             decky.logger.info(f"Bridge started on port {_bridge_port}, PID={_bridge_process.pid}")
+            _capture_diagnostic("bridge_started", {"pid": _bridge_process.pid, "port": _bridge_port})
 
             # Write PID file for orphan detection
             try:
