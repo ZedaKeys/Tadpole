@@ -228,6 +228,13 @@ export interface GameEvent {
   area?: string;
 }
 
+/** Event detected by the bridge server (comparing state snapshots) */
+export interface BridgeEvent {
+  type: string;
+  timestamp: number;
+  detail?: string;
+}
+
 export interface GameState {
   timestamp: number;
   area: string;

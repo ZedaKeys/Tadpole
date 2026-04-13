@@ -926,6 +926,10 @@ def _check_for_update():
 def _perform_update(download_url):
     """Download and install the latest plugin release."""
     try:
+        # Security: only allow downloads from our own GitHub repo
+        if not download_url.startswith("https://github.com/ZedaKeys/Tadpole/"):
+            return {"success": False, "message": "Invalid download URL — only official Tadpole releases allowed"}
+
         plugin_dir = getattr(decky, 'DECKY_PLUGIN_DIR', '')
         if not plugin_dir:
             return {"success": False, "message": "Cannot determine plugin directory"}

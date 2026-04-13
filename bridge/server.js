@@ -11,8 +11,24 @@ const os = require('os');
 const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
-const BRIDGE_VERSION = '0.1.0';
-const PB_ERROR_ENDPOINT = 'http://192.168.1.78:8095/api/collections/tadpole_errors/records';
+const BRIDGE_VERSION = '0.7.1';
+
+// Auth token for write operations (commands). Auto-generated if not set.
+// Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
+const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || (() => {
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(16).toString('hex');
+  console.log(`[auth] Generated bridge token: ${token}`);
+  console.log(`[auth] Set BRIDGE_TOKEN env var to persist this across restarts.`);
+  return token;
+})();
+
+const ALLOWED_COMMANDS = new Set([
+  'trigger_rest', 'add_gold', 'give_item', 'heal_party',
+  'revive', 'god_mode', 'teleport_to_waypoint',
+]);
+
+const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
 const ERROR_LOG_FILE = path.join(__dirname, 'bridge-error.log');
 
 // ---------------------------------------------------------------------------
@@ -101,21 +117,117 @@ function safeWrap(fn, label) {
 // ---------------------------------------------------------------------------
 const app = express();
 
-// CORS for phone app
+// CORS — restrict to known origins + local network
+const ALLOWED_ORIGINS = [
+  'http://localhost',
+  'http://127.0.0.1',
+  'http://192.168.',
+  'http://10.',
+  'http://172.',
+  'https://tadpole-omega.vercel.app',
+  'https://split-easy-one.vercel.app',
+];
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin || '';
+  const isAllowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o)) || !origin;
+  res.header('Access-Control-Allow-Origin', isAllowed ? (origin || '*') : '');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
 app.use(express.json());
 
+// ---------------------------------------------------------------------------
+// Rate limiting (simple in-memory)
+// ---------------------------------------------------------------------------
+const rateLimitMap = new Map(); // ip -> { count, resetAt }
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_MAX = 120; // requests per window
+
+function rateLimiter(req, res, next) {
+  const ip = req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    res.status(429).json({ error: 'Rate limited', retry_after: Math.ceil((entry.resetAt - now) / 1000) });
+    return;
+  }
+  next();
+}
+
+app.use(rateLimiter);
+
+// ---------------------------------------------------------------------------
+// HTML escape utility (prevents XSS)
+// ---------------------------------------------------------------------------
+function escapeHtml(str) {
+  if (typeof str !== 'string') return String(str);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// @ts-check
+// ---------------------------------------------------------------------------
+// Type definitions (JSDoc — plain JS, no build step needed)
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {Object} GameCharacter
+ * @property {string} guid
+ * @property {string} name
+ * @property {number} hp
+ * @property {number} maxHp
+ * @property {number} level
+ * @property {{ x: number, y: number, z: number }} position
+ */
+
+/**
+ * @typedef {Object} GameEvent
+ * @property {string} type
+ * @property {number} timestamp
+ * @property {string} [area]
+ */
+
+/**
+ * @typedef {Object} GameState
+ * @property {number} timestamp
+ * @property {string} area
+ * @property {boolean} inCombat
+ * @property {GameCharacter|null} host
+ * @property {GameCharacter[]} party
+ * @property {number} gold
+ * @property {GameEvent[]} events
+ */
+
+/**
+ * @typedef {Object} BridgeEvent
+ * @property {string} type
+ * @property {number} timestamp
+ * @property {string} [detail]
+ */
+
+/** @type {GameState|null} */
 let currentState = null;
+/** @type {GameState|null} */
 let previousState = null;
 let connectedClients = 0;
+/** @type {(GameState & { _receivedAt: number })[]} */
 const stateHistory = [];          // rolling buffer of last 100 snapshots
+/** @type {BridgeEvent[]} */
 const eventLog = [];              // recent detected events
 
 // JSON status endpoint for DeckyLoader plugin & programmatic consumers
@@ -167,7 +279,7 @@ app.use('/phone', safeWrap((req, res, next) => {
 <div class="box">
   <h2 style="color:#72ddf7;font-size:1em;margin-top:0">✅ You're on the right page!</h2>
   <p>You accessed the app via <strong>HTTP</strong>, which means WebSocket connections will work.</p>
-  <p>Your Steam Deck IP: <span class="ip">${req.hostname || '192.168.1.136'}</span></p>
+  <p>Your Steam Deck IP: <span class="ip">${escapeHtml(req.hostname || req.socket.localAddress || 'unknown')}</span></p>
 </div>
 
 <div class="box">
@@ -185,7 +297,7 @@ app.use('/phone', safeWrap((req, res, next) => {
   </div>
   <div class="step" data-n="2.">
     Open this URL <strong>on your phone</strong>:<br>
-    <code>http://${req.hostname || '192.168.1.136'}:${PORT}/phone</code>
+    <code>http://${escapeHtml(req.hostname || req.socket.localAddress || 'unknown')}:${PORT}/phone</code>
   </div>
   <div class="step" data-n="3.">
     Enter the Deck's IP in the connection panel and tap Connect.
@@ -216,6 +328,23 @@ app.get('/status', safeWrap((req, res) => {
     historyLength: stateHistory.length,
   });
 }, 'GET /status'));
+
+app.get('/health', safeWrap((req, res) => {
+  res.json({ healthy: true, version: BRIDGE_VERSION, uptime: process.uptime() });
+}, 'GET /health'));
+
+// Token endpoint — LAN-only, returns the bridge auth token for the phone app
+// This is safe because the bridge is on a local network (not exposed to internet)
+app.get('/token', safeWrap((req, res) => {
+  const ip = req.socket.remoteAddress || '';
+  // Only allow LAN access
+  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' ||
+      ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
+    res.json({ token: BRIDGE_TOKEN });
+  } else {
+    res.status(403).json({ error: 'LAN access only' });
+  }
+}, 'GET /token'));
 
 app.get('/', (req, res) => {
   const status = {
@@ -250,11 +379,11 @@ app.get('/', (req, res) => {
 <p>Command file: <code>${status.commandFile}</code></p>
 
 <h2>Current State</h2>
-<pre>${status.currentState ? JSON.stringify(status.currentState, null, 2) : 'No state received yet.'}</pre>
+<pre>${status.currentState ? escapeHtml(JSON.stringify(status.currentState, null, 2)) : 'No state received yet.'}</pre>
 
 <h2>Recent Events (${status.recentEvents.length})</h2>
 ${status.recentEvents.length
-  ? status.recentEvents.map(e => `<div><strong>${e.type}</strong> <span class="meta">${new Date(e.timestamp * 1000).toLocaleTimeString()}</span> ${e.detail || ''}</div>`).reverse().join('\n')
+  ? status.recentEvents.map(e => `<div><strong>${escapeHtml(e.type)}</strong> <span class="meta">${new Date(e.timestamp * 1000).toLocaleTimeString()}</span> ${escapeHtml(e.detail || '')}</div>`).reverse().join('\n')
   : '<p>No events detected yet.</p>'}
 
 <h2>History</h2>
@@ -276,6 +405,12 @@ const wss = new WebSocketServer({
 // ---------------------------------------------------------------------------
 // Event detection
 // ---------------------------------------------------------------------------
+/**
+ * Compare two state snapshots and detect game events.
+ * @param {GameState|null} prev - Previous state snapshot
+ * @param {GameState} curr - Current state snapshot
+ * @returns {BridgeEvent[]} Detected events
+ */
 function detectEvents(prev, curr) {
   if (!prev) return [];
   const events = [];
@@ -469,9 +604,9 @@ function writeCommand(command) {
     // Keep only last 50 commands to avoid unbounded growth
     if (commands.length > 50) commands = commands.slice(-50);
 
-    // Write atomically via temp file
+    // Write atomically via temp file with restricted permissions
     const tmpFile = COMMAND_FILE + '.tmp';
-    fs.writeFileSync(tmpFile, JSON.stringify(commands, null, 2));
+    fs.writeFileSync(tmpFile, JSON.stringify(commands, null, 2), { mode: 0o600 });
     fs.renameSync(tmpFile, COMMAND_FILE);
     return true;
   } catch (err) {
@@ -504,6 +639,34 @@ wss.on('connection', (ws, req) => {
       console.log(`[ws] Command from ${clientIp}:`, msg.action || msg.type || 'unknown');
 
       if (msg.action) {
+        // Auth check — commands require a valid token
+        if (!msg.token || msg.token !== BRIDGE_TOKEN) {
+          ws.send(JSON.stringify({
+            type: 'command_rejected',
+            action: msg.action,
+            reason: 'Invalid or missing auth token',
+            timestamp: Date.now() / 1000,
+          }));
+          console.warn(`[auth] Rejected command "${msg.action}" from ${clientIp} — no valid token`);
+          return;
+        }
+
+        // Whitelist check — only known commands allowed
+        if (!ALLOWED_COMMANDS.has(msg.action)) {
+          ws.send(JSON.stringify({
+            type: 'command_rejected',
+            action: msg.action,
+            reason: 'Unknown command',
+            timestamp: Date.now() / 1000,
+          }));
+          console.warn(`[auth] Rejected unknown command "${msg.action}" from ${clientIp}`);
+          return;
+        }
+
+        // Sanitize numeric parameters
+        if (msg.value !== undefined) msg.value = Number(msg.value) || 0;
+        if (msg.itemId !== undefined) msg.itemId = String(msg.itemId).replace(/[^a-zA-Z0-9_-]/g, '');
+
         // It's a command for the Lua mod
         const ok = writeCommand(msg);
         ws.send(JSON.stringify({
@@ -590,6 +753,57 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('');
 
   startStateWatcher();
+
+  // -----------------------------------------------------------------------
+  // mDNS advertisement (optional — skip if bonjour-service not installed)
+  // -----------------------------------------------------------------------
+  try {
+    const bonjour = require('bonjour-service')();
+    const MDNS_HOSTNAME = process.env.MDNS_HOSTNAME || 'tadpole';
+
+    // Advertise the Tadpole-specific service for the phone app
+    const tadpoleSvc = bonjour.publish({
+      name: 'Tadpole Bridge',
+      type: 'tadpole',
+      port: PORT,
+      host: MDNS_HOSTNAME,
+      txt: {
+        version: BRIDGE_VERSION,
+        path: '/phone',
+        ws: '/ws',
+      },
+    });
+    tadpoleSvc.on('up', () => {
+      console.log(`[mDNS] Advertising _tadpole._tcp as ${MDNS_HOSTNAME}.local:${PORT}`);
+    });
+    tadpoleSvc.on('error', (err) => {
+      console.warn(`[mDNS] Tadpole service error: ${err.message}`);
+    });
+
+    // Also advertise as standard _http._tcp for generic mDNS browsers
+    const httpSvc = bonjour.publish({
+      name: 'Tadpole Bridge (HTTP)',
+      type: 'http',
+      port: PORT,
+      host: MDNS_HOSTNAME,
+      txt: {
+        version: BRIDGE_VERSION,
+        path: '/phone',
+      },
+    });
+    httpSvc.on('up', () => {
+      console.log(`[mDNS] Advertising _http._tcp as ${MDNS_HOSTNAME}.local:${PORT}`);
+    });
+    httpSvc.on('error', (err) => {
+      console.warn(`[mDNS] HTTP service error: ${err.message}`);
+    });
+
+    // Store reference for graceful shutdown
+    global._bonjour = bonjour;
+  } catch (err) {
+    console.warn(`[mDNS] bonjour-service not available — mDNS discovery disabled. (${err.message})`);
+    console.warn('[mDNS] Install with: npm install bonjour-service');
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -624,6 +838,15 @@ wss.on('connection', (ws) => {
 function gracefulShutdown(signal) {
   console.log(`\n[shutdown] Received ${signal}. Closing connections...`);
   clearInterval(keepaliveTimer);
+
+  // Stop mDNS advertisements
+  if (global._bonjour) {
+    try {
+      global._bonjour.unpublishAll(() => {
+        try { global._bonjour.destroy(); } catch {}
+      });
+    } catch {}
+  }
 
   // Close all WebSocket connections cleanly
   wss.clients.forEach((ws) => {

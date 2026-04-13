@@ -1,9 +1,9 @@
 'use client';
 
-import { GameState } from '@/types';
+import { GameState, BridgeEvent } from '@/types';
 
 type StateCallback = (state: GameState) => void;
-type EventCallback = (event: { type: string; timestamp: number; data?: unknown }) => void;
+type EventCallback = (event: BridgeEvent) => void;
 
 export type ConnectionStatus =
   | 'idle'
@@ -38,6 +38,9 @@ export class GameConnection {
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30000;
   private mixedContentDetected = false;
+  private lastMessageTime: number = 0;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown' = 'unknown';
 
   connect(host: string, port: number = 3456) {
     this.disconnect();
@@ -76,23 +79,34 @@ export class GameConnection {
         this.connected = true;
         this.reconnectAttempts = 0;
         this.mixedContentDetected = false;
+        this.lastMessageTime = Date.now();
+        this.connectionQuality = 'unknown';
+        this.startHealthCheck();
         this.setStatus('connected');
       };
 
       this.ws.onmessage = (event) => {
+        this.lastMessageTime = Date.now();
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'state' && data.data) {
             this.currentState = data.data as GameState;
             this.stateCallbacks.forEach(cb => cb(this.currentState!));
-          } else if (data.type === 'event') {
-            this.eventCallbacks.forEach(cb => cb(data));
+            // Bridge includes events array in state messages
+            if (data.events && Array.isArray(data.events)) {
+              data.events.forEach((evt: BridgeEvent) => {
+                this.eventCallbacks.forEach(cb => cb(evt));
+              });
+            }
           }
-        } catch {}
+        } catch (err) {
+          console.warn('[GameConnection] Failed to parse message:', err);
+        }
       };
 
       this.ws.onclose = (event) => {
         this.connected = false;
+        this.stopHealthCheck();
         // If we were in HTTPS context and never successfully connected,
         // this is likely mixed content blocking
         if (isHttpsContext() && this.status === 'connecting') {
@@ -137,7 +151,41 @@ export class GameConnection {
     }, delay);
   }
 
+  private startHealthCheck() {
+    this.stopHealthCheck();
+    this.pingInterval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastMessage = now - this.lastMessageTime;
+
+      // Update connection quality based on message frequency
+      if (timeSinceLastMessage < 3000) {
+        this.connectionQuality = 'excellent';
+      } else if (timeSinceLastMessage < 8000) {
+        this.connectionQuality = 'good';
+      } else if (timeSinceLastMessage < 15000) {
+        this.connectionQuality = 'poor';
+      }
+
+      // If no messages for 15s and we're connected, try to detect if connection is dead
+      if (timeSinceLastMessage > 15000 && this.connected) {
+        console.warn('[GameConnection] No messages received for 15s, connection may be stale');
+        // Send a lightweight ping as JSON
+        try {
+          this.ws?.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+        } catch {}
+      }
+    }, 5000); // Check every 5s
+  }
+
+  private stopHealthCheck() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
   disconnect() {
+    this.stopHealthCheck();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -150,6 +198,7 @@ export class GameConnection {
     this.connected = false;
     this.reconnectAttempts = 0;
     this.mixedContentDetected = false;
+    this.connectionQuality = 'unknown';
     this.setStatus('idle');
   }
 
@@ -211,6 +260,14 @@ export class GameConnection {
 
   getStatusDetail(): string {
     return this.statusDetail;
+  }
+
+  getConnectionQuality(): 'excellent' | 'good' | 'poor' | 'unknown' {
+    return this.connectionQuality;
+  }
+
+  getTimeSinceLastMessage(): number {
+    return Date.now() - this.lastMessageTime;
   }
 }
 

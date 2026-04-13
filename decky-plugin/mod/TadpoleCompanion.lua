@@ -26,40 +26,91 @@ end
 local function getPartyMemberData(guid)
   local entity = safeGetEntity(guid)
   if not entity then return nil end
-  
+
   local name = "Unknown"
   pcall(function()
     if entity.DisplayName and entity.DisplayName.Name then
       name = entity.DisplayName.Name.Key or "Unknown"
     end
   end)
-  
-  local hp, maxHp = 0, 1
+
+  local hp, maxHp, tempHp = 0, 1, 0
   pcall(function()
     if entity.Health then
       hp = entity.Health.Hp or 0
       maxHp = entity.Health.MaxHp or 1
+      tempHp = entity.Health.TemporaryHp or 0
     end
   end)
-  
+
   local level = 1
   pcall(function()
     if entity.Stats then
       level = entity.Stats.Level or 1
     end
   end)
-  
+
+  local initiative = 0
+  pcall(function()
+    if entity.Stats then
+      initiative = entity.Stats.InitiativeBonus or 0
+    end
+  end)
+
+  -- Spell slots (action resources)
+  local spellSlots = {}
+  pcall(function()
+    if entity.ActionResources and entity.ActionResources.Resources then
+      for _, resource in ipairs(entity.ActionResources.Resources) do
+        if resource.Name and resource.Name:find("SpellSlot") then
+          spellSlots[resource.Name] = {
+            amount = resource.Amount or 0,
+            maxAmount = resource.MaxAmount or 0,
+          }
+        end
+      end
+    end
+  end)
+
+  -- Active conditions (statuses)
+  local conditions = {}
+  pcall(function()
+    if entity.StatusContainer and entity.StatusContainer.Statuses then
+      for _, status in ipairs(entity.StatusContainer.Statuses) do
+        if status.StatusId then
+          table.insert(conditions, status.StatusId)
+        end
+      end
+    end
+  end)
+
+  -- Concentration (if concentrating)
+  local concentration = nil
+  pcall(function()
+    if entity.Concentration and entity.Concentration.SpellId then
+      concentration = {
+        spellId = entity.Concentration.SpellId,
+        caster = entity.Concentration.Caster,
+      }
+    end
+  end)
+
   local x, y, z = 0, 0, 0
   pcall(function()
     x, y, z = Osi.GetTransform(guid)
   end)
-  
+
   return {
     guid = guid,
     name = name,
     hp = hp,
     maxHp = maxHp,
+    tempHp = tempHp,
     level = level,
+    initiative = initiative,
+    spellSlots = spellSlots,
+    conditions = conditions,
+    concentration = concentration,
     position = { x = x, y = y, z = z },
   }
 end
@@ -77,7 +128,7 @@ function Tadpole:CaptureState()
   local ok, result = pcall(function()
     local hostGuid = Osi.GetHostCharacter()
     if not hostGuid then return nil end
-    
+
     local party = {}
     local _, playerRows = Osi.DB_Players:Get(nil)
     if playerRows then
@@ -86,28 +137,80 @@ function Tadpole:CaptureState()
         if data then table.insert(party, data) end
       end
     end
-    
+
     local hostData = getPartyMemberData(hostGuid)
-    
+
     local area = ""
     pcall(function() area = Ext.Utils.GetCurrentLevel() or "" end)
-    
+
     local gold = 0
     pcall(function() gold = Osi.GetGold(hostGuid) or 0 end)
-    
+
     local inCombat = false
     pcall(function() inCombat = Osi.IsInCombat(hostGuid) == 1 end)
-    
+
+    local inDialog = false
+    pcall(function()
+      local dialogState = safeGetEntity(hostGuid)
+      if dialogState and dialogState.DialogState then
+        inDialog = dialogState.DialogState.DialogId ~= nil
+      end
+    end)
+
+    -- Death save tracking
+    local deathSaves = {}
+    pcall(function()
+      local hostEntity = safeGetEntity(hostGuid)
+      if hostEntity and hostEntity.DeathState then
+        deathSaves = {
+          successes = hostEntity.DeathState.Successes or 0,
+          failures = hostEntity.DeathState.Failures or 0,
+          isDead = hostEntity.DeathState.IsDead or false,
+        }
+      end
+    end)
+
+    -- Class/level breakdown
+    local classes = {}
+    pcall(function()
+      local hostEntity = safeGetEntity(hostGuid)
+      if hostEntity and hostEntity.Classes then
+        for _, class in ipairs(hostEntity.Classes) do
+          table.insert(classes, {
+            name = class.Name or "Unknown",
+            level = class.Level or 1,
+          })
+        end
+      end
+    end)
+
+    -- Camp supplies
+    local campSupplies = nil
+    pcall(function()
+      local hostEntity = safeGetEntity(hostGuid)
+      if hostEntity then
+        campSupplies = {
+          current = hostEntity.CampSupply or 0,
+          max = hostEntity.CampTotalSupplies or 0,
+          canRest = hostEntity.CanDoRest or false,
+        }
+      end
+    end)
+
     local state = {
       timestamp = Ext.Utils.GetTime(),
       area = area,
       inCombat = inCombat,
+      inDialog = inDialog,
       host = hostData,
       party = party,
       gold = gold,
+      deathSaves = deathSaves,
+      classes = classes,
+      campSupplies = campSupplies,
       events = self.recentEvents,
     }
-    
+
     self.recentEvents = {}
     return state
   end)
@@ -159,7 +262,7 @@ function Tadpole:ExecuteCommand(cmd)
   if not cmd or not cmd.action then return end
   local hostGuid = Osi.GetHostCharacter()
   if not hostGuid then return end
-  
+
   if cmd.action == "trigger_rest" then
     pcall(Osi.RestSessionStarted)
   elseif cmd.action == "add_gold" then
@@ -167,6 +270,23 @@ function Tadpole:ExecuteCommand(cmd)
   elseif cmd.action == "give_item" then
     local x, y, z = Osi.GetTransform(hostGuid)
     pcall(Osi.CreateAt, cmd.itemId, x, y, z, 1)
+  elseif cmd.action == "god_mode" then
+    local enabled = cmd.enabled or false
+    pcall(Osi.SetInvulnerable, hostGuid, enabled and 1 or 0)
+  elseif cmd.action == "heal" then
+    pcall(Osi.CharacterHeal, hostGuid, cmd.amount or 100)
+  elseif cmd.action == "full_restore" then
+    pcall(Osi.Proc_CharacterFullRestore, hostGuid)
+  elseif cmd.action == "short_rest" then
+    pcall(Osi.ShortRest, hostGuid)
+  elseif cmd.action == "reset_cooldowns" then
+    pcall(Osi.CharacterResetCooldowns, hostGuid)
+  elseif cmd.action == "resurrect" then
+    pcall(Osi.CharacterResurrect, hostGuid)
+  elseif cmd.action == "teleport_to" then
+    if cmd.targetGuid then
+      pcall(Osi.TeleportTo, hostGuid, cmd.targetGuid, "")
+    end
   end
 end
 
@@ -213,10 +333,12 @@ Ext.Osiris.RegisterListener("LevelGameplayStarted", 2, "after", function(level, 
   })
 end)
 
+-- Dialog events (capture manually since we're tracking inDialog state now)
 Ext.Osiris.RegisterListener("DialogStarted", 1, "after", function(dialog)
   addEvent({
     type = "dialog_started",
     timestamp = Ext.Utils.GetTime(),
+    dialogId = dialog,
   })
 end)
 
@@ -224,6 +346,7 @@ Ext.Osiris.RegisterListener("DialogEnded", 1, "after", function(dialog)
   addEvent({
     type = "dialog_ended",
     timestamp = Ext.Utils.GetTime(),
+    dialogId = dialog,
   })
 end)
 
