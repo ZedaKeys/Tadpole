@@ -50,7 +50,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.7.4"
+PLUGIN_VERSION = "0.7.5"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -975,8 +975,22 @@ def _perform_update(download_url):
         if not extracted_files:
             return {"success": False, "message": "No files found in release zip"}
 
-        # Step 2: Make plugin directory writable
-        subprocess.run(["chmod", "-R", "u+rw", plugin_dir], capture_output=True, timeout=5)
+        # Step 2: Make plugin directory writable (try chmod, fallback to pkexec for GUI prompt)
+        chmod_result = subprocess.run(["chmod", "-R", "u+rw", plugin_dir], capture_output=True, timeout=5)
+        if chmod_result.returncode != 0:
+            # chmod failed, try pkexec (GUI sudo prompt)
+            _log("chmod failed, trying pkexec for GUI sudo prompt")
+            pkexec_result = subprocess.run(
+                ["pkexec", "chmod", "-R", "u+rw", plugin_dir],
+                capture_output=True,
+                timeout=10
+            )
+            if pkexec_result.returncode != 0:
+                # pkexec not available or user cancelled
+                return {
+                    "success": False,
+                    "message": "Permission denied. Please open Konsole and run:\nsudo chmod -R u+rw /home/deck/homebrew/plugins/TadpoleBG3"
+                }
 
         # Step 3: Copy extracted files over the plugin directory
         for rel_path in extracted_files:
