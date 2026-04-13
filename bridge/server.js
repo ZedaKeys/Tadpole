@@ -347,48 +347,10 @@ app.get('/token', safeWrap((req, res) => {
 }, 'GET /token'));
 
 app.get('/', (req, res) => {
-  const status = {
-    name: 'Tadpole Bridge Server',
-    version: '0.1.0',
-    uptime: process.uptime(),
-    stateFile: STATE_FILE,
-    commandFile: COMMAND_FILE,
-    stateFileExists: fs.existsSync(STATE_FILE),
-    connectedClients,
-    currentState,
-    recentEvents: eventLog.slice(-20),
-    historyLength: stateHistory.length,
-  };
-  res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Tadpole Bridge</title>
-<style>
-  body{font-family:system-ui,sans-serif;max-width:720px;margin:2em auto;padding:0 1em;background:#1a1a2e;color:#eee}
-  h1{color:#48bfe3} h2{color:#72ddf7}
-  pre{background:#16213e;padding:1em;border-radius:8px;overflow-x:auto;font-size:0.85em}
-  .ok{color:#52b788} .warn{color:#f4a261} .err{color:#e76f51}
-  .meta{color:#8d99ae;font-size:0.85em}
-</style></head><body>
-<h1>🐸 Tadpole Bridge</h1>
-<p class="meta">v0.1.0 &middot; uptime ${Math.floor(status.uptime)}s &middot; port ${PORT}</p>
-
-<h2>Connections</h2>
-<p>Connected phone apps: <strong>${status.connectedClients}</strong></p>
-
-<h2>State File</h2>
-<p>Path: <code>${status.stateFile}</code> &mdash; <span class="${status.stateFileExists ? 'ok' : 'warn'}">${status.stateFileExists ? 'found' : 'not yet written by Lua mod'}</span></p>
-<p>Command file: <code>${status.commandFile}</code></p>
-
-<h2>Current State</h2>
-<pre>${status.currentState ? escapeHtml(JSON.stringify(status.currentState, null, 2)) : 'No state received yet.'}</pre>
-
-<h2>Recent Events (${status.recentEvents.length})</h2>
-${status.recentEvents.length
-  ? status.recentEvents.map(e => `<div><strong>${escapeHtml(e.type)}</strong> <span class="meta">${new Date(e.timestamp * 1000).toLocaleTimeString()}</span> ${escapeHtml(e.detail || '')}</div>`).reverse().join('\n')
-  : '<p>No events detected yet.</p>'}
-
-<h2>History</h2>
-<p>${status.historyLength} snapshots buffered (max 100)</p>
-</body></html>`);
+  // Redirect to phone app for better UX
+  // Use the host from the request so the phone app can auto-connect
+  const host = req.headers.host?.split(':')[0] || 'localhost';
+  return res.redirect(`/phone`);
 });
 
 // ---------------------------------------------------------------------------

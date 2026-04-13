@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
 import { Coins, Swords, Wifi, WifiOff, Shield } from 'lucide-react';
 
@@ -30,6 +30,30 @@ export default function HomePage() {
   const { gameState, isConnected, connectionStatus, disconnect, connect, getLastHost } = useGameConnection();
   const [ip, setIp] = useState(() => getLastHost() || '');
   const [connecting, setConnecting] = useState(false);
+
+  // Auto-connect to the host serving this page
+  useEffect(() => {
+    // Skip if already connected or connecting
+    if (isConnected || connecting) return;
+
+    // Get the host from the current URL (where the app is loaded from)
+    const hostname = window.location.hostname;
+
+    // Skip localhost/127.0.0.1 - those are dev environments
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return;
+
+    // Check if we have a saved host
+    const savedHost = getLastHost();
+
+    // Use saved host if it exists and matches current host
+    // Otherwise, use current host for auto-connect
+    const autoConnectHost = (savedHost && savedHost === hostname) ? savedHost : hostname;
+
+    if (autoConnectHost) {
+      setIp(autoConnectHost);
+      connect(autoConnectHost, 3456);
+    }
+  }, [isConnected, connecting, getLastHost, connect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConnect = () => {
     if (!ip.trim()) return;
