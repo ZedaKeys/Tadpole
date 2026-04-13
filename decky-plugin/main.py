@@ -21,6 +21,7 @@ import zipfile
 import io
 import re
 import ssl
+import time
 
 import decky
 
@@ -38,6 +39,13 @@ STATE_FILE = "/tmp/tadpole_state.json"
 # Bridge process handle
 _bridge_process = None
 _bridge_port = 3456
+
+# Bridge log file handles (must be closed in _unload to prevent file descriptor leaks)
+_bridge_stdout_log = None
+_bridge_stderr_log = None
+
+# PID file for detecting orphaned bridge processes after plugin crashes
+_BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
@@ -1015,6 +1023,27 @@ class Plugin:
         decky.logger.info("Tadpole BG3 Companion plugin loaded")
         decky.logger.info(f"Plugin version: {PLUGIN_VERSION}")
 
+        # Check for orphaned bridge process from previous crash
+        if os.path.exists(_BRIDGE_PID_FILE):
+            try:
+                with open(_BRIDGE_PID_FILE, "r") as f:
+                    orphan_pid = int(f.read().strip())
+                try:
+                    os.kill(orphan_pid, 0)  # Check if process exists
+                    _log(f"Found orphan bridge process (PID {orphan_pid}), terminating...")
+                    os.killpg(os.getpgid(orphan_pid), signal.SIGTERM)
+                    time.sleep(1)
+                    try:
+                        os.killpg(os.getpgid(orphan_pid), signal.SIGKILL)
+                    except:
+                        pass
+                    _log("Orphan bridge terminated")
+                except ProcessLookupError:
+                    _log("Orphan PID file exists but process already dead, cleaning up")
+                os.remove(_BRIDGE_PID_FILE)
+            except Exception as e:
+                _log(f"Failed to clean orphan: {e}")
+
         # Load saved port setting
         try:
             sp = _settings_path()
@@ -1032,7 +1061,7 @@ class Plugin:
     async def _unload(self):
         """Lifecycle: called when the plugin is unloaded."""
         decky.logger.info("Tadpole BG3 Companion plugin unloading")
-        global _bridge_process
+        global _bridge_process, _bridge_stdout_log, _bridge_stderr_log
         if _bridge_process and _is_bridge_running():
             try:
                 pgid = os.getpgid(_bridge_process.pid)
@@ -1043,6 +1072,27 @@ class Plugin:
                 except Exception:
                     pass
         _bridge_process = None
+
+        # Close log file handles to prevent file descriptor leaks
+        if _bridge_stdout_log:
+            try:
+                _bridge_stdout_log.close()
+            except Exception:
+                pass
+            _bridge_stdout_log = None
+        if _bridge_stderr_log:
+            try:
+                _bridge_stderr_log.close()
+            except Exception:
+                pass
+            _bridge_stderr_log = None
+
+        # Clean up PID file
+        try:
+            if os.path.exists(_BRIDGE_PID_FILE):
+                os.remove(_BRIDGE_PID_FILE)
+        except Exception:
+            pass
 
     async def _uninstall(self):
         """Lifecycle: called when the plugin is uninstalled."""
@@ -1424,21 +1474,30 @@ class Plugin:
             env["PORT"] = str(_bridge_port)
 
             # Open log files for bridge server output
+            global _bridge_stdout_log, _bridge_stderr_log
             log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')
             os.makedirs(log_dir, exist_ok=True)
-            stdout_log = open(os.path.join(log_dir, "tadpole-bridge-stdout.log"), "a")
-            stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
+            _bridge_stdout_log = open(os.path.join(log_dir, "tadpole-bridge-stdout.log"), "a")
+            _bridge_stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
 
             _bridge_process = subprocess.Popen(
                 [node_bin, bridge_script],
                 cwd=bridge_dir,
                 env=env,
-                stdout=stdout_log,
-                stderr=stderr_log,
+                stdout=_bridge_stdout_log,
+                stderr=_bridge_stderr_log,
                 # Start in a new process group so we can kill the tree
                 preexec_fn=os.setsid,
             )
             decky.logger.info(f"Bridge started on port {_bridge_port}, PID={_bridge_process.pid}")
+
+            # Write PID file for orphan detection
+            try:
+                with open(_BRIDGE_PID_FILE, "w") as f:
+                    f.write(str(_bridge_process.pid))
+            except Exception as e:
+                _log(f"Failed to write PID file: {e}")
+
             return {
                 "success": True,
                 "message": f"Bridge started on port {_bridge_port}",
@@ -1462,6 +1521,11 @@ class Plugin:
         try:
             if not _is_bridge_running():
                 _bridge_process = None
+                try:
+                    if os.path.exists(_BRIDGE_PID_FILE):
+                        os.remove(_BRIDGE_PID_FILE)
+                except:
+                    pass
                 return {"success": True, "message": "Bridge was not running"}
 
             pgid = os.getpgid(_bridge_process.pid)
@@ -1474,6 +1538,14 @@ class Plugin:
                 _bridge_process.wait(timeout=2)
 
             _bridge_process = None
+
+            # Clean up PID file
+            try:
+                if os.path.exists(_BRIDGE_PID_FILE):
+                    os.remove(_BRIDGE_PID_FILE)
+            except:
+                pass
+
             decky.logger.info("Bridge stopped")
             return {"success": True, "message": "Bridge stopped"}
         except Exception as e:
@@ -1485,6 +1557,12 @@ class Plugin:
             except Exception:
                 pass
             _bridge_process = None
+            # Clean up PID file even on error
+            try:
+                if os.path.exists(_BRIDGE_PID_FILE):
+                    os.remove(_BRIDGE_PID_FILE)
+            except:
+                pass
             return {
                 "success": False,
                 "message": f"Error stopping bridge: {str(e)}",

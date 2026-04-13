@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +13,7 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const BRIDGE_VERSION = '0.1.0';
-const PB_ERROR_ENDPOINT = 'http://192.168.1.78:8095/api/collections/tadpole_errors/records';
+const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
 const ERROR_LOG_FILE = path.join(__dirname, 'bridge-error.log');
 
 // ---------------------------------------------------------------------------
@@ -59,7 +60,7 @@ function reportBridgeError(message, stack, extra = {}) {
     // Report to PocketBase (fire and forget, 3s timeout)
     const postData = JSON.stringify(record);
     const url = new URL(PB_ERROR_ENDPOINT);
-    const req = http.request({
+    const req = https.request({
       hostname: url.hostname,
       port: 443,
       path: url.pathname,
@@ -201,6 +202,17 @@ app.use('/phone', safeWrap((req, res, next) => {
 </p>
 </body></html>`);
 }, 'GET /phone'));
+
+app.get('/health', safeWrap((req, res) => {
+  // Quick health check for Decky plugin
+  const healthy = currentState !== null && fs.existsSync(STATE_FILE);
+  res.json({
+    healthy,
+    clients: connectedClients,
+    uptime: process.uptime(),
+    version: BRIDGE_VERSION,
+  });
+}, 'GET /health'));
 
 app.get('/status', safeWrap((req, res) => {
   res.json({
