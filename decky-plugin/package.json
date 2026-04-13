@@ -1,6 +1,6 @@
 {
   "name": "tadpole-decky",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "type": "module",
   "description": "DeckyLoader plugin for Tadpole BG3 Companion",
