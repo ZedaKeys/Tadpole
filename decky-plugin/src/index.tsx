@@ -427,11 +427,11 @@ const TadpolePanel: FunctionComponent = () => {
               setUpdating(true);
               try {
                 const r = await callPerformUpdate(updateInfo.download_url);
-                toaster.toast({ title: r.success ? "Updated!" : "Failed", body: r.message });
-              } catch { toaster.toast({ title: "Error", body: "Update failed" }); }
+                toaster.toast({ title: r.success ? "Downloaded!" : "Failed", body: r.message });
+              } catch { toaster.toast({ title: "Error", body: "Download failed" }); }
               setUpdating(false);
             }} disabled={updating}>
-              {updating ? "Updating..." : "Install Update"}
+              {updating ? "Downloading..." : "Download Update"}
             </ButtonItem>
           </PanelSectionRow>
         </div>

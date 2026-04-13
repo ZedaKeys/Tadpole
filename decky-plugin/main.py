@@ -17,7 +17,6 @@ import datetime
 import urllib.request
 import urllib.error
 import shutil
-import tempfile
 import zipfile
 import io
 import re
@@ -50,7 +49,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.7.5"
+PLUGIN_VERSION = "0.8.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -925,20 +924,11 @@ def _check_for_update():
 
 
 def _perform_update(download_url):
-    """Download and install the latest plugin release.
-
-    Strategy: extract to a temp dir, chmod everything writable, then copy over.
-    Writing directly to plugin_dir fails because DeckyLoader sets files read-only.
-    """
-    tmp_dir = None
+    """Download the latest plugin release zip to the user's Downloads folder."""
     try:
         # Security: only allow downloads from our own GitHub repo
         if not download_url.startswith("https://github.com/ZedaKeys/Tadpole/"):
             return {"success": False, "message": "Invalid download URL — only official Tadpole releases allowed"}
-
-        plugin_dir = getattr(decky, 'DECKY_PLUGIN_DIR', '')
-        if not plugin_dir:
-            return {"success": False, "message": "Cannot determine plugin directory"}
 
         # Download the zip
         req = urllib.request.Request(download_url, headers={"User-Agent": f"Tadpole-Decky/{PLUGIN_VERSION}"})
@@ -946,85 +936,25 @@ def _perform_update(download_url):
         with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             zip_bytes = resp.read()
 
-        # Skip files that shouldn't be in the release
-        _SKIP_PATTERNS = ["__pycache__", ".pyc", "package-lock.json", ".gitignore", "node_modules"]
+        # Save to Downloads folder
+        downloads_dir = os.path.expanduser("~/Downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        zip_name = f"tadpole-decky-v{download_url.split('/')[-1]}.zip"
+        zip_path = os.path.join(downloads_dir, zip_name)
 
-        # Step 1: Extract to temp directory first
-        tmp_dir = tempfile.mkdtemp(prefix="tadpole_update_")
-        extracted_files = []
-        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
-            for info in zf.infolist():
-                if info.filename.endswith("/"):
-                    continue
-                rel_path = info.filename
-                for prefix in ["TadpoleBG3/", "tadpole-decky/", ""]:
-                    if rel_path.startswith(prefix) and prefix:
-                        rel_path = rel_path[len(prefix):]
-                        break
-                if not rel_path:
-                    continue
-                if any(pat in rel_path for pat in _SKIP_PATTERNS):
-                    continue
+        with open(zip_path, "wb") as f:
+            f.write(zip_bytes)
 
-                tmp_dest = os.path.join(tmp_dir, rel_path)
-                os.makedirs(os.path.dirname(tmp_dest), exist_ok=True)
-                with zf.open(info) as src, open(tmp_dest, "wb") as dst:
-                    dst.write(src.read())
-                extracted_files.append(rel_path)
-
-        if not extracted_files:
-            return {"success": False, "message": "No files found in release zip"}
-
-        # Step 2: Make plugin directory writable (try chmod, fallback to pkexec for GUI prompt)
-        chmod_result = subprocess.run(["chmod", "-R", "u+rw", plugin_dir], capture_output=True, timeout=5)
-        if chmod_result.returncode != 0:
-            # chmod failed, try pkexec (GUI sudo prompt)
-            _log("chmod failed, trying pkexec for GUI sudo prompt")
-            pkexec_result = subprocess.run(
-                ["pkexec", "chmod", "-R", "u+rw", plugin_dir],
-                capture_output=True,
-                timeout=10
-            )
-            if pkexec_result.returncode != 0:
-                # pkexec not available or user cancelled
-                return {
-                    "success": False,
-                    "message": "Permission denied. Please open Konsole and run:\nsudo chmod -R u+rw /home/deck/homebrew/plugins/TadpoleBG3"
-                }
-
-        # Step 3: Copy extracted files over the plugin directory
-        for rel_path in extracted_files:
-            src = os.path.join(tmp_dir, rel_path)
-            dest = os.path.join(plugin_dir, rel_path)
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            # Remove old file first (handles read-only files)
-            if os.path.exists(dest):
-                try:
-                    os.remove(dest)
-                except OSError:
-                    os.chmod(dest, 0o644)
-                    os.remove(dest)
-            shutil.copy2(src, dest)
-
-        _log(f"Update complete: {len(extracted_files)} files installed")
+        _log(f"Update downloaded to: {zip_path}")
 
         return {
             "success": True,
-            "message": f"Update installed ({len(extracted_files)} files). Please reload the plugin.",
+            "message": f"Downloaded to: {zip_path}\n\nInstall it via DeckyLoader: Plugins → Install Plugin → From File",
+            "download_path": zip_path,
         }
-    except PermissionError as e:
-        _log(f"Update failed - permission denied: {e}")
-        return {"success": False, "message": f"Permission denied: {e}. Try: sudo chmod -R u+rw /home/deck/homebrew/plugins/TadpoleBG3"}
     except Exception as e:
-        _log(f"Update failed: {e}")
+        _log(f"Download failed: {e}")
         return {"success": False, "message": str(e)}
-    finally:
-        # Cleanup temp directory
-        if tmp_dir and os.path.isdir(tmp_dir):
-            try:
-                shutil.rmtree(tmp_dir)
-            except OSError:
-                pass
 
 
 def _read_state_file():
