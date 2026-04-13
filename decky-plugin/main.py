@@ -370,6 +370,7 @@ def _find_bridge_server():
         os.path.join(home, "tadpole", "bridge", "server.js"),
         os.path.join(getattr(decky, 'DECKY_PLUGIN_DIR', ''), "bridge", "server.js"),
         os.path.join(getattr(decky, 'DECKY_USER_HOME', home), "tadpole", "bridge", "server.js"),
+        os.path.join(getattr(decky, 'DECKY_USER_HOME', home), "homebrew", "plugins", "TadpoleCompanion", "bridge", "server.js"),
         os.path.join(getattr(decky, 'DECKY_USER_HOME', home), "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
         os.path.join(getattr(decky, 'DECKY_USER_HOME', home), ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
     ]
@@ -1576,6 +1577,7 @@ class Plugin:
                     os.path.join(decky.DECKY_USER_HOME, "tadpole", "bridge", "server.js"),
                     os.path.join(decky.DECKY_PLUGIN_DIR, "bridge", "server.js"),
                     os.path.join(os.path.dirname(decky.DECKY_PLUGIN_DIR), "tadpole", "bridge", "server.js"),
+                    os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleCompanion", "bridge", "server.js"),
                     os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
                     os.path.join(decky.DECKY_USER_HOME, ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
                     "/home/deck/tadpole/bridge/server.js",

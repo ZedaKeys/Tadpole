@@ -47,3 +47,8 @@ decky-plugin/__pycache__/
 
 # project cache
 PROJECT_CACHE.md
+
+# Build outputs
+TadpoleCompanion/
+tadpole-decky-v*.zip
+

@@ -360,7 +360,7 @@ app.get('/token', safeWrap((req, res) => {
 app.get('/', (req, res) => {
   const status = {
     name: 'Tadpole Bridge Server',
-    version: '0.1.0',
+    version: BRIDGE_VERSION,
     uptime: process.uptime(),
     stateFile: STATE_FILE,
     commandFile: COMMAND_FILE,

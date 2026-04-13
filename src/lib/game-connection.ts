@@ -27,6 +27,7 @@ export function isHttpsContext(): boolean {
 export class GameConnection {
   private ws: WebSocket | null = null;
   private url: string = '';
+  private authToken: string = '';
   private stateCallbacks: StateCallback[] = [];
   private eventCallbacks: EventCallback[] = [];
   private statusCallbacks: StatusCallback[] = [];
@@ -48,6 +49,9 @@ export class GameConnection {
     this.reconnectAttempts = 0;
     this.mixedContentDetected = false;
 
+    // Fetch auth token from bridge (LAN-only endpoint)
+    this.fetchToken(host, port);
+
     // Check for mixed content blocking BEFORE attempting connection
     if (isHttpsContext()) {
       // The page is served over HTTPS but we're trying ws:// (not wss://).
@@ -63,6 +67,19 @@ export class GameConnection {
 
     this.setStatus('connecting');
     this.createConnection();
+  }
+
+  /** Fetch the bridge auth token so commands are accepted. */
+  private async fetchToken(host: string, port: number) {
+    try {
+      const res = await fetch(`http://${host}:${port}/token`);
+      if (res.ok) {
+        const data = await res.json();
+        this.authToken = data.token || '';
+      }
+    } catch {
+      // Token endpoint may not be available yet — commands will be rejected until fetched
+    }
   }
 
   private setStatus(status: ConnectionStatus, detail?: string) {
@@ -242,7 +259,7 @@ export class GameConnection {
   sendCommand(command: { action: string; [key: string]: unknown }) {
     try {
       if (this.ws && this.connected) {
-        this.ws.send(JSON.stringify(command));
+        this.ws.send(JSON.stringify({ ...command, token: this.authToken }));
       }
     } catch {}
   }
