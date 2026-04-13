@@ -462,7 +462,7 @@ const TadpolePanel: FunctionComponent = () => {
       </PanelSectionRow>
 
       <div style={{ textAlign: "center", padding: "8px 0 4px", ...s.muted, fontSize: 10 }}>
-        Tadpole v0.7.0
+        Tadpole v{diagnostics?.plugin_version || "unknown"}
       </div>
     </div>
   );

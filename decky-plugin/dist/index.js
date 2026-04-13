@@ -339,7 +339,7 @@ const TadpolePanel = () => {
                     ...s.card(), fontFamily: "monospace", fontSize: 10,
                     color: "rgba(255,255,255,0.35)", maxHeight: 200, overflowY: "auto",
                     whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
-                }, children: logText || "Loading..." })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => { runDiagnostics(); setTab("setup"); }, children: "Run Setup / Diagnostics" }) }), SP_JSX.jsx("div", { style: { textAlign: "center", padding: "8px 0 4px", ...s.muted, fontSize: 10 }, children: "Tadpole v0.7.0" })] }));
+                }, children: logText || "Loading..." })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => { runDiagnostics(); setTab("setup"); }, children: "Run Setup / Diagnostics" }) }), SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "8px 0 4px", ...s.muted, fontSize: 10 }, children: ["Tadpole v", diagnostics?.plugin_version || "unknown"] })] }));
     // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------
