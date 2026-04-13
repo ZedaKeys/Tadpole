@@ -49,7 +49,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.8.0"
+PLUGIN_VERSION = "0.8.1"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -1054,16 +1054,72 @@ class Plugin:
         """Lifecycle: called when the plugin is unloaded."""
         decky.logger.info("Tadpole BG3 Companion plugin unloading")
         global _bridge_process, _bridge_stdout_log, _bridge_stderr_log
+
+        # 1. Stop the tracked process first
         if _bridge_process and _is_bridge_running():
             try:
                 pgid = os.getpgid(_bridge_process.pid)
                 os.killpg(pgid, signal.SIGTERM)
-            except Exception:
                 try:
-                    _bridge_process.kill()
-                except Exception:
-                    pass
+                    _bridge_process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    os.killpg(pgid, signal.SIGKILL)
+            except Exception as e:
+                decky.logger.warn(f"Failed to kill tracked bridge: {e}")
         _bridge_process = None
+
+        # 2. Check and kill any process from PID file (orphan detection)
+        if os.path.exists(_BRIDGE_PID_FILE):
+            try:
+                with open(_BRIDGE_PID_FILE, "r") as f:
+                    pid = int(f.read().strip())
+                # Check if process is still running
+                if os.path.exists(f"/proc/{pid}"):
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                        time.sleep(0.5)
+                        # If still alive, force kill
+                        if os.path.exists(f"/proc/{pid}"):
+                            os.kill(pid, signal.SIGKILL)
+                        decky.logger.info(f"Killed orphaned bridge PID {pid}")
+                    except Exception as e:
+                        decky.logger.warn(f"Failed to kill PID {pid}: {e}")
+            except Exception as e:
+                decky.logger.warn(f"Failed to read PID file: {e}")
+            finally:
+                try:
+                    os.remove(_BRIDGE_PID_FILE)
+                except:
+                    pass
+
+        # 3. Kill any node process running the bridge server (by port)
+        try:
+            import psutil
+            port = _bridge_port
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'] == 'node':
+                        # Check if this node process has our port open
+                        for conn in proc.connections():
+                            if conn.laddr.port == port:
+                                decky.logger.info(f"Killing bridge process {proc.pid} on port {port}")
+                                proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+        except ImportError:
+            # psutil not available, try a simpler approach
+            try:
+                # Use lsof to find process on our port
+                port = _bridge_port
+                result = subprocess.run(
+                    ["fuser", "-k", f"{port}/tcp"],
+                    capture_output=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    decky.logger.info(f"Killed process on port {port} using fuser")
+            except Exception as e:
+                decky.logger.debug(f"Could not use fuser to kill port {port}: {e}")
 
         # Close log file handles to prevent file descriptor leaks
         if _bridge_stdout_log:
@@ -1078,13 +1134,6 @@ class Plugin:
             except Exception:
                 pass
             _bridge_stderr_log = None
-
-        # Clean up PID file
-        try:
-            if os.path.exists(_BRIDGE_PID_FILE):
-                os.remove(_BRIDGE_PID_FILE)
-        except Exception:
-            pass
 
     async def _uninstall(self):
         """Lifecycle: called when the plugin is uninstalled."""
