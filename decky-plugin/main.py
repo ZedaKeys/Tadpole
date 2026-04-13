@@ -49,7 +49,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.7.0"
+PLUGIN_VERSION = "0.7.2"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -940,9 +940,11 @@ def _perform_update(download_url):
         with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             zip_bytes = resp.read()
 
+        # Skip files that shouldn't be in the release
+        _SKIP_PATTERNS = ["__pycache__", ".pyc", "package-lock.json", ".gitignore", "node_modules"]
+
         # Extract
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
-            # The zip contains a TadpoleBG3/ folder
             for info in zf.infolist():
                 # Skip directories
                 if info.filename.endswith("/"):
@@ -955,16 +957,40 @@ def _perform_update(download_url):
                         break
                 if not rel_path:
                     continue
+                # Skip junk files
+                if any(pat in rel_path for pat in _SKIP_PATTERNS):
+                    continue
 
                 dest = os.path.join(plugin_dir, rel_path)
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
-                with zf.open(info) as src, open(dest, "wb") as dst:
-                    dst.write(src.read())
+                try:
+                    with zf.open(info) as src, open(dest, "wb") as dst:
+                        dst.write(src.read())
+                except PermissionError:
+                    # Try removing the old file first (might be read-only)
+                    try:
+                        os.remove(dest)
+                        with zf.open(info) as src, open(dest, "wb") as dst:
+                            dst.write(src.read())
+                    except PermissionError:
+                        _log(f"Permission denied writing {dest}, trying chmod parent")
+                        # Last resort: chmod parent dir and retry
+                        parent = os.path.dirname(dest)
+                        os.chmod(parent, 0o755)
+                        try:
+                            os.remove(dest)
+                        except OSError:
+                            pass
+                        with zf.open(info) as src, open(dest, "wb") as dst:
+                            dst.write(src.read())
 
         return {
             "success": True,
             "message": "Update installed. Please restart DeckyLoader to apply.",
         }
+    except PermissionError as e:
+        _log(f"Update failed - permission denied: {e}")
+        return {"success": False, "message": f"Permission denied: {e}. Try updating via DeckyLoader store or SSH."}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
