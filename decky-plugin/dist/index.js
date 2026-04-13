@@ -86,6 +86,28 @@ function FaFrog (props) {
 }
 
 // ---------------------------------------------------------------------------
+// Error Boundary - prevents white-screen crashes
+// ---------------------------------------------------------------------------
+class TadpoleErrorBoundary extends SP_REACT.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error, errorInfo) {
+        console.error('Tadpole ErrorBoundary caught an error:', error, errorInfo);
+        toaster.toast({ title: "Tadpole Error", body: "An error occurred. Check the log for details." });
+    }
+    render() {
+        if (this.state.hasError) {
+            return (SP_JSX.jsxs("div", { style: { padding: 20, textAlign: "center" }, children: [SP_JSX.jsx("div", { style: { fontSize: 24, marginBottom: 10 }, children: "\u26A0\uFE0F" }), SP_JSX.jsx("div", { style: { fontSize: 14, marginBottom: 10 }, children: "Something went wrong" }), SP_JSX.jsx("div", { style: { fontSize: 12, opacity: 0.7 }, children: this.state.error?.message }), SP_JSX.jsx("button", { onClick: () => window.location.reload(), style: { marginTop: 15, padding: "8px 16px", cursor: "pointer" }, children: "Reload Plugin" })] }));
+        }
+        return this.props.children;
+    }
+}
+// ---------------------------------------------------------------------------
 // API callables
 // ---------------------------------------------------------------------------
 const callGetStatus = callable("get_status");
@@ -162,7 +184,12 @@ const TadpolePanel = () => {
                 setBridgeHealthy(false);
             }
         }
-        catch { }
+        catch (e) {
+            console.error('Failed to fetch status:', e);
+            // Don't silently fail - this means the backend is unreachable
+            setBridgeRunning(false);
+            setBridgeHealthy(false);
+        }
     }, []);
     const updateSettings = SP_REACT.useCallback((s) => {
         setSettings(s);
@@ -177,7 +204,13 @@ const TadpolePanel = () => {
         catch {
             toaster.toast({ title: "Error", body: "Failed to start bridge" });
         }
-        setTimeout(async () => { await fetchStatus(); setLoading(false); }, 1500);
+        try {
+            await fetchStatus();
+        }
+        catch (e) {
+            console.error('Status check after start failed:', e);
+        }
+        setLoading(false);
     }, [settings, fetchStatus]);
     const stopBridge = SP_REACT.useCallback(async () => {
         setLoading(true);
@@ -189,7 +222,13 @@ const TadpolePanel = () => {
         catch {
             toaster.toast({ title: "Error", body: "Failed to stop" });
         }
-        setTimeout(async () => { await fetchStatus(); setLoading(false); }, 500);
+        try {
+            await fetchStatus();
+        }
+        catch (e) {
+            console.error('Status check after stop failed:', e);
+        }
+        setLoading(false);
     }, [fetchStatus]);
     const handleInstall = SP_REACT.useCallback(async () => {
         setInstalling(true);
@@ -211,18 +250,19 @@ const TadpolePanel = () => {
         }
         setInstalling(false);
     }, [runDiagnostics, fetchStatus, diagnostics]);
-    // Polling
+    // Polling - only run when live tab is active
     SP_REACT.useEffect(() => {
+        if (tab !== "live")
+            return; // Don't poll when not viewing live tab
         fetchStatus();
         pollRef.current = setInterval(fetchStatus, 2000);
         return () => { if (pollRef.current)
             clearInterval(pollRef.current); };
-    }, [fetchStatus]);
-    // Auto-start
+    }, [fetchStatus, tab]);
+    // Auto-start bridge when BG3 starts (if enabled)
     SP_REACT.useEffect(() => {
-        if (autoStartRef.current)
-            return;
-        if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing) {
+        // Only auto-start if: enabled, BG3 is running, bridge is not running, Node is installed, and we haven't already started it once
+        if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing && !autoStartRef.current) {
             autoStartRef.current = true;
             startBridge();
         }
@@ -343,7 +383,7 @@ const TadpolePanel = () => {
     // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------
-    return (SP_JSX.jsxs("div", { style: s.root, children: [SP_JSX.jsx("div", { style: s.tabRow, children: ["live", "setup", "settings"].map(t => (SP_JSX.jsx("button", { style: s.tab(tab === t), onClick: () => setTab(t), children: t === "live" ? "Live" : t === "setup" ? "Setup" : "Settings" }, t))) }), tab === "live" && SP_JSX.jsx(LiveTab, {}), tab === "setup" && SP_JSX.jsx(SetupTab, {}), tab === "settings" && SP_JSX.jsx(SettingsTab, {})] }));
+    return (SP_JSX.jsx(TadpoleErrorBoundary, { children: SP_JSX.jsxs("div", { style: s.root, children: [SP_JSX.jsx("div", { style: s.tabRow, children: ["live", "setup", "settings"].map(t => (SP_JSX.jsx("button", { style: s.tab(tab === t), onClick: () => setTab(t), children: t === "live" ? "Live" : t === "setup" ? "Setup" : "Settings" }, t))) }), tab === "live" && SP_JSX.jsx(LiveTab, {}), tab === "setup" && SP_JSX.jsx(SetupTab, {}), tab === "settings" && SP_JSX.jsx(SettingsTab, {})] }) }));
 };
 // ---------------------------------------------------------------------------
 // Shared Components

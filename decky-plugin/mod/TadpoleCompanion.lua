@@ -212,7 +212,7 @@ function Tadpole:CaptureState()
       events = self.recentEvents,
     }
 
-    self.recentEvents = {}
+    -- Don't clear recentEvents here - let the caller clear it after successful write
     return state
   end)
   if ok then return result end
@@ -234,10 +234,11 @@ function Tadpole:WriteState(state)
   local json = Ext.Json.Stringify(state)
   local tmpPath = OUTPUT_PATH .. ".tmp"
   local file, err = io.open(tmpPath, "w")
-  if not file then return end
+  if not file then return false end
   file:write(json)
   file:close()
-  os.rename(tmpPath, OUTPUT_PATH)
+  local success, _ = pcall(os.rename, tmpPath, OUTPUT_PATH)
+  return success
 end
 
 -- ISSUE 2: ReadCommands now handles both single objects and arrays
@@ -246,9 +247,16 @@ function Tadpole:ReadCommands()
   if not file then return nil end
   local content = file:read("*a")
   file:close()
-  os.remove(COMMAND_PATH)
+
+  -- Parse first, delete file only after successful parse
   local success, parsed = pcall(Ext.Json.Parse, content)
-  if not success or not parsed then return nil end
+  if not success or not parsed then
+    -- Parse failed, don't delete the file - user can try again
+    return nil
+  end
+
+  -- Delete file after successful parse
+  pcall(os.remove, COMMAND_PATH)
 
   -- If it's an array, return it as-is for iteration
   if type(parsed) == "table" and parsed[1] ~= nil then
@@ -296,12 +304,16 @@ Ext.Events.Tick:Subscribe(function(e)
   Tadpole.elapsed = Tadpole.elapsed + e.Time.Delta
   if Tadpole.elapsed < Tadpole.updateInterval then return end
   Tadpole.elapsed = 0
-  
+
   local state = Tadpole:CaptureState()
   if state and Tadpole:StateChanged(state) then
-    Tadpole:WriteState(state)
+    local written = Tadpole:WriteState(state)
+    if written then
+      -- Only clear events if write succeeded
+      Tadpole.recentEvents = {}
+    end
   end
-  
+
   -- ISSUE 2: ReadCommands returns array of commands
   local cmds = Tadpole:ReadCommands()
   if cmds then

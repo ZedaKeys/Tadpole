@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
@@ -75,9 +76,9 @@ function reportBridgeError(message, stack, extra = {}) {
     // Report to PocketBase (fire and forget, 3s timeout)
     const postData = JSON.stringify(record);
     const url = new URL(PB_ERROR_ENDPOINT);
-    const req = http.request({
+    const req = (url.protocol === 'https:' ? https : http).request({
       hostname: url.hostname,
-      port: 443,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: url.pathname,
       method: 'POST',
       headers: {
@@ -146,6 +147,16 @@ app.use(express.json());
 const rateLimitMap = new Map(); // ip -> { count, resetAt }
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const RATE_LIMIT_MAX = 120; // requests per window
+
+// Cleanup old rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 300000); // 5 minutes
 
 function rateLimiter(req, res, next) {
   const ip = req.socket.remoteAddress || 'unknown';
@@ -875,6 +886,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
   reportBridgeError(`uncaughtException: ${err.message}`, err.stack);
+  process.exit(1); // Exit to prevent running in corrupted state
 });
 
 process.on('unhandledRejection', (reason) => {

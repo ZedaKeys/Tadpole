@@ -49,7 +49,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.8.2"
+PLUGIN_VERSION = "0.9.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -163,7 +163,7 @@ def _report_plugin_error(message, stack=None, extra=None):
     global _error_report_timestamps
     try:
         now = datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000
-        # Rate limit
+        # Rate limit and cleanup old timestamps
         _error_report_timestamps = [t for t in _error_report_timestamps if now - t < 60000]
         if len(_error_report_timestamps) >= ERROR_RATE_LIMIT_PER_MINUTE:
             return
@@ -243,9 +243,11 @@ def _get_ip():
     """Get the Steam Deck's LAN IP address."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("1.1.1.1", 80))
-        ip = s.getsockname()[0]
-        s.close()
+        try:
+            s.connect(("1.1.1.1", 80))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
         return ip
     except Exception:
         try:
@@ -1102,7 +1104,7 @@ class Plugin:
                     time.sleep(1)
                     try:
                         os.killpg(os.getpgid(orphan_pid), signal.SIGKILL)
-                    except:
+                    except (OSError, ProcessLookupError):
                         pass
                     _log("Orphan bridge terminated")
                 except ProcessLookupError:
@@ -1164,7 +1166,7 @@ class Plugin:
             finally:
                 try:
                     os.remove(_BRIDGE_PID_FILE)
-                except:
+                except OSError:
                     pass
 
         # 3. Kill any node process running the bridge server (by port)
@@ -1528,6 +1530,17 @@ class Plugin:
             _report_plugin_error(f"get_status: {e}", stack=tb)
             return {"error": str(e)}
 
+    def _is_port_in_use(self, port: int) -> bool:
+        """Check if a port is already in use by another process."""
+        try:
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                result = s.connect_ex(("127.0.0.1", port))
+                return result == 0
+        except Exception:
+            return False
+
     async def start_bridge(self, port: int = 3456, bridge_dir: str = "") -> dict:
         """Start the bridge server as a background process."""
         try:
@@ -1537,6 +1550,13 @@ class Plugin:
 
             if _is_bridge_running():
                 return {"success": True, "message": "Bridge already running"}
+
+            # Check port conflict before starting
+            if self._is_port_in_use(port or 3456):
+                return {
+                    "success": False,
+                    "message": f"Port {port or 3456} is already in use. Another service may be running on this port.",
+                }
 
             if not _is_node_installed():
                 return {
@@ -1607,6 +1627,19 @@ class Plugin:
             global _bridge_stdout_log, _bridge_stderr_log
             log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')
             os.makedirs(log_dir, exist_ok=True)
+
+            # Close old log handles to prevent FD leaks
+            if _bridge_stdout_log:
+                try:
+                    _bridge_stdout_log.close()
+                except Exception:
+                    pass
+            if _bridge_stderr_log:
+                try:
+                    _bridge_stderr_log.close()
+                except Exception:
+                    pass
+
             _bridge_stdout_log = open(os.path.join(log_dir, "tadpole-bridge-stdout.log"), "a")
             _bridge_stderr_log = open(os.path.join(log_dir, "tadpole-bridge-stderr.log"), "a")
 
@@ -1655,7 +1688,7 @@ class Plugin:
                 try:
                     if os.path.exists(_BRIDGE_PID_FILE):
                         os.remove(_BRIDGE_PID_FILE)
-                except:
+                except OSError:
                     pass
                 return {"success": True, "message": "Bridge was not running"}
 
@@ -1674,7 +1707,7 @@ class Plugin:
             try:
                 if os.path.exists(_BRIDGE_PID_FILE):
                     os.remove(_BRIDGE_PID_FILE)
-            except:
+            except OSError:
                 pass
 
             decky.logger.info("Bridge stopped")
@@ -1692,7 +1725,7 @@ class Plugin:
             try:
                 if os.path.exists(_BRIDGE_PID_FILE):
                     os.remove(_BRIDGE_PID_FILE)
-            except:
+            except OSError:
                 pass
             return {
                 "success": False,
@@ -1720,13 +1753,18 @@ class Plugin:
         return {}
 
     async def save_settings(self, settings: dict) -> dict:
-        """Persist settings to Decky's settings directory."""
+        """Persist settings to Decky's settings directory (atomic write)."""
         global _bridge_port
         try:
             sp = _settings_path()
             os.makedirs(os.path.dirname(sp), exist_ok=True)
-            with open(sp, "w") as f:
+
+            # Atomic write: write to temp file, then rename
+            temp_path = sp + ".tmp"
+            with open(temp_path, "w") as f:
                 f.write(json.dumps(settings, indent=2))
+            os.rename(temp_path, sp)
+
             if "port" in settings:
                 _bridge_port = settings["port"]
             decky.logger.info(f"Settings saved to {sp}")

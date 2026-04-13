@@ -7,8 +7,47 @@ import {
   TextField,
   staticClasses,
 } from "@decky/ui";
-import { FunctionComponent, useState, useEffect, useCallback, useRef } from "react";
+import { FunctionComponent, useState, useEffect, useCallback, useRef, Component, ReactNode } from "react";
 import { FaFrog } from "react-icons/fa";
+
+// ---------------------------------------------------------------------------
+// Error Boundary - prevents white-screen crashes
+// ---------------------------------------------------------------------------
+
+class TadpoleErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Tadpole ErrorBoundary caught an error:', error, errorInfo);
+    toaster.toast({ title: "Tadpole Error", body: "An error occurred. Check the log for details." });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 20, textAlign: "center" }}>
+          <div style={{ fontSize: 24, marginBottom: 10 }}>⚠️</div>
+          <div style={{ fontSize: 14, marginBottom: 10 }}>Something went wrong</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{this.state.error?.message}</div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginTop: 15, padding: "8px 16px", cursor: "pointer" }}
+          >
+            Reload Plugin
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // API callables
@@ -116,7 +155,12 @@ const TadpolePanel: FunctionComponent = () => {
       } else {
         setBridgeHealthy(false);
       }
-    } catch {}
+    } catch (e) {
+      console.error('Failed to fetch status:', e);
+      // Don't silently fail - this means the backend is unreachable
+      setBridgeRunning(false);
+      setBridgeHealthy(false);
+    }
   }, []);
 
   const updateSettings = useCallback((s: PluginSettings) => {
@@ -130,7 +174,12 @@ const TadpolePanel: FunctionComponent = () => {
       const r = await callStartBridge(settings.port, settings.bridgeDir);
       toaster.toast({ title: "Tadpole", body: r.message });
     } catch { toaster.toast({ title: "Error", body: "Failed to start bridge" }); }
-    setTimeout(async () => { await fetchStatus(); setLoading(false); }, 1500);
+    try {
+      await fetchStatus();
+    } catch (e) {
+      console.error('Status check after start failed:', e);
+    }
+    setLoading(false);
   }, [settings, fetchStatus]);
 
   const stopBridge = useCallback(async () => {
@@ -139,7 +188,12 @@ const TadpolePanel: FunctionComponent = () => {
       const r = await callStopBridge();
       if (r.success) toaster.toast({ title: "Tadpole", body: r.message });
     } catch { toaster.toast({ title: "Error", body: "Failed to stop" }); }
-    setTimeout(async () => { await fetchStatus(); setLoading(false); }, 500);
+    try {
+      await fetchStatus();
+    } catch (e) {
+      console.error('Status check after stop failed:', e);
+    }
+    setLoading(false);
   }, [fetchStatus]);
 
   const handleInstall = useCallback(async () => {
@@ -158,17 +212,19 @@ const TadpolePanel: FunctionComponent = () => {
     setInstalling(false);
   }, [runDiagnostics, fetchStatus, diagnostics]);
 
-  // Polling
+  // Polling - only run when live tab is active
   useEffect(() => {
+    if (tab !== "live") return; // Don't poll when not viewing live tab
+
     fetchStatus();
     pollRef.current = setInterval(fetchStatus, 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [fetchStatus]);
+  }, [fetchStatus, tab]);
 
-  // Auto-start
+  // Auto-start bridge when BG3 starts (if enabled)
   useEffect(() => {
-    if (autoStartRef.current) return;
-    if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing) {
+    // Only auto-start if: enabled, BG3 is running, bridge is not running, Node is installed, and we haven't already started it once
+    if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing && !autoStartRef.current) {
       autoStartRef.current = true;
       startBridge();
     }
@@ -471,20 +527,22 @@ const TadpolePanel: FunctionComponent = () => {
   // Render
   // -----------------------------------------------------------------------
   return (
-    <div style={s.root}>
-      {/* Tab bar */}
-      <div style={s.tabRow}>
-        {(["live", "setup", "settings"] as Tab[]).map(t => (
-          <button key={t} style={s.tab(tab === t)} onClick={() => setTab(t)}>
-            {t === "live" ? "Live" : t === "setup" ? "Setup" : "Settings"}
-          </button>
-        ))}
-      </div>
+    <TadpoleErrorBoundary>
+      <div style={s.root}>
+        {/* Tab bar */}
+        <div style={s.tabRow}>
+          {(["live", "setup", "settings"] as Tab[]).map(t => (
+            <button key={t} style={s.tab(tab === t)} onClick={() => setTab(t)}>
+              {t === "live" ? "Live" : t === "setup" ? "Setup" : "Settings"}
+            </button>
+          ))}
+        </div>
 
-      {tab === "live" && <LiveTab />}
-      {tab === "setup" && <SetupTab />}
-      {tab === "settings" && <SettingsTab />}
-    </div>
+        {tab === "live" && <LiveTab />}
+        {tab === "setup" && <SetupTab />}
+        {tab === "settings" && <SettingsTab />}
+      </div>
+    </TadpoleErrorBoundary>
   );
 };
 
