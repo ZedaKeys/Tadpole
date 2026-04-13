@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { usePWA } from '@/hooks/usePWA';
 
 export default function InstallBanner() {
@@ -10,7 +11,7 @@ export default function InstallBanner() {
   return (
     <div className="pwa-install-banner safe-bottom">
       <div className="pwa-install-content">
-        <img
+        <Image
           src="/icons/icon-192.png"
           alt="Tadpole"
           width={40}
