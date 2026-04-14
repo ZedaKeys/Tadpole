@@ -333,30 +333,31 @@ def _get_node_version():
 
 
 def _is_lua_mod_installed():
-    """Check if the TadpoleCompanion.lua BG3 ScriptExtender mod exists."""
+    """Check if the TadpoleCompanion BG3 ScriptExtender mod exists (v30 format)."""
     try:
-        # BG3 ScriptExtender mods live in:
-        # ~/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/ (for .pak)
-        # or the SE LuaScripts folder
+        # BG3SE v30+ mods live in BG3/Mods/TadpoleCompanion/ with Config.json
         home = os.path.expanduser("~")
         candidates = [
-            # Steam Deck typical BG3 SE path
-            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "Mods"),
-            os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Data", "Mods"),
-            # ScriptExtender Lua scripts
-            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
-            os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
-            # Alternative BG3 folder name
-            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
+            # Proton prefix path (Steam Deck)
+            os.path.join(home, ".steam", "steam", "steamapps", "compatdata", "1086940", "pfx", "drive_c", "users", "steamuser", "AppData", "Local", "Larian Studios", "Baldur's Gate 3", "Mods", "TadpoleCompanion"),
+            os.path.join(home, ".local", "share", "Steam", "steamapps", "compatdata", "1086940", "pfx", "drive_c", "users", "steamuser", "AppData", "Local", "Larian Studios", "Baldur's Gate 3", "Mods", "TadpoleCompanion"),
+            # Direct BG3 install
+            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Mods", "TadpoleCompanion"),
+            os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Mods", "TadpoleCompanion"),
+            os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3", "Mods", "TadpoleCompanion"),
+            os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldur's Gate 3", "Mods", "TadpoleCompanion"),
         ]
         for candidate in candidates:
-            tadpole_lua = os.path.join(candidate, "TadpoleCompanion.lua")
-            if os.path.exists(tadpole_lua):
+            # Check for v30 mod structure
+            config_json = os.path.join(candidate, "ScriptExtender", "Config.json")
+            lua_file = os.path.join(candidate, "ScriptExtender", "Lua", "TadpoleCompanion.lua")
+            if os.path.exists(config_json) and os.path.exists(lua_file):
                 return True
-        # Also check if BG3 SE is even installed
+        # Also check if BG3 SE is even installed (Mods directory exists)
         for candidate in candidates:
-            if os.path.exists(candidate):
-                # Folder exists but no TadpoleCompanion.lua
+            mods_dir = os.path.dirname(candidate)
+            if os.path.isdir(mods_dir):
+                # Folder exists but no TadpoleCompanion mod
                 return False
         return False  # Can't find BG3 install
     except Exception:
@@ -696,8 +697,13 @@ BRIDGE_FILES = [
     "bridge/state-parser.js",
 ]
 
-# The Lua mod file
-LUA_MOD_FILE = "mod/TadpoleCompanion.lua"
+# The Lua mod files (v30 format)
+LUA_MOD_FILES = [
+    "mod/ScriptExtender/Config.json",
+    "mod/ScriptExtender/Lua/TadpoleCompanion.lua",
+    "mod/meta.lsx",
+    "mod/modsettings.lsx",
+]
 
 # BG3 Script Extender (Norbyte's bg3se)
 BG3SE_REPO = "Norbyte/bg3se"
@@ -942,33 +948,42 @@ def _install_bridge(progress_cb=None):
 
 
 def _install_lua_mod():
-    """Install the BG3 ScriptExtender Lua mod from bundled files or GitHub."""
+    """Install the BG3 ScriptExtender Lua mod (v30 format) from bundled files or GitHub."""
     try:
         mod_dir = _get_bg3_mod_dir()
         if not mod_dir:
             return {
                 "success": False,
-                "message": "BG3 ScriptExtender LuaScripts folder not found. Make sure BG3 is installed and ScriptExtender is set up.",
+                "message": "BG3 Mods directory not found. Make sure BG3 is installed and ScriptExtender is set up.",
             }
 
-        dest = os.path.join(mod_dir, "TadpoleCompanion.lua")
+        # Destination is the full TadpoleCompanion mod directory
+        dest_dir = os.path.join(mod_dir, "TadpoleCompanion")
 
-        # First try: copy from bundled mod/ directory
+        # Remove old version if exists
+        if os.path.exists(dest_dir):
+            shutil.rmtree(dest_dir)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        # Try to copy from bundled mod/ directory (v30 structure)
         plugin_dir = getattr(decky, 'DECKY_PLUGIN_DIR', '')
-        bundled_mod = os.path.join(plugin_dir, "mod", "TadpoleCompanion.lua") if plugin_dir else ""
+        if plugin_dir:
+            bundled_mod = os.path.join(plugin_dir, "mod")
+            if os.path.exists(bundled_mod):
+                _log(f"Installing Lua mod from bundled directory: {bundled_mod}")
+                shutil.copytree(bundled_mod, dest_dir, dirs_exist_ok=True)
+                return {"success": True, "message": f"Lua mod installed to {dest_dir}"}
 
-        if bundled_mod and os.path.exists(bundled_mod):
-            _log(f"Installing Lua mod from bundled file: {bundled_mod}")
-            shutil.copy2(bundled_mod, dest)
-            return {"success": True, "message": f"Lua mod installed to {dest}"}
+        # Fallback: download individual files from GitHub
+        _log("No bundled Lua mod found, downloading from GitHub...")
+        for file_path in LUA_MOD_FILES:
+            url = f"{GITHUB_RAW}/{file_path}"
+            dest_file = os.path.join(dest_dir, *file_path.split('/')[1:])
+            os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+            if not _download_file(url, dest_file):
+                return {"success": False, "message": f"Failed to download {file_path} from {url}"}
 
-        # Fallback: download from GitHub
-        _log("No bundled Lua mod, downloading from GitHub...")
-        url = f"{GITHUB_RAW}/{LUA_MOD_FILE}"
-        if not _download_file(url, dest):
-            return {"success": False, "message": f"Failed to download Lua mod from {url}"}
-
-        return {"success": True, "message": f"Lua mod installed to {dest}"}
+        return {"success": True, "message": f"Lua mod installed to {dest_dir}"}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
@@ -1281,10 +1296,12 @@ class Plugin:
                 "state_file": {"path": STATE_FILE, "exists": os.path.exists(STATE_FILE)},
             }
 
-            # If bg3_mod_dir exists, check for lua file
+            # If bg3_mod_dir exists, check for v30 mod structure
             if bg3_mod_dir:
-                lua_path = os.path.join(bg3_mod_dir, "TadpoleCompanion.lua")
-                paths_checked["tadpole_lua"] = {"path": lua_path, "exists": os.path.exists(lua_path)}
+                config_path = os.path.join(bg3_mod_dir, "TadpoleCompanion", "ScriptExtender", "Config.json")
+                lua_path = os.path.join(bg3_mod_dir, "TadpoleCompanion", "ScriptExtender", "Lua", "TadpoleCompanion.lua")
+                paths_checked["tadpole_mod_config"] = {"path": config_path, "exists": os.path.exists(config_path)}
+                paths_checked["tadpole_mod_lua"] = {"path": lua_path, "exists": os.path.exists(lua_path)}
 
             return {
                 "node_installed": node_installed,

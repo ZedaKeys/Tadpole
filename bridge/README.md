@@ -10,13 +10,21 @@ The bridge server runs on your PC alongside Baldur's Gate 3 and connects the BG3
 
 ## Setup
 
-### Step 1: Install the Lua mod
+### Step 1: Install the Lua mod (BG3SE v30 format)
 
-Copy `TadpoleCompanion.lua` into your BG3 ScriptExtender scripts directory:
+Copy the entire `TadpoleCompanion/` folder to your BG3 Mods directory:
 
+**Windows:**
 ```
-<BG3 Install>/bin/bg3se/LuaScripts/TadpoleCompanion.lua
+%LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\Mods\TadpoleCompanion\
 ```
+
+**Linux / Steam Deck (Proton):**
+```
+~/.steam/steam/steamapps/compatdata/1086940/pfx/drive_c/users/steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/Mods/TadpoleCompanion/
+```
+
+**Important:** After copying, launch BG3, go to the Mods menu, and enable "TadpoleCompanion". Then load a save for the mod to start running.
 
 The Lua mod writes game state to a temp file (`tadpole_state.json`) and reads commands from `tadpole_commands.json`.
 

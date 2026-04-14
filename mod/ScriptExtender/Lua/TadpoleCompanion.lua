@@ -1,6 +1,7 @@
 -- TadpoleCompanion.lua
 -- BG3 ScriptExtender mod for Tadpole companion app
--- Install to: %LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\ScriptExtender\LuaScripts\
+-- BG3SE v30 format: Install entire TadpoleCompanion/ folder to BG3/Mods/
+-- Then enable "TadpoleCompanion" in BG3's Mods menu
 
 local Tadpole = {
   lastStateJson = "",

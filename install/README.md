@@ -77,7 +77,7 @@ install\start-bridge.bat
 The installer will:
 - Auto-detect BG3 via Steam (including Proton prefixes on Steam Deck)
 - Install BG3 ScriptExtender if missing
-- Copy the Tadpole Lua mod to all detected BG3SE LuaScripts paths
+- Copy the Tadpole mod to BG3/Mods/ (v30 format)
 - Install Node.js (via nvm or system package manager) if missing
 - Install bridge server dependencies
 - Create a `.desktop` file (launchable from app menu)
@@ -203,7 +203,10 @@ This is normal if BG3 isn't running. The Lua mod writes to the state file only w
 
 ### Lua mod not loading in BG3
 - Verify `DWrite.dll` is in the BG3 game folder
-- Verify `TadpoleCompanion.lua` is in the `ScriptExtender/LuaScripts/` folder
+- Verify BG3SE v30+ is installed (v30 changed the mod format)
+- Make sure the entire `TadpoleCompanion/` folder is in `BG3/Mods/`
+- **Important:** Launch BG3, go to Mods menu, and enable "TadpoleCompanion"
+- Load a save (mods only run when a game is loaded, not at main menu)
 - Check the BG3 ScriptExtender log file for errors
 - On Steam Deck/Proton: make sure the mod is in the correct Proton prefix path
 
@@ -220,13 +223,13 @@ Or on Linux: `PORT=8080 node server.js`
 ## Uninstalling
 
 ### Windows
-1. Delete `TadpoleCompanion.lua` from your BG3 `ScriptExtender/LuaScripts/` folder
+1. Delete the `TadpoleCompanion/` folder from `BG3/Mods/` (or `%LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\Mods\`)
 2. Remove the "Tadpole Bridge" desktop shortcut
 3. Remove firewall rule: `netsh advfirewall firewall delete rule name="Tadpole Bridge (TCP 3456)"`
 4. Delete the Tadpole repository folder
 
 ### Linux
-1. Delete `TadpoleCompanion.lua` from your BG3SE LuaScripts folder(s)
+1. Delete the `TadpoleCompanion/` folder from `BG3/Mods/` (or `~/.steam/steam/steamapps/compatdata/1086940/pfx/drive_c/users/steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/Mods/`)
 2. Delete `~/.local/share/applications/tadpole-bridge.desktop`
 3. Remove firewall rule: `sudo ufw delete allow 3456/tcp`
 4. Delete the Tadpole repository folder
