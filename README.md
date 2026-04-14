@@ -8,13 +8,29 @@
 </p>
 
 <p align="center">
-  <a href="https://tadpole-omega.vercel.app"><strong>Web App</strong></a>
+  <a href="https://github.com/ZedaKeys/Tadpole/releases"><strong>Download Plugin</strong></a>
   &nbsp;&bull;&nbsp;
-  <a href="https://github.com/ZedaKeys/Tadpole/releases"><strong>Decky Plugin</strong></a>
+  <a href="#install"><strong>Install Guide</strong></a>
   &nbsp;&bull;&nbsp;
   <a href="#how-it-works"><strong>How It Works</strong></a>
-  &nbsp;&bull;&nbsp;
-  <a href="#install"><strong>Install</strong></a>
+</p>
+
+---
+
+## Phone App Screenshots
+
+<p align="center">
+  <img src="screenshots/phone_home.png" alt="Home - Connection Screen" width="220">
+  &nbsp;&nbsp;
+  <img src="screenshots/phone_home-connected.png" alt="Connected - Live Dashboard" width="220">
+  &nbsp;&nbsp;
+  <img src="screenshots/phone_cheats.png" alt="Cheats Panel" width="220">
+  &nbsp;&nbsp;
+  <img src="screenshots/phone_settings.png" alt="Settings" width="220">
+</p>
+
+<p align="center">
+  <em>Connection Screen &nbsp;&bull;&nbsp; Live Dashboard &nbsp;&bull;&nbsp; Game Commands &nbsp;&bull;&nbsp; Settings</em>
 </p>
 
 ---
@@ -31,6 +47,8 @@ Tadpole is a companion app for Baldur's Gate 3 that shows live game data on your
 - **Level Up Alerts** -- Toast notifications when you level up
 - **Area Tracking** -- Know which zone you're in
 - **Gold Counter** -- Track your gold without opening the inventory
+- **Game Commands** -- Add gold, trigger rests, spawn items directly from your phone
+- **Zero-Config Connection** -- Auto-connects when you visit the bridge URL
 - **WebSocket Bridge** -- Low-latency connection between Steam Deck and phone
 - **DeckyLoader Plugin** -- Native integration into the Steam Deck UI
 
@@ -58,7 +76,7 @@ Tadpole is a companion app for Baldur's Gate 3 that shows live game data on your
 
 Before installing the plugin, you need one thing:
 
-- **DeckyLoader** -- The Steam Deck plugin loader. Install it from [deckbrew.xyz](https://decky.xyz)
+- **DeckyLoader** -- The Steam Deck plugin loader. Install it from [decky.xyz](https://decky.xyz)
 
 That's it. Everything else (BG3 Script Extender, Node.js, bridge server, Lua mod) is installed automatically.
 
@@ -89,9 +107,9 @@ That's it. Everything else (BG3 Script Extender, Node.js, bridge server, Lua mod
 
 ### Step 3: Connect Your Phone
 
-1. Open **https://tadpole-omega.vercel.app** on your phone
-2. Enter the IP address shown in the Tadpole plugin on your Deck
-3. You're connected!
+1. Find your Steam Deck's IP in the Tadpole plugin settings
+2. Open **http://[DECK-IP]:3456/phone** on your phone
+3. The app auto-connects -- no manual IP entry needed!
 
 ---
 
@@ -121,18 +139,6 @@ curl -s http://127.0.0.1:3456/status
 
 ---
 
-## BG3 ScriptExtender
-
-The Lua mod needs the BG3 ScriptExtender to work. Tadpole's one-click setup installs it automatically, but if you need to do it manually:
-
-1. Download from [Norbyte's GitHub](https://github.com/Norbyte/bg3se/releases/latest)
-2. Extract `DWrite.dll` to your `Baldurs Gate 3/bin/` directory
-3. Set this Steam launch option for BG3: `WINEDLLOVERRIDES="DWrite.dll=n,b" %command%`
-4. Launch BG3 once -- Script Extender will auto-update and create its folders
-5. Then run Tadpole's setup to install the Lua mod
-
----
-
 ## Plugin Settings
 
 | Setting | Default | Description |
@@ -141,35 +147,21 @@ The Lua mod needs the BG3 ScriptExtender to work. Tadpole's one-click setup inst
 | Bridge Port | 3456 | Port for the WebSocket bridge server |
 | Bridge Directory | ~/tadpole/bridge | Where the bridge server files live |
 
-### UI Sections
-
-- **Connection** -- Bridge server status, start/stop controls
-- **Game** -- BG3 detection status
-- **Live** -- Real-time HP bars, combat status, party data (when connected)
-- **Phone App** -- IP address and URL to connect your phone
-- **Settings** -- Port config, update checker, diagnostics, log viewer
-
-### Advanced Features
-
-- **Diagnostics Panel** -- Shows every path the plugin checks, what exists, what's missing
-- **Terminal Commands** -- Copyable commands to run in Desktop Mode if auto-install fails
-- **Log Viewer** -- View the plugin log directly in the UI
-- **Update Checker** -- Checks GitHub for new plugin versions
-
 ---
 
 ## Architecture
 
 ```
 tadpole/
-├── app/                    # Next.js web app (phone companion)
-│   ├── page.tsx            # Home page with connection panel
+├── src/                    # Next.js web app (phone companion)
+│   ├── app/page.tsx        # Home page with connection panel
 │   └── ...
 ├── bridge/                 # Node.js WebSocket bridge server
 │   ├── server.js           # Express + WebSocket server
 │   └── package.json
-├── mod/                    # BG3 ScriptExtender Lua mod
-│   └── TadpoleCompanion.lua
+├── mod/                    # BG3 ScriptExtender Lua mod (v30 format)
+│   ├── Config.json
+│   └── Lua/TadpoleCompanion.lua
 ├── decky-plugin/           # DeckyLoader plugin (Steam Deck)
 │   ├── main.py             # Python backend
 │   ├── src/index.tsx       # React frontend
@@ -177,18 +169,20 @@ tadpole/
 │   ├── mod/                # Bundled Lua mod
 │   ├── plugin.json         # Plugin manifest
 │   └── dist/               # Built frontend bundle
-└── tadpole-plan/           # Planning documents
+└── screenshots/            # App screenshots for README
 ```
 
 ---
 
 ## Tech Stack
 
-- **Web App** -- Next.js 16, React 19, TypeScript, Tailwind v4
-- **Bridge Server** -- Node.js, Express, WebSocket (ws)
-- **Decky Plugin** -- Python 3 (backend), React/TypeScript (frontend)
-- **BG3 Mod** -- Lua (ScriptExtender)
-- **Deployment** -- Vercel (web app), GitHub Releases (plugin)
+| Component | Stack |
+|-----------|-------|
+| Web App | Next.js 16, React 19, TypeScript, Tailwind v4 |
+| Bridge Server | Node.js, Express, WebSocket (ws) |
+| Decky Plugin | Python 3 (backend), React/TypeScript (frontend) |
+| BG3 Mod | Lua (ScriptExtender v30) |
+| Deployment | GitHub Releases (plugin), Static export (phone app) |
 
 ---
 
