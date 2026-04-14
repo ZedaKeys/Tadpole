@@ -708,37 +708,67 @@ BG3SE_STEAM_APPID = "1086940"
 
 def _get_bg3_mod_dir():
     """Find or create the BG3 ScriptExtender LuaScripts directory.
-    
-    If BG3SE is installed (DWrite.dll exists) but the LuaScripts folder
-    hasn't been created yet (BG3 not launched with SE), we create it ourselves.
+
+    For BG3SE v30+, use the Mods/ directory structure.
+    For older versions, use Data/LuaScripts/.
     """
     home = os.path.expanduser("~")
-    candidates = [
+
+    # BG3SE v30+ uses Mods/ directory
+    mod_candidates = [
+        os.path.join(home, ".steam", "steam", "steamapps", "compatdata", "1086940", "pfx", "drive_c", "users", "steamuser", "AppData", "Local", "Larian Studios", "Baldur's Gate 3", "Mods"),
+        os.path.join(home, ".local", "share", "Steam", "steamapps", "compatdata", "1086940", "pfx", "drive_c", "users", "steamuser", "AppData", "Local", "Larian Studios", "Baldur's Gate 3", "Mods"),
+    ]
+
+    # Check if v30 Mods directory exists
+    for c in mod_candidates:
+        if os.path.isdir(c):
+            _log(f"Found BG3SE v30+ Mods directory: {c}")
+            return c
+
+    # Fall back to old LuaScripts directory for older BG3SE versions
+    lua_candidates = [
         os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
         os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldurs Gate 3", "Data", "LuaScripts"),
         os.path.join(home, ".steam", "steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
         os.path.join(home, ".local", "share", "Steam", "steamapps", "common", "Baldur's Gate 3", "Data", "LuaScripts"),
     ]
-    # Check if any already exist
-    for c in candidates:
+    # Check if any already exist (old LuaScripts paths)
+    for c in lua_candidates:
         if os.path.isdir(c):
+            _log(f"Found old BG3SE LuaScripts directory: {c}")
             return c
     
     # Try to find via Steam library
     bg3_dir = _find_bg3_install_dir()
     if bg3_dir:
+        # Check for v30 Mods first
+        mods_dir = os.path.join(bg3_dir, "Mods")
+        if os.path.isdir(mods_dir):
+            _log(f"Found BG3 Mods directory: {mods_dir}")
+            return mods_dir
+        
+        # Fall back to LuaScripts for older BG3SE
         lua_dir = os.path.join(bg3_dir, "Data", "LuaScripts")
         if os.path.isdir(lua_dir):
+            _log(f"Found BG3 LuaScripts directory: {lua_dir}")
             return lua_dir
-        # BG3SE is installed but LuaScripts doesn't exist yet -- create it
-        # This happens when DWrite.dll was placed but BG3 hasn't been launched with SE
+        # BG3SE is installed but directories don't exist yet -- create them
         if _is_bg3se_installed():
             try:
-                os.makedirs(lua_dir, exist_ok=True)
-                _log(f"Created LuaScripts directory: {lua_dir}")
-                return lua_dir
+                # Prefer v30 Mods directory
+                os.makedirs(mods_dir, exist_ok=True)
+                _log(f"Created Mods directory: {mods_dir}")
+                return mods_dir
             except Exception as e:
-                _log(f"Failed to create LuaScripts dir: {e}")
+                _log(f"Failed to create Mods dir: {e}")
+                # Fall back to creating LuaScripts
+                try:
+                    os.makedirs(lua_dir, exist_ok=True)
+                    _log(f"Created LuaScripts directory: {lua_dir}")
+                    return lua_dir
+                except Exception as e2:
+                    _log(f"Failed to create LuaScripts dir: {e2}")
     
     # Library folders fallback
     try:

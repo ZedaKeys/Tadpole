@@ -36,7 +36,7 @@ die() {
 # ── Resolve paths ────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-MOD_SRC="${PROJECT_ROOT}/mod/TadpoleCompanion.lua"
+MOD_DIR="${PROJECT_ROOT}/mod"
 BRIDGE_DIR="${PROJECT_ROOT}/bridge"
 
 # ── Banner ───────────────────────────────────────────────────────────────────
@@ -48,8 +48,11 @@ echo ""
 # ── Step 0: Validate source files ────────────────────────────────────────────
 log_info "Checking installer source files..."
 
-[[ -f "${MOD_SRC}" ]]         || die "TadpoleCompanion.lua not found at: ${MOD_SRC}"
-log_ok "TadpoleCompanion.lua found"
+[[ -d "${MOD_DIR}" ]] || die "Mod directory not found at: ${MOD_DIR}"
+[[ -f "${MOD_DIR}/meta.lsx" ]] || die "meta.lsx not found in mod directory"
+[[ -f "${MOD_DIR}/ScriptExtender/Config.json" ]] || die "Config.json not found in mod directory"
+[[ -f "${MOD_DIR}/ScriptExtender/Lua/TadpoleCompanion.lua" ]] || die "TadpoleCompanion.lua not found in mod directory"
+log_ok "Mod directory validated (BG3SE v30 format)"
 
 [[ -f "${BRIDGE_DIR}/server.js" ]] || die "Bridge server not found at: ${BRIDGE_DIR}/server.js"
 log_ok "Bridge server found"
@@ -176,13 +179,14 @@ else
     fi
 fi
 
-# ── Step 3: Install TadpoleCompanion.lua mod ─────────────────────────────────
+# ── Step 3: Install TadpoleCompanion mod (BG3SE v30 format) ──────────────
 echo ""
-log_info "Step 3: Installing Tadpole Lua mod..."
+log_info "Step 3: Installing Tadpole Lua mod (BG3SE v30 format)..."
 
-# Determine LuaScripts path — BG3SE loads from several locations
-LUA_DIRS=(
-    "${BG3_PATH}/bin/LuaScripts"
+# Determine Mods directory — BG3SE v30 loads mods from BG3/Mods/ instead of LuaScripts/
+MODS_DIRS=(
+    "${BG3_PATH}/Data/mods"
+    "${BG3_PATH}/Mods"
 )
 
 # Also check Proton/compatdata path (Steam Deck + Proton)
@@ -190,8 +194,8 @@ STEAM_COMPAT="${STEAM_HOME}/steamapps/compatdata/1086940"
 if [[ -d "${STEAM_COMPAT}" ]]; then
     PROTON_PFX="${STEAM_COMPAT}/pfx"
     if [[ -d "${PROTON_PFX}" ]]; then
-        LUA_DIRS+=(
-            "${PROTON_PFX}/drive_c/users/steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/ScriptExtender/LuaScripts"
+        MODS_DIRS+=(
+            "${PROTON_PFX}/drive_c/users/steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/Mods"
         )
     fi
 fi
@@ -201,43 +205,46 @@ FLATPAK_COMPAT="${HOME}/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/
 if [[ -d "${FLATPAK_COMPAT}" ]]; then
     FLATPAK_PFX="${FLATPAK_COMPAT}/pfx"
     if [[ -d "${FLATPAK_PFX}" ]]; then
-        LUA_DIRS+=(
-            "${FLATPAK_PFX}/drive_c/users/steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/ScriptExtender/LuaScripts"
+        MODS_DIRS+=(
+            "${FLATPAK_PFX}/drive_c/users/steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/Mods"
         )
     fi
 fi
 
-INSTALLED_LUA=0
-for LUA_DIR in "${LUA_DIRS[@]}"; do
-    # Create parent ScriptExtender/LuaScripts if needed
-    mkdir -p "${LUA_DIR}" 2>/dev/null || true
+INSTALLED_MOD=0
+for MODS_DIR in "${MODS_DIRS[@]}"; do
+    # Create Mods directory if needed
+    mkdir -p "${MODS_DIR}" 2>/dev/null || true
 
-    if [[ -d "${LUA_DIR}" ]]; then
-        cp "${MOD_SRC}" "${LUA_DIR}/TadpoleCompanion.lua" 2>/dev/null && {
-            log_ok "TadpoleCompanion.lua installed to: ${LUA_DIR}"
-            INSTALLED_LUA=1
+    if [[ -d "${MODS_DIR}" ]]; then
+        # Copy the entire mod directory (v30 format)
+        cp -r "${MOD_DIR}" "${MODS_DIR}/TadpoleCompanion" 2>/dev/null && {
+            log_ok "TadpoleCompanion mod installed to: ${MODS_DIR}"
+            INSTALLED_MOD=1
         } || {
             # May need elevated permissions for Proton prefix
-            log_warn "Could not write to: ${LUA_DIR} (may need sudo)"
+            log_warn "Could not write to: ${MODS_DIR} (may need sudo)"
         }
     fi
 done
 
 # Fallback: try with sudo for Proton paths
-if [[ "${INSTALLED_LUA}" -eq 0 ]]; then
-    for LUA_DIR in "${LUA_DIRS[@]}"; do
-        sudo mkdir -p "${LUA_DIR}" 2>/dev/null && \
-        sudo cp "${MOD_SRC}" "${LUA_DIR}/TadpoleCompanion.lua" 2>/dev/null && {
-            log_ok "TadpoleCompanion.lua installed (with sudo) to: ${LUA_DIR}"
-            INSTALLED_LUA=1
+if [[ "${INSTALLED_MOD}" -eq 0 ]]; then
+    for MODS_DIR in "${MODS_DIRS[@]}"; do
+        sudo mkdir -p "${MODS_DIR}" 2>/dev/null && \
+        sudo cp -r "${MOD_DIR}" "${MODS_DIR}/TadpoleCompanion" 2>/dev/null && {
+            log_ok "TadpoleCompanion mod installed (with sudo) to: ${MODS_DIR}"
+            INSTALLED_MOD=1
             break
         } || true
     done
 fi
 
-if [[ "${INSTALLED_LUA}" -eq 0 ]]; then
-    die "Could not install Lua mod to any detected BG3SE path."
+if [[ "${INSTALLED_MOD}" -eq 0 ]]; then
+    die "Could not install Lua mod to any detected BG3 Mods directory."
 fi
+
+log_info "Note: Launch BG3 and enable 'TadpoleCompanion' in the Mods menu."
 
 # ── Step 4: Check / Install Node.js ──────────────────────────────────────────
 echo ""
@@ -395,16 +402,18 @@ echo "  ════════════════════════
 echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"
 echo ""
-echo "  1. Start BG3 (ScriptExtender will load TadpoleCompanion.lua)"
+echo "  1. Launch BG3 and go to the Mods menu"
+echo "  2. Enable 'TadpoleCompanion' in the mods list"
+echo "  3. Load a save — the mod will start capturing game state"
 echo ""
-echo "  2. Start the bridge server:"
+echo "  4. Start the bridge server:"
 echo "     cd ${BRIDGE_DIR} && node server.js"
 echo ""
 echo "     Or launch 'Tadpole Bridge' from your application menu."
 echo ""
-echo -e "  3. On your phone, open: ${CYAN}https://tadpole-omega.vercel.app${RESET}"
+echo -e "  5. On your phone, open: ${CYAN}https://tadpole-omega.vercel.app${RESET}"
 echo ""
-echo -e "  4. Enter this IP address in the app: ${BOLD}${LAN_IP}:3456${RESET}"
+echo -e "  6. Enter this IP address in the app: ${BOLD}${LAN_IP}:3456${RESET}"
 echo ""
 echo -e "  ${DIM}Tip: Make sure your phone and PC are on the same WiFi network.${RESET}"
 echo -e "  ${DIM}Tip: Steam Deck users — use Desktop Mode to run the bridge server.${RESET}"

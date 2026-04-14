@@ -11,8 +11,28 @@ local Tadpole = {
 }
 
 local MAX_EVENTS = 50
--- Cross-platform temp directory (Linux TMPDIR, Windows TEMP, or fallback to /tmp)
-local TEMP_DIR = os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp"
+-- Cross-platform temp directory
+-- Under Wine/Proton, TEMP points to the Windows prefix, not Linux /tmp.
+-- We need to write to the REAL Linux /tmp so the bridge (Node.js) can read it.
+-- BG3SE's io.open uses Wine's Z: drive mapping, so "Z:\\tmp" = "/tmp" on Linux.
+-- On native Windows (non-Wine), TEMP is correct already.
+local function getUnixTempDir()
+  -- Check if running under Wine/Proton (BG3SE exposes this)
+  local isWine = false
+  pcall(function()
+    -- Wine sets WINELOADERNOEXEC or we can check for Z: drive
+    local f = io.open("Z:\\tmp", "r")  -- Z: maps to / on Linux
+    if f then f:close(); isWine = true end
+  end)
+
+  if isWine then
+    return "/tmp"  -- io.open maps this via Z: drive
+  end
+  -- Native Windows or native Linux
+  return os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp"
+end
+
+local TEMP_DIR = getUnixTempDir()
 local OUTPUT_PATH = TEMP_DIR .. "/tadpole_state.json"
 local COMMAND_PATH = TEMP_DIR .. "/tadpole_commands.json"
 

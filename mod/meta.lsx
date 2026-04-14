@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<save>
+  <version major="4" minor="6" revision="0" build="0"/>
+  <region id="ModuleInfo">
+    <node id="root">
+      <children>
+        <node id="ModuleInfo">
+          <attribute id="UUID" type="guid" value="d1c8e9a5-7b4f-4a2e-8c1d-3f9a5b6c7d8e"/>
+          <attribute id="Name" type="LSString" value="TadpoleCompanion"/>
+          <attribute id="Folder" type="LSString" value="TadpoleCompanion"/>
+          <attribute id="Description" type="LSString" value="BG3 companion app - provides real-time game state to phone app via WebSocket bridge"/>
+          <attribute id="Author" type="LSString" value="Zeda"/>
+          <attribute id="Version" type="LSString" value="0.9.0"/>
+          <attribute id="TargetVersion" type="LSString" value="4.69"/>
+          <attribute id="Homepage" type="LSString" value="https://github.com/ZedaKeys/Tadpole"/>
+        </node>
+      </children>
+    </node>
+  </region>
+</save>

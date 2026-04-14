@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<save>
+  <version major="4" minor="6" revision="0" build="0"/>
+  <region id="ModuleSettings">
+    <node id="root">
+      <children>
+        <node id="Mods">
+          <children>
+            <node id="ModuleShortDesc">
+              <attribute id="UUID" type="guid" value="d1c8e9a5-7b4f-4a2e-8c1d-3f9a5b6c7d8e"/>
+              <attribute id="Name" type="LSString" value="TadpoleCompanion"/>
+              <attribute id="Folder" type="LSString" value="TadpoleCompanion"/>
+              <attribute id="Enabled" type="bool" value="true"/>
+            </node>
+          </children>
+        </node>
+        <node id="ModOrder">
+          <children>
+            <node id="Module">
+              <attribute id="UUID" type="guid" value="d1c8e9a5-7b4f-4a2e-8c1d-3f9a5b6c7d8e"/>
+              <attribute id="Order" type="int32" value="0"/>
+            </node>
+          </children>
+        </node>
+      </children>
+    </node>
+  </region>
+</save>

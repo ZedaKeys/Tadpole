@@ -40,20 +40,32 @@ set "PROJECT_ROOT=%SCRIPT_DIR%\.."
 :: Resolve to absolute paths
 for %%I in ("%PROJECT_ROOT%") do set "PROJECT_ROOT=%%~fI"
 
-set "MOD_SRC=%PROJECT_ROOT%\mod\TadpoleCompanion.lua"
+set "MOD_DIR=%PROJECT_ROOT%\mod"
 set "BRIDGE_DIR=%PROJECT_ROOT%\bridge"
 
 :: ── Step 0: Validate source files exist ──────────────────────────────────────
 echo  !INFO! Checking installer source files...
 
-if not exist "%MOD_SRC%" (
-    echo  !FAIL! TadpoleCompanion.lua not found at:
-    echo         %MOD_SRC%
+if not exist "%MOD_DIR%" (
+    echo  !FAIL! Mod directory not found at:
+    echo         %MOD_DIR%
     echo.
     echo         Make sure you cloned the full Tadpole repository.
     goto :error_exit
 )
-echo  !OK! TadpoleCompanion.lua found
+if not exist "%MOD_DIR%\meta.lsx" (
+    echo  !FAIL! meta.lsx not found in mod directory
+    goto :error_exit
+)
+if not exist "%MOD_DIR%\ScriptExtender\Config.json" (
+    echo  !FAIL! Config.json not found in mod directory
+    goto :error_exit
+)
+if not exist "%MOD_DIR%\ScriptExtender\Lua\TadpoleCompanion.lua" (
+    echo  !FAIL! TadpoleCompanion.lua not found in mod directory
+    goto :error_exit
+)
+echo  !OK! Mod directory validated (BG3SE v30 format)
 
 if not exist "%BRIDGE_DIR%\server.js" (
     echo  !FAIL! Bridge server not found at:
@@ -232,34 +244,45 @@ if exist "!SE_DLL!" (
     )
 )
 
-:: ── Step 3: Install TadpoleCompanion.lua mod ────────────────────────────────
+:: ── Step 3: Install TadpoleCompanion mod (BG3SE v30 format) ──────────────
 echo.
-echo  !INFO! Step 3: Installing Tadpole Lua mod...
+echo  !INFO! Step 3: Installing Tadpole Lua mod (BG3SE v30 format)...
 
-:: Determine the LuaScripts path
-:: BG3SE loads from: <BG3>/bin/LuaScripts/  OR  %LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\ScriptExtender\LuaScripts\
-set "LUA_DIR=!BG3_PATH!\bin\LuaScripts"
-if not exist "!LUA_DIR!" (
-    set "LUA_DIR=%LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\ScriptExtender\LuaScripts"
+:: Determine the Mods directory — BG3SE v30 loads from BG3/Mods/
+set "MODS_DIR=!BG3_PATH!\Data\mods"
+if not exist "!MODS_DIR!" (
+    set "MODS_DIR=!BG3_PATH!\Mods"
+)
+:: Fallback to user AppData if game directory isn't writable
+if not exist "!MODS_DIR!" (
+    set "MODS_DIR=%LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\Mods"
 )
 
 :: Create directory if needed
-if not exist "!LUA_DIR!" (
-    mkdir "!LUA_DIR!" 2>nul
+if not exist "!MODS_DIR!" (
+    mkdir "!MODS_DIR!" 2>nul
     if !errorlevel! neq 0 (
-        echo  !FAIL! Could not create directory: !LUA_DIR!
+        echo  !FAIL! Could not create directory: !MODS_DIR!
         echo         Try running as Administrator.
         goto :error_exit
     )
 )
 
-:: Copy the mod file (always overwrite to ensure latest version)
-copy /Y "%MOD_SRC%" "!LUA_DIR!\TadpoleCompanion.lua" >nul 2>&1
+:: Copy the entire mod directory (v30 format)
+set "TARGET_MOD=!MODS_DIR!\TadpoleCompanion"
+:: Remove old version if exists
+if exist "!TARGET_MOD!" (
+    rmdir /S /Q "!TARGET_MOD!" 2>nul
+)
+
+xcopy /E /I /Y "%MOD_DIR%" "!TARGET_MOD!" >nul 2>&1
 if !errorlevel! equ 0 (
-    echo  !OK! TadpoleCompanion.lua installed to:
-    echo         !LUA_DIR!
+    echo  !OK! TadpoleCompanion mod installed to:
+    echo         !TARGET_MOD!
+    echo.
+    echo  !INFO! Note: Launch BG3 and enable 'TadpoleCompanion' in the Mods menu.
 ) else (
-    echo  !FAIL! Could not copy mod file. Try running as Administrator.
+    echo  !FAIL! Could not copy mod folder. Try running as Administrator.
     goto :error_exit
 )
 
@@ -401,17 +424,19 @@ echo  ════════════════════════�
 echo.
 echo  !BOLD!Next steps:!RESET!
 echo.
-echo  1. Start BG3 (ScriptExtender will load TadpoleCompanion.lua)
+echo  1. Launch BG3 and go to the Mods menu
+echo  2. Enable 'TadpoleCompanion' in the mods list
+echo  3. Load a save — the mod will start capturing game state
 echo.
-echo  2. Double-click "Tadpole Bridge" on your Desktop to start the
+echo  4. Double-click "Tadpole Bridge" on your Desktop to start the
 echo     bridge server, or run:
 echo       cd /d "!BRIDGE_DIR!"
 echo       node server.js
 echo.
-echo  3. On your phone, open:!CYAN!
+echo  5. On your phone, open:!CYAN!
 echo     https://tadpole-omega.vercel.app!RESET!
 echo.
-echo  4. Enter this IP address in the app:!BOLD!
+echo  6. Enter this IP address in the app:!BOLD!
 echo     !LAN_IP!:3456!RESET!
 echo.
 echo  !DIM!Tip: Make sure your phone and PC are on the same WiFi network.!RESET!
