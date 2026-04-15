@@ -4,7 +4,6 @@ import {
   PanelSectionRow,
   ButtonItem,
   ToggleField,
-  TextField,
   staticClasses,
 } from "@decky/ui";
 import { FunctionComponent, useState, useEffect, useCallback, useRef, Component, ReactNode } from "react";
@@ -35,13 +34,8 @@ class TadpoleErrorBoundary extends Component<{ children: ReactNode }, { hasError
         <div style={{ padding: 20, textAlign: "center" }}>
           <div style={{ fontSize: 24, marginBottom: 10 }}>⚠️</div>
           <div style={{ fontSize: 14, marginBottom: 10 }}>Something went wrong</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{this.state.error?.message}</div>
-          <button
-            onClick={() => window.location.reload()}
-            style={{ marginTop: 15, padding: "8px 16px", cursor: "pointer" }}
-          >
-            Reload Plugin
-          </button>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 15 }}>{this.state.error?.message}</div>
+          <div style={{ fontSize: 11, opacity: 0.5 }}>Restart the plugin from Decky settings to recover.</div>
         </div>
       );
     }
@@ -111,6 +105,7 @@ const TadpolePanel: FunctionComponent = () => {
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [nodeMissing, setNodeMissing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Setup
   const [diagnostics, setDiagnostics] = useState<any>(null);
@@ -134,20 +129,25 @@ const TadpolePanel: FunctionComponent = () => {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartRef = useRef(false);
+  const tabRef = useRef<Tab>(tab);
+  tabRef.current = tab;
 
   const runDiagnostics = useCallback(async () => {
     try {
       const d = await callGetDiagnostics();
       setDiagnostics(d);
       setReady(d.ready);
-      if (!d.ready && tab === "live") setTab("setup");
-    } catch {}
-  }, [tab]);
+      if (!d.ready && tabRef.current === "live") setTab("setup");
+      return d;
+    } catch (e) {
+      console.error('Diagnostics failed:', e);
+    }
+  }, []);
 
   // Load settings + diagnostics on mount
   useEffect(() => {
     callGetSettings().then((s: any) => { if (s && Object.keys(s).length > 0) setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => {});
-    runDiagnostics();
+    runDiagnostics().finally(() => setInitialLoading(false));
   }, [runDiagnostics]);
 
   const fetchStatus = useCallback(async () => {
@@ -176,7 +176,7 @@ const TadpolePanel: FunctionComponent = () => {
 
   const updateSettings = useCallback((s: PluginSettings) => {
     setSettings(s);
-    callSaveSettings(s).catch(() => {});
+    callSaveSettings(s).catch(() => toaster.toast({ title: "Error", body: "Failed to save settings" }));
   }, []);
 
   const startBridge = useCallback(async () => {
@@ -197,7 +197,7 @@ const TadpolePanel: FunctionComponent = () => {
     setLoading(true);
     try {
       const r = await callStopBridge();
-      if (r.success) toaster.toast({ title: "Tadpole", body: r.message });
+      toaster.toast({ title: "Tadpole", body: r.message });
     } catch { toaster.toast({ title: "Error", body: "Failed to stop" }); }
     try {
       await fetchStatus();
@@ -213,15 +213,15 @@ const TadpolePanel: FunctionComponent = () => {
       const r = await callInstallEverything();
       if (r.success) {
         toaster.toast({ title: "Setup Complete!", body: "Everything installed" });
-        await runDiagnostics();
+        const d = await runDiagnostics();
         await fetchStatus();
-        if (diagnostics?.ready) setTab("live");
+        if (d?.ready) setTab("live");
       } else {
         toaster.toast({ title: "Setup Failed", body: `Failed at ${r.step || "unknown"}` });
       }
     } catch { toaster.toast({ title: "Error", body: "Installation failed" }); }
     setInstalling(false);
-  }, [runDiagnostics, fetchStatus, diagnostics]);
+  }, [runDiagnostics, fetchStatus]);
 
   // Polling - only run when live tab is active
   useEffect(() => {
@@ -232,12 +232,31 @@ const TadpolePanel: FunctionComponent = () => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchStatus, tab]);
 
+  // Auto-fetch launch options when switching to Launch tab
+  useEffect(() => {
+    if (tab !== "launch") return;
+    (async () => {
+      try {
+        const info = await callGetLaunchOptions();
+        if (info.success) {
+          setLaunchCurrent(info.current);
+          setLaunchHasDwrite(info.has_dwrite);
+        }
+      } catch {}
+    })();
+  }, [tab]);
+
   // Auto-start bridge when BG3 starts (if enabled)
   useEffect(() => {
-    // Only auto-start if: enabled, BG3 is running, bridge is not running, Node is installed, and we haven't already started it once
-    if (settings.autoStart && bg3Running && !bridgeRunning && !nodeMissing && !autoStartRef.current) {
-      autoStartRef.current = true;
-      startBridge();
+    if (bg3Running && !bridgeRunning) {
+      // BG3 is running but bridge isn't — try auto-start if enabled
+      if (settings.autoStart && !nodeMissing && !autoStartRef.current) {
+        autoStartRef.current = true;
+        startBridge();
+      }
+    } else if (!bg3Running) {
+      // BG3 stopped — reset auto-start so it can fire again next time
+      autoStartRef.current = false;
     }
   }, [bg3Running, bridgeRunning, settings.autoStart, startBridge, nodeMissing]);
 
@@ -297,7 +316,6 @@ const TadpolePanel: FunctionComponent = () => {
     }),
   };
 
-  const hpColor = (pct: number) => pct > 0.6 ? "#52b788" : pct > 0.3 ? "#f4a261" : "#e76f51";
   const EVENT_ICON: Record<string, string> = {
     combat_started: "!", combat_ended: "+", area_changed: ">",
     hp_critical: "!!", level_up: "^", death: "X", rest: "R",
@@ -336,7 +354,7 @@ const TadpolePanel: FunctionComponent = () => {
       {/* Phone IP */}
       {bridgeRunning && (
         <div style={s.card("rgba(120,180,255,0.12)")}>
-          <div style={{ ...s.muted, marginBottom: 4, textAlign: "center" }}>Open on phone: tadpole-omega.vercel.app</div>
+          <div style={{ ...s.muted, marginBottom: 4, textAlign: "center" }}>Open on your phone:</div>
           <div style={s.ip}>{ip}:{settings.port}</div>
         </div>
       )}
@@ -683,10 +701,16 @@ const TadpolePanel: FunctionComponent = () => {
           ))}
         </div>
 
-        {tab === "live" && <LiveTab />}
-        {tab === "setup" && <SetupTab />}
-        {tab === "launch" && <LaunchTab />}
-        {tab === "settings" && <SettingsTab />}
+        {initialLoading ? (
+          <div style={{ textAlign: "center", padding: 20, opacity: 0.5, fontSize: 13 }}>Loading...</div>
+        ) : (
+          <>
+            {tab === "live" && <LiveTab />}
+            {tab === "setup" && <SetupTab />}
+            {tab === "launch" && <LaunchTab />}
+            {tab === "settings" && <SettingsTab />}
+          </>
+        )}
       </div>
     </TadpoleErrorBoundary>
   );

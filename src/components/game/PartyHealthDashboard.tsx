@@ -10,27 +10,35 @@ function hpColor(ratio: number): string {
   return '#e76f51';
 }
 
-interface HpBarProps {
+interface HpBarCardProps {
   character: GameCharacter;
   expanded: boolean;
   onToggle: () => void;
+  index: number;
 }
 
-const HpBarCard = memo(function HpBarCard({ character, expanded, onToggle }: HpBarProps) {
+const HpBarCard = memo(function HpBarCard({ character, expanded, onToggle, index }: HpBarCardProps) {
   const ratio = character.maxHp > 0 ? character.hp / character.maxHp : 0;
   const color = hpColor(ratio);
   const tempHp = character.tempHp ?? 0;
   const tempRatio = character.maxHp > 0 ? Math.min(tempHp / character.maxHp, 1 - ratio) : 0;
 
+  // Determine stagger class
+  const staggerClass = index < 6 ? `stagger-${index + 1}` : '';
+
   return (
     <div
+      className={`animate-fade-up ${staggerClass}`}
       style={{
         background: 'rgba(255,255,255,0.03)',
         borderRadius: 12,
         padding: 12,
-        border: '1px solid rgba(255,255,255,0.08)',
+        border: expanded
+          ? `1px solid ${color}40`
+          : '1px solid rgba(255,255,255,0.06)',
         marginBottom: 8,
-        transition: 'all 0.2s',
+        transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+        boxShadow: expanded ? `0 0 12px ${color}15` : 'none',
       }}
     >
       <button
@@ -59,7 +67,11 @@ const HpBarCard = memo(function HpBarCard({ character, expanded, onToggle }: HpB
             <Eye size={14} style={{ color: '#9ca3af' }} />
           )}
           {character.isDead && (
-            <span style={{ fontSize: 10, color: '#e76f51', fontWeight: 700 }}>DEAD</span>
+            <span style={{
+              fontSize: 9, color: '#e76f51', fontWeight: 700,
+              padding: '2px 6px', borderRadius: 4,
+              background: 'rgba(231,111,81,0.1)',
+            }}>DEAD</span>
           )}
         </div>
         <span style={{ fontSize: 12, color: '#9ca3af' }}>
@@ -71,15 +83,19 @@ const HpBarCard = memo(function HpBarCard({ character, expanded, onToggle }: HpB
       </button>
 
       {/* HP bar with temp HP overlay */}
-      <div style={{ position: 'relative', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: 6 }}>
+      <div style={{
+        position: 'relative', height: 8, borderRadius: 4,
+        background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: 6,
+      }}>
         <div
           style={{
             position: 'absolute',
             height: '100%',
             width: `${Math.max(ratio * 100, 0)}%`,
             borderRadius: 4,
-            background: color,
-            transition: 'width 0.3s, background 0.3s',
+            background: `linear-gradient(90deg, ${color}, ${color}dd)`,
+            transition: 'width 0.4s ease, background 0.3s ease',
+            boxShadow: `0 0 6px ${color}40`,
           }}
         />
         {tempHp > 0 && (
@@ -92,7 +108,7 @@ const HpBarCard = memo(function HpBarCard({ character, expanded, onToggle }: HpB
               borderRadius: 4,
               background: '#48bfe3',
               opacity: 0.7,
-              transition: 'width 0.3s',
+              transition: 'width 0.4s ease',
             }}
           />
         )}
@@ -100,7 +116,10 @@ const HpBarCard = memo(function HpBarCard({ character, expanded, onToggle }: HpB
 
       {/* Expanded stats */}
       {expanded && (
-        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div
+          className="animate-fade-in"
+          style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}
+        >
           {character.armorClass != null && (
             <StatPill icon={<Shield size={11} />} label="AC" value={character.armorClass} color="#48bfe3" />
           )}
@@ -164,12 +183,13 @@ export default function PartyHealthDashboard({ host, party }: PartyHealthDashboa
       >
         Party Health
       </span>
-      {allChars.map((c) => (
+      {allChars.map((c, i) => (
         <HpBarCard
           key={c.guid}
           character={c}
           expanded={expandedId === c.guid}
           onToggle={() => setExpandedId(expandedId === c.guid ? null : c.guid)}
+          index={i}
         />
       ))}
     </div>

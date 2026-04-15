@@ -50,13 +50,20 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.12.0"
+PLUGIN_VERSION = "0.13.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
 # Local debug log -- always works, no network needed
 PLUGIN_LOG = "/tmp/tadpole-plugin.log"
 _DIAGNOSTIC_LOG = "/tmp/tadpole-diagnostic.json"
+
+# TTL cache for get_status (avoids 4-6 subprocess calls every 2 seconds)
+_status_cache = {
+    "bg3_running": False, "bg3_ts": 0,
+    "ip": "...", "ip_ts": 0,
+    "node_installed": False, "node_ts": 0,
+}
 
 def _log(msg, level="INFO"):
     """Write to local log file with level tracking."""
@@ -142,14 +149,37 @@ def _try_get_ip():
         return "unknown"
 
 
+# SSL context cache — try verified first, fall back to unverified
+_ssl_context = None
+_ssl_verified_ok = None
+
 def _get_ssl_context():
     """Return an SSL context that works on Steam Deck.
 
-    SteamOS ships with an incomplete CA bundle, causing
-    CERTIFICATE_VERIFY_FAILED on many HTTPS sites.
-    Always use unverified context to avoid download failures.
+    Tries verified SSL first. Falls back to unverified if the CA bundle
+    is incomplete (common on SteamOS). Caches the result.
     """
-    return ssl._create_unverified_context()
+    global _ssl_context, _ssl_verified_ok
+    if _ssl_context is not None:
+        return _ssl_context
+
+    # Try verified SSL first
+    try:
+        ctx = ssl.create_default_context()
+        # Quick test: try connecting to GitHub
+        conn = http.client.HTTPSConnection("github.com", timeout=5, context=ctx)
+        conn.request("HEAD", "/")
+        conn.close()
+        _ssl_verified_ok = True
+        _ssl_context = ctx
+        return ctx
+    except Exception:
+        pass
+
+    # Fall back to unverified (SteamOS has incomplete CA bundle)
+    _ssl_verified_ok = False
+    _ssl_context = ssl._create_unverified_context()
+    return _ssl_context
 
 
 def _error_log_path():
@@ -218,24 +248,6 @@ def _report_plugin_error(message, stack=None, extra=None):
         pass  # Never let error reporting crash the plugin
 
 
-def _safe_call(func):
-    """Decorator that wraps an async method with error reporting."""
-    async def wrapper(*args, **kwargs):
-        try:
-            return await func(*args, **kwargs)
-        except Exception as e:
-            tb = traceback.format_exc()
-            decky.logger.error(f"{func.__name__} failed: {e}")
-            _report_plugin_error(
-                f"{func.__name__}: {e}",
-                stack=tb,
-                extra={"args": str(args)[:200]},
-            )
-            raise  # Re-raise so the frontend still sees the error
-    wrapper.__name__ = func.__name__
-    return wrapper
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -275,9 +287,9 @@ def _is_bg3_running():
         )
         if result.returncode == 0:
             return True
-        # Fallback: check for Steam AppID in process args
+        # Fallback: check for Steam AppID in process args (specific to steam_app_ prefix to avoid false positives)
         result2 = subprocess.run(
-            ["pgrep", "-f", "1086940"],
+            ["pgrep", "-f", "steam_app_1086940"],
             capture_output=True, text=True, timeout=5
         )
         return result2.returncode == 0
@@ -455,18 +467,23 @@ def _get_steam_launch_options(appid):
             if brace_start == -1:
                 continue
 
-            # Count braces to find the matching closing brace
+            # Count braces to find the matching closing brace (skip braces inside quoted strings)
             depth = 1
             i = brace_start + 1
             app_section_end = -1
+            in_string = False
             while i < len(content) and depth > 0:
-                if content[i] == "{":
-                    depth += 1
-                elif content[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        app_section_end = i
-                        break
+                ch = content[i]
+                if ch == '"' and (i == 0 or content[i-1] != '\\'):
+                    in_string = not in_string
+                elif not in_string:
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            app_section_end = i
+                            break
                 i += 1
 
             if app_section_end == -1:
@@ -519,18 +536,23 @@ def _set_steam_launch_options(appid, launch_options):
             if brace_start == -1:
                 continue
 
-            # Count braces to find the matching closing brace
+            # Count braces to find the matching closing brace (skip braces inside quoted strings)
             depth = 1
             i = brace_start + 1
             app_section_end = -1
+            in_string = False
             while i < len(content) and depth > 0:
-                if content[i] == "{":
-                    depth += 1
-                elif content[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        app_section_end = i
-                        break
+                ch = content[i]
+                if ch == '"' and (i == 0 or content[i-1] != '\\'):
+                    in_string = not in_string
+                elif not in_string:
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            app_section_end = i
+                            break
                 i += 1
 
             if app_section_end == -1:
@@ -637,8 +659,10 @@ def _install_bg3se():
         current_opts = _get_steam_launch_options(BG3SE_STEAM_APPID)
 
         if current_opts and "DWrite.dll" not in current_opts:
-            # Append to existing options
-            new_opts = f'{needed} {current_opts}'
+            # Append DWrite override to existing options (before %command%)
+            new_opts = current_opts.replace('%command%', 'WINEDLLOVERRIDES=\"DWrite.dll=n,b\" %command%')
+            if '%command%' not in current_opts:
+                new_opts = f'WINEDLLOVERRIDES=\"DWrite.dll=n,b\" {current_opts}'
             launch_set = _set_steam_launch_options(BG3SE_STEAM_APPID, new_opts)
         elif not current_opts:
             launch_set = _set_steam_launch_options(BG3SE_STEAM_APPID, needed)
@@ -941,7 +965,7 @@ def _install_bridge(progress_cb=None):
         source = "bundled" if used_bundled else "downloaded"
         return {
             "success": True,
-            "message": f"Bridge {source} and installed to {bridge_dir}",
+            "message": f"Bridge ({source}) installed to {bridge_dir}",
             "path": bridge_dir,
         }
     except Exception as e:
@@ -1233,8 +1257,16 @@ class Plugin:
         except ImportError:
             # psutil not available, try a simpler approach
             try:
-                # Use lsof to find process on our port
+                # Use fuser to find process on our port, send SIGTERM first then SIGKILL
                 port = _bridge_port
+                # Try graceful SIGTERM first
+                subprocess.run(
+                    ["fuser", "-k", "-TERM", f"{port}/tcp"],
+                    capture_output=True,
+                    timeout=5
+                )
+                time.sleep(0.5)
+                # If still alive, force kill
                 result = subprocess.run(
                     ["fuser", "-k", f"{port}/tcp"],
                     capture_output=True,
@@ -1347,14 +1379,17 @@ class Plugin:
         _log(f"install_bridge result: {result}")
         # Update settings with the new bridge dir
         if result.get("success") and result.get("path"):
-            sp = _settings_path()
-            settings = {}
-            if os.path.exists(sp):
-                with open(sp) as f:
-                    settings = json.loads(f.read())
-            settings["bridgeDir"] = result["path"]
-            with open(sp, "w") as f:
-                f.write(json.dumps(settings, indent=2))
+            try:
+                sp = _settings_path()
+                settings = {}
+                if os.path.exists(sp):
+                    with open(sp) as f:
+                        settings = json.loads(f.read())
+                settings["bridgeDir"] = result["path"]
+                with open(sp, "w") as f:
+                    f.write(json.dumps(settings, indent=2))
+            except Exception as e:
+                _log(f"Failed to update settings after bridge install: {e}", "ERROR")
         return result
 
     async def install_lua_mod(self) -> dict:
@@ -1558,7 +1593,7 @@ class Plugin:
             if bg3_mod_dir:
                 commands.append({
                     "label": "Install BG3 Lua Mod",
-                    "command": f"curl -sL {GITHUB_RAW}/{LUA_MOD_FILE} -o {bg3_mod_dir}/TadpoleCompanion.lua",
+                    "command": f"curl -sL {GITHUB_RAW}/{LUA_MOD_FILES[1]} -o {bg3_mod_dir}/TadpoleCompanion.lua",
                     "category": "install",
                 })
             else:
@@ -1585,7 +1620,7 @@ class Plugin:
         return {"commands": commands}
 
     async def get_status(self) -> dict:
-        """Return the current bridge + game status."""
+        """Return the current bridge + game status. Uses short TTL caches for expensive calls."""
         try:
             global _bridge_port, _bridge_process
 
@@ -1595,11 +1630,27 @@ class Plugin:
                 decky.logger.warn("Bridge process died (possibly from sleep/wake), cleaning up handle")
                 _bridge_process = None
 
+            now = time.monotonic()
             # Check both plugin-managed and systemd-managed bridge
             bridge_running = _is_bridge_running() or _is_systemd_bridge_running()
-            bg3_running = _is_bg3_running()
-            ip = _get_ip()
-            node_installed = _is_node_installed()
+
+            # Cache bg3_running for 5 seconds (pgrep is expensive)
+            if now - _status_cache["bg3_ts"] > 5:
+                _status_cache["bg3_running"] = _is_bg3_running()
+                _status_cache["bg3_ts"] = now
+            bg3_running = _status_cache["bg3_running"]
+
+            # Cache IP for 30 seconds (socket connect is expensive)
+            if now - _status_cache["ip_ts"] > 30:
+                _status_cache["ip"] = _get_ip()
+                _status_cache["ip_ts"] = now
+            ip = _status_cache["ip"]
+
+            # Cache node_installed for 30 seconds
+            if now - _status_cache["node_ts"] > 30:
+                _status_cache["node_installed"] = _is_node_installed()
+                _status_cache["node_ts"] = now
+            node_installed = _status_cache["node_installed"]
 
             connected_clients = 0
             game_state = None
@@ -1762,6 +1813,16 @@ class Plugin:
                     f.write(str(_bridge_process.pid))
             except Exception as e:
                 _log(f"Failed to write PID file: {e}")
+
+            # Brief pause then verify process didn't crash immediately
+            time.sleep(0.5)
+            if _bridge_process.poll() is not None:
+                exit_code = _bridge_process.returncode
+                _bridge_process = None
+                return {
+                    "success": False,
+                    "message": f"Bridge exited immediately (code {exit_code}). Check logs in {log_dir}",
+                }
 
             return {
                 "success": True,

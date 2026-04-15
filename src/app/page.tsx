@@ -45,91 +45,177 @@ export default function HomePage() {
 
   // ── Connection Panel ──
   if (!isConnected || !gameState) {
+    const isConnecting = connectionStatus === 'connecting' || connecting;
     return (
-      <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '48px 24px 32px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <Shield size={40} style={{ color: '#c6a255', marginBottom: 16 }} />
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#e2e0d8', letterSpacing: '0.04em' }}>Tadpole</h1>
-          <p style={{ color: '#6b7280', fontSize: 14, marginTop: 6 }}>BG3 Live Companion</p>
+      <main style={{
+        flex: 1, maxWidth: 480, margin: '0 auto', width: '100%',
+        padding: '0 24px 32px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        minHeight: '100dvh',
+      }}>
+        {/* BG3-themed hero */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }} className="animate-fade-up">
+          {/* Floating tadpole icon with glow ring */}
+          <div style={{
+            width: 80, height: 80,
+            margin: '0 auto 20px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 40% 40%, rgba(198,162,85,0.15), rgba(198,162,85,0.03))',
+            border: '2px solid rgba(198,162,85,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
+          }} className="animate-float animate-glow-ring">
+            <Shield size={36} style={{ color: '#c6a255', filter: 'drop-shadow(0 0 8px rgba(198,162,85,0.4))' }} />
+          </div>
+
+          <h1 style={{
+            fontSize: 32, fontWeight: 700, color: '#e2e0d8',
+            letterSpacing: '0.04em', marginBottom: 4,
+            textShadow: '0 0 20px rgba(198,162,85,0.2)',
+          }}>
+            Tadpole
+          </h1>
+
+          <p style={{
+            color: '#9ca3af', fontSize: 13, fontWeight: 500,
+            letterSpacing: '0.06em', textTransform: 'uppercase',
+          }}>
+            Baldur&apos;s Gate 3 Companion
+          </p>
+
+          {/* Decorative line */}
+          <div style={{
+            width: 60, height: 2, margin: '16px auto 0',
+            background: 'linear-gradient(90deg, transparent, rgba(198,162,85,0.4), transparent)',
+            borderRadius: 1,
+          }} />
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            {isConnected ? <Wifi size={18} style={{ color: '#22c55e' }} /> : <WifiOff size={18} style={{ color: '#6b7280' }} />}
-            <span style={{ fontSize: 13, color: '#9ca3af' }}>
-              {isConnected ? 'Connected — waiting for data...' : connectionStatus === 'connecting' ? 'Connecting...' : 'Not connected'}
+        {/* Connection card */}
+        <div
+          className="animate-fade-up stagger-2"
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            borderRadius: 20,
+            padding: 24,
+            border: '1px solid rgba(255,255,255,0.06)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+        >
+          {/* Status indicator */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20,
+            padding: '8px 12px', borderRadius: 10,
+            background: isConnecting ? 'rgba(198,162,85,0.08)' : isConnected ? 'rgba(82,183,136,0.08)' : 'rgba(255,255,255,0.02)',
+          }}>
+            {isConnecting ? (
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%',
+                border: '2px solid rgba(198,162,85,0.3)',
+                borderTopColor: '#c6a255',
+                animation: 'spin 0.8s linear infinite',
+              }} />
+            ) : isConnected ? (
+              <Wifi size={18} style={{ color: '#52b788' }} />
+            ) : (
+              <WifiOff size={18} style={{ color: '#6b7280' }} />
+            )}
+            <span style={{ fontSize: 13, color: isConnecting ? '#c6a255' : '#9ca3af', fontWeight: 500 }}>
+              {isConnecting ? 'Establishing link...' : isConnected ? 'Connected — awaiting data' : 'Not connected'}
             </span>
           </div>
 
-          <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* IP input row */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
             <input
               type="text"
               value={ip}
               onChange={(e) => setIp(e.target.value)}
-              placeholder="192.168.1.x or tadpole.local"
+              placeholder="192.168.1.x"
               style={{
                 flex: 1,
-                height: 44,
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.1)',
+                height: 48,
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.08)',
                 background: 'rgba(0,0,0,0.3)',
                 color: '#e2e0d8',
                 fontSize: 15,
-                padding: '0 14px',
+                padding: '0 16px',
                 outline: 'none',
                 boxSizing: 'border-box',
+                transition: 'border-color 0.2s',
               }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(198,162,85,0.3)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
               onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
             />
             <button
               onClick={() => setIp('tadpole.local')}
               disabled={connecting}
               style={{
-                height: 44,
-                padding: '0 12px',
-                borderRadius: 10,
-                border: '1px solid rgba(198,162,85,0.3)',
-                background: 'transparent',
+                height: 48,
+                padding: '0 14px',
+                borderRadius: 12,
+                border: '1px solid rgba(198,162,85,0.2)',
+                background: 'rgba(198,162,85,0.06)',
                 color: '#c6a255',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: connecting ? 'default' : 'pointer',
                 whiteSpace: 'nowrap',
+                transition: 'all 0.2s',
               }}
             >
               Auto
             </button>
           </div>
 
-          <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.4 }}>
-            Enter your Steam Deck IP address, or tap &ldquo;Auto&rdquo; to discover via mDNS (tadpole.local)
+          <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 16, lineHeight: 1.4 }}>
+            Enter your Steam Deck IP or tap Auto to discover via mDNS
           </p>
 
+          {/* Connect button */}
           <button
             onClick={handleConnect}
             disabled={connecting || !ip.trim()}
             style={{
               width: '100%',
-              height: 44,
-              borderRadius: 10,
+              height: 50,
+              borderRadius: 12,
               border: 'none',
-              background: connecting || !ip.trim() ? 'rgba(198,162,85,0.3)' : '#c6a255',
-              color: connecting || !ip.trim() ? '#888' : '#0d0c1d',
+              background: connecting || !ip.trim()
+                ? 'rgba(198,162,85,0.15)'
+                : 'linear-gradient(135deg, #c6a255 0%, #d4b56a 50%, #c6a255 100%)',
+              color: connecting || !ip.trim() ? '#666' : '#0d0c1d',
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: connecting || !ip.trim() ? 'default' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              boxShadow: (!connecting && ip.trim()) ? '0 0 16px rgba(198,162,85,0.3)' : 'none',
-              transition: 'box-shadow 0.2s',
+              boxShadow: (!connecting && ip.trim()) ? '0 4px 20px rgba(198,162,85,0.25)' : 'none',
+              transition: 'all 0.3s ease',
+              letterSpacing: '0.02em',
             }}
           >
             <Wifi size={16} />
             {connecting ? 'Connecting...' : 'Connect'}
           </button>
         </div>
+
+        {/* Bottom decorative text */}
+        <p
+          className="animate-fade-in stagger-4"
+          style={{
+            textAlign: 'center', marginTop: 24,
+            fontSize: 11, color: '#4b5563',
+            letterSpacing: '0.03em',
+          }}
+        >
+          Steam Deck + BG3 Script Extender required
+        </p>
       </main>
     );
   }
@@ -140,11 +226,14 @@ export default function HomePage() {
   const allChars = host ? [host, ...party] : party;
 
   return (
-    <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '16px 20px 100px' }}>
+    <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '16px 20px 140px' }}>
       {/* Status bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }} className="animate-fade-up">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#52b788', boxShadow: '0 0 8px rgba(82,183,136,0.5)' }} />
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#52b788',
+          }} className="animate-pulse-live" />
           <span style={{ fontSize: 12, fontWeight: 700, color: '#52b788', letterSpacing: '0.08em' }}>LIVE</span>
         </div>
         <button

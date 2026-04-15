@@ -10,68 +10,66 @@ interface QuickActionsBarProps {
 export default function QuickActionsBar({ sendCommand }: QuickActionsBarProps) {
   const [lastAction, setLastAction] = useState<string | null>(null);
 
-  const handleAction = useCallback((action: string, label: string) => {
-    sendCommand({ action });
-    setLastAction(label);
-    setTimeout(() => setLastAction(null), 1500);
-  }, [sendCommand]);
-
   const actions = [
-    { action: 'heal_party', label: 'Heal Party', icon: <HeartPlus size={16} />, color: '#52b788' },
+    { action: 'heal_party', label: 'Heal', icon: <HeartPlus size={16} />, color: '#52b788' },
     { action: 'short_rest', label: 'Short Rest', icon: <Tent size={16} />, color: '#48bfe3' },
     { action: 'long_rest', label: 'Long Rest', icon: <Sparkles size={16} />, color: '#c6a255' },
-    { action: 'add_gold', label: '+500 Gold', icon: <Coins size={16} />, color: '#c6a255', params: { amount: 500 } },
+    { action: 'add_gold', label: '+500g', icon: <Coins size={16} />, color: '#f4a261', params: { amount: 500 } },
   ];
 
   return (
     <div
       style={{
         position: 'fixed',
-        bottom: 0,
+        bottom: 56, // above BottomNav
         left: 0,
         right: 0,
-        background: 'rgba(10,10,15,0.95)',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-        padding: '8px 16px',
-        paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+        background: 'rgba(10,10,15,0.92)',
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        padding: '6px 12px',
+        paddingBottom: 6,
         display: 'flex',
-        gap: 8,
+        gap: 6,
         justifyContent: 'space-around',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        zIndex: 100,
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        zIndex: 999,
       }}
     >
-      {actions.map(({ action, label, icon, color, params }) => (
-        <button
-          key={action}
-          onClick={() => {
-            sendCommand({ action, ...params });
-            setLastAction(label);
-            setTimeout(() => setLastAction(null), 1500);
-          }}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 2,
-            padding: '6px 8px',
-            borderRadius: 10,
-            border: lastAction === label ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
-            background: lastAction === label ? `${color}15` : 'rgba(255,255,255,0.03)',
-            color,
-            cursor: 'pointer',
-            minWidth: 68,
-            minHeight: 44,
-            transition: 'all 0.2s',
-            fontSize: 10,
-            fontWeight: 600,
-          }}
-        >
-          {icon}
-          <span>{label}</span>
-        </button>
-      ))}
+      {actions.map(({ action, label, icon, color, params }) => {
+        const active = lastAction === action;
+        return (
+          <button
+            key={action}
+            onClick={() => {
+              sendCommand({ action, ...params });
+              setLastAction(action);
+              setTimeout(() => setLastAction(null), 1200);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: active ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.06)',
+              background: active ? `${color}18` : 'rgba(255,255,255,0.03)',
+              color: active ? color : 'rgba(255,255,255,0.6)',
+              cursor: 'pointer',
+              minWidth: 44,
+              minHeight: 44,
+              transition: 'all 0.2s ease',
+              fontSize: 11,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {icon}
+            <span>{label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

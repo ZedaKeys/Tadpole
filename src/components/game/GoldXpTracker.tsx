@@ -13,6 +13,8 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
   const prevXpRef = useRef(0);
   const [goldDelta, setGoldDelta] = useState<number | null>(null);
   const [xpDelta, setXpDelta] = useState<number | null>(null);
+  const [goldPop, setGoldPop] = useState(false);
+  const [xpPop, setXpPop] = useState(false);
 
   useEffect(() => {
     const currentGold = gameState.gold;
@@ -21,15 +23,16 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
     if (prevGold !== 0 && currentGold !== prevGold) {
       const delta = currentGold - prevGold;
       setGoldDelta(delta);
+      setGoldPop(true);
       const timer = setTimeout(() => setGoldDelta(null), 3000);
+      const popTimer = setTimeout(() => setGoldPop(false), 400);
       prevGoldRef.current = currentGold;
-      return () => clearTimeout(timer);
+      return () => { clearTimeout(timer); clearTimeout(popTimer); };
     }
 
     prevGoldRef.current = currentGold;
   }, [gameState.gold]);
 
-  // Track XP from host
   useEffect(() => {
     const host = gameState.host;
     if (!host?.experience) return;
@@ -40,9 +43,11 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
     if (prevXp !== 0 && currentXp !== prevXp) {
       const delta = currentXp - prevXp;
       setXpDelta(delta);
+      setXpPop(true);
       const timer = setTimeout(() => setXpDelta(null), 3000);
+      const popTimer = setTimeout(() => setXpPop(false), 400);
       prevXpRef.current = currentXp;
-      return () => clearTimeout(timer);
+      return () => { clearTimeout(timer); clearTimeout(popTimer); };
     }
 
     prevXpRef.current = currentXp;
@@ -53,15 +58,10 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
   const level = host?.level;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 8,
-        marginBottom: 20,
-      }}
-    >
+    <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
       {/* Gold */}
       <div
+        className="animate-fade-up stagger-1"
         style={{
           flex: 1,
           display: 'flex',
@@ -79,13 +79,22 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
         <Coins size={16} style={{ color: '#c6a255', flexShrink: 0 }} />
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#c6a255' }}>
+            <span
+              className={goldPop ? 'animate-count-pop' : undefined}
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: '#c6a255',
+                transition: 'transform 0.2s ease',
+              }}
+            >
               {gameState.gold.toLocaleString()}
             </span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>Gold</span>
           </div>
           {goldDelta !== null && goldDelta !== 0 && (
             <div
+              className="animate-slide-in"
               style={{
                 fontSize: 11,
                 fontWeight: 600,
@@ -93,7 +102,6 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
-                animation: 'fadeIn 0.3s',
               }}
             >
               {goldDelta > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
@@ -106,6 +114,7 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
       {/* XP */}
       {xp != null && (
         <div
+          className="animate-fade-up stagger-2"
           style={{
             flex: 1,
             display: 'flex',
@@ -122,7 +131,15 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
           <Star size={16} style={{ color: '#48bfe3', flexShrink: 0 }} />
           <div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: '#48bfe3' }}>
+              <span
+                className={xpPop ? 'animate-count-pop' : undefined}
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#48bfe3',
+                  transition: 'transform 0.2s ease',
+                }}
+              >
                 {xp.toLocaleString()}
               </span>
               {level != null && (
@@ -131,6 +148,7 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
             </div>
             {xpDelta !== null && xpDelta !== 0 && (
               <div
+                className="animate-slide-in"
                 style={{
                   fontSize: 11,
                   fontWeight: 600,
