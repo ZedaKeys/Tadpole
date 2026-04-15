@@ -2,51 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
-import { Coins, Swords, Wifi, WifiOff, Shield } from 'lucide-react';
+import { Swords, Wifi, WifiOff, Shield, MessageSquare, Cloud } from 'lucide-react';
 
-function hpColor(ratio: number): string {
-  if (ratio > 0.6) return '#52b788';
-  if (ratio > 0.3) return '#f4a261';
-  return '#e76f51';
-}
-
-function HpBar({ name, hp, maxHp, level }: { name: string; hp: number; maxHp: number; level: number }) {
-  const ratio = maxHp > 0 ? hp / maxHp : 0;
-  const color = hpColor(ratio);
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#e2e0d8' }}>{name}</span>
-        <span style={{ fontSize: 12, color: '#9ca3af' }}>Lv {level} · {hp}/{maxHp}</span>
-      </div>
-      <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${Math.max(ratio * 100, 0)}%`, borderRadius: 4, background: color, transition: 'width 0.3s, background 0.3s' }} />
-      </div>
-    </div>
-  );
-}
+import PartyHealthDashboard from '@/components/game/PartyHealthDashboard';
+import CombatTracker from '@/components/game/CombatTrackerNew';
+import SpellAndConditions from '@/components/game/SpellAndConditions';
+import DeathSaveTracker from '@/components/game/DeathSaveTracker';
+import SessionTimeline from '@/components/game/SessionTimeline';
+import GoldXpTracker from '@/components/game/GoldXpTracker';
+import CharacterSheetViewer from '@/components/game/CharacterSheetViewer';
+import CampSupplyGauge from '@/components/game/CampSupplyGauge';
+import QuickActionsBar from '@/components/game/QuickActionsBar';
 
 export default function HomePage() {
-  const { gameState, isConnected, connectionStatus, disconnect, connect, getLastHost } = useGameConnection();
+  const { gameState, isConnected, connectionStatus, disconnect, connect, getLastHost, sendCommand } = useGameConnection();
   const [ip, setIp] = useState(() => getLastHost() || '');
   const [connecting, setConnecting] = useState(false);
 
   // Auto-connect to the host serving this page
   useEffect(() => {
-    // Skip if already connected or connecting
     if (isConnected || connecting) return;
 
-    // Get the host from the current URL (where the app is loaded from)
     const hostname = window.location.hostname;
-
-    // Skip localhost/127.0.0.1 - those are dev environments
     if (hostname === 'localhost' || hostname === '127.0.0.1') return;
 
-    // Check if we have a saved host
     const savedHost = getLastHost();
-
-    // Use saved host if it exists and matches current host
-    // Otherwise, use current host for auto-connect
     const autoConnectHost = (savedHost && savedHost === hostname) ? savedHost : hostname;
 
     if (autoConnectHost) {
@@ -59,10 +39,8 @@ export default function HomePage() {
     if (!ip.trim()) return;
     setConnecting(true);
     connect(ip.trim(), 3456);
-    // connecting state will clear when isConnected changes
   };
 
-  // Clear connecting flag once connected or on error (status changes)
   if (connecting && isConnected) setConnecting(false);
 
   // ── Connection Panel ──
@@ -157,12 +135,14 @@ export default function HomePage() {
   }
 
   // ── Live Dashboard ──
-  const recentEvents = (gameState.events || []).slice(-5).reverse();
+  const party = gameState.party || [];
+  const host = gameState.host;
+  const allChars = host ? [host, ...party] : party;
 
   return (
-    <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '16px 20px 32px' }}>
+    <main style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '16px 20px 100px' }}>
       {/* Status bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#52b788', boxShadow: '0 0 8px rgba(82,183,136,0.5)' }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: '#52b788', letterSpacing: '0.08em' }}>LIVE</span>
@@ -184,57 +164,68 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* Area + Combat */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+      {/* Area + Combat + Dialog + Weather badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 18, fontWeight: 600, color: '#e2e0d8' }}>{gameState.area || 'Unknown'}</span>
         {gameState.inCombat && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(231,111,81,0.12)', color: '#e76f51', fontSize: 12, fontWeight: 600 }}>
             <Swords size={12} /> COMBAT
           </span>
         )}
+        {gameState.inDialog && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(198,162,85,0.12)', color: '#c6a255', fontSize: 12, fontWeight: 600 }}>
+            <MessageSquare size={12} /> DIALOG
+          </span>
+        )}
+        {gameState.weather && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(72,191,227,0.12)', color: '#48bfe3', fontSize: 12, fontWeight: 600 }}>
+            <Cloud size={12} /> {gameState.weather}
+          </span>
+        )}
       </div>
 
-      {/* Gold */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, padding: '12px 16px', borderRadius: 16, background: 'rgba(198,162,85,0.06)', border: '1px solid rgba(198,162,85,0.1)', boxShadow: '0 0 12px rgba(198,162,85,0.08)' }}>
-        <Coins size={16} style={{ color: '#c6a255' }} />
-        <span style={{ fontSize: 16, fontWeight: 600, color: '#c6a255' }}>{gameState.gold.toLocaleString()}</span>
-        <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 2 }}>Gold</span>
-      </div>
+      {/* Feature 7: Gold/XP Tracker */}
+      <GoldXpTracker gameState={gameState} />
 
-      {/* HP Bars */}
+      {/* Feature 9: Camp Supply Gauge */}
+      <CampSupplyGauge supplies={gameState.campSupplies} />
+
+      {/* Feature 2: Combat Tracker (auto-shows in combat) */}
+      <CombatTracker state={gameState} />
+
+      {/* Feature 1: Party Health Dashboard */}
+      <PartyHealthDashboard host={host} party={party} />
+
+      {/* Feature 5: Death Save Trackers */}
+      {allChars.some((c) => c.deathSaves?.isDead) && (
+        <div style={{ marginBottom: 20 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+            Death Saves
+          </span>
+          {allChars.filter((c) => c.deathSaves?.isDead).map((c) => (
+            <DeathSaveTracker key={c.guid} character={c} />
+          ))}
+        </div>
+      )}
+
+      {/* Features 3 & 4: Spell Slots + Conditions */}
+      <SpellAndConditions host={host} party={party} />
+
+      {/* Feature 8: Character Sheet Viewer */}
       <div style={{ marginBottom: 20 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Party Health</span>
-        {gameState.host && <HpBar name={gameState.host.name} hp={gameState.host.hp} maxHp={gameState.host.maxHp} level={gameState.host.level} />}
-        {gameState.party.map((c) => (
-          <HpBar key={c.guid} name={c.name} hp={c.hp} maxHp={c.maxHp} level={c.level} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+          Character Sheets
+        </span>
+        {allChars.map((c) => (
+          <CharacterSheetViewer key={c.guid} character={c} />
         ))}
       </div>
 
-      {/* Event Feed */}
-      {recentEvents.length > 0 && (
-        <div>
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Recent Events</span>
-          <div style={{ borderRadius: 16, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-            {recentEvents.map((ev, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                  borderBottom: i < recentEvents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                }}
-              >
-                <span style={{ fontSize: 13, color: '#d1d5db' }}>{ev.type}</span>
-                <span style={{ fontSize: 11, color: '#6b7280' }}>
-                  {ev.area || new Date(ev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Feature 6: Session Timeline */}
+      <SessionTimeline events={gameState.events} />
+
+      {/* Feature 10: Quick Actions Bar (fixed bottom) */}
+      <QuickActionsBar sendCommand={sendCommand} />
     </main>
   );
 }

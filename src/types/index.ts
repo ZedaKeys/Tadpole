@@ -211,21 +211,58 @@ export interface UserPreferences {
 }
 
 // === Live Game State (Phase 2+) ===
-// Shape matches the actual Lua mod (TadpoleCompanion.lua) output.
+// Shape matches the actual Lua mod (TadpoleCompanion.lua v0.17.0) output.
+
+export interface AbilityScores {
+  str: number;
+  dex: number;
+  con: number;
+  int: number;
+  wis: number;
+  cha: number;
+}
+
+export interface SpellSlots {
+  [level: string]: { current: number; max: number };
+}
+
+export interface ConcentrationInfo {
+  spellId: string;
+  caster: string;
+}
+
+export interface DeathSaves {
+  successes: number;
+  failures: number;
+  isDead: boolean;
+}
 
 export interface GameCharacter {
   guid: string;
   name: string;
   hp: number;
   maxHp: number;
+  tempHp?: number;
   level: number;
+  armorClass?: number;
+  isInvulnerable?: boolean;
+  isDead?: boolean;
+  isSneaking?: boolean;
   position: { x: number; y: number; z: number };
+  experience?: number;
+  proficiencyBonus?: number;
+  abilityScores?: AbilityScores;
+  spellSlots?: SpellSlots;
+  conditions?: string[];
+  concentration?: ConcentrationInfo | null;
+  deathSaves?: DeathSaves;
 }
 
 export interface GameEvent {
   type: string;
   timestamp: number;
   area?: string;
+  detail?: string;
 }
 
 /** Event detected by the bridge server (comparing state snapshots) */
@@ -235,14 +272,23 @@ export interface BridgeEvent {
   detail?: string;
 }
 
+export interface CampSupplies {
+  current: number;
+  max: number;
+  canRest: boolean;
+}
+
 export interface GameState {
   timestamp: number;
   area: string;
   inCombat: boolean;
+  inDialog?: boolean;
+  weather?: string;
   host: GameCharacter | null;
   party: GameCharacter[];
   gold: number;
   events: GameEvent[];
+  campSupplies?: CampSupplies;
 }
 
 // === Build Planner ===

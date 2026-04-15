@@ -8,6 +8,7 @@ via the official decky module.
 
 import subprocess
 import os
+import sys
 import json
 import signal
 import socket
@@ -49,7 +50,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.9.0"
+PLUGIN_VERSION = "0.12.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -1128,7 +1129,7 @@ class Plugin:
         _log(f"Version: {PLUGIN_VERSION}")
         _log(f"DECKY_PLUGIN_DIR: {getattr(decky, 'DECKY_PLUGIN_DIR', 'unknown')}")
         _log(f"DECKY_USER_HOME: {getattr(decky, 'DECKY_USER_HOME', 'unknown')}")
-        _log(f"Python: {os.path.dirname(os.executable)}")
+        _log(f"Python: {os.path.dirname(sys.executable)}")
         _log(f"Node installed: {_is_node_installed()}")
         _log(f"Node binary: {_get_node_binary()}")
         _log(f"Bridge found: {_find_bridge_server()}")
@@ -1452,6 +1453,57 @@ class Plugin:
             }
         except Exception as e:
             return {"log": f"Error reading log: {e}", "diagnostic": "", "version": PLUGIN_VERSION}
+
+    async def get_launch_options(self) -> dict:
+        """Get current BG3 Steam launch options."""
+        try:
+            current = _get_steam_launch_options("1086940")
+            return {
+                "success": True,
+                "current": current or "",
+                "recommended": 'WINEDLLOVERRIDES="DWrite.dll=n,b" %command%',
+                "has_dwrite": bool(current and "DWrite.dll" in current),
+            }
+        except Exception as e:
+            return {"success": False, "current": "", "recommended": "", "has_dwrite": False, "error": str(e)}
+
+    async def set_launch_options(self, launch_options: str) -> dict:
+        """Set BG3 Steam launch options. Returns the final value set."""
+        try:
+            _set_steam_launch_options("1086940", launch_options)
+            _log(f"Launch options set: {launch_options}")
+            return {"success": True, "message": f"Set: {launch_options}", "value": launch_options}
+        except Exception as e:
+            _log(f"Failed to set launch options: {e}")
+            return {"success": False, "message": str(e)}
+
+    async def copy_to_clipboard(self, text: str) -> dict:
+        """Copy text to the system clipboard using xclip (XWayland on Steam Deck).
+
+        Decky's CEF webview blocks navigator.clipboard, so we use the Python
+        backend to call xclip against the XWayland display.
+        """
+        try:
+            result = subprocess.run(
+                ["xclip", "-selection", "clipboard"],
+                input=text,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env={**os.environ, "DISPLAY": ":0"},
+            )
+            if result.returncode == 0:
+                _log(f"Copied to clipboard: {text[:60]}")
+                return {"success": True}
+            else:
+                _log(f"xclip failed: {result.stderr}", "ERROR")
+                return {"success": False, "error": result.stderr.strip()}
+        except FileNotFoundError:
+            _log("xclip not installed", "ERROR")
+            return {"success": False, "error": "xclip not installed"}
+        except Exception as e:
+            _log(f"copy_to_clipboard failed: {e}", "ERROR")
+            return {"success": False, "error": str(e)}
 
     async def get_manual_commands(self) -> dict:
         """Return terminal commands the user can run manually to install deps."""

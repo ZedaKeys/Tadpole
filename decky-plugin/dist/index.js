@@ -121,6 +121,9 @@ const callInstallEverything = callable("install_everything");
 const callCheckUpdate = callable("check_update");
 const callPerformUpdate = callable("perform_update");
 const callGetLog = callable("get_log");
+const callGetLaunchOptions = callable("get_launch_options");
+const callSetLaunchOptions = callable("set_launch_options");
+const callCopyToClipboard = callable("copy_to_clipboard");
 const DEFAULT_SETTINGS = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
 // ---------------------------------------------------------------------------
 // Main Panel
@@ -148,6 +151,13 @@ const TadpolePanel = () => {
     const [updating, setUpdating] = SP_REACT.useState(false);
     const [showLog, setShowLog] = SP_REACT.useState(false);
     const [logText, setLogText] = SP_REACT.useState("");
+    // Launch
+    const [launchCurrent, setLaunchCurrent] = SP_REACT.useState("");
+    const LAUNCH_CMD_DWRITE = 'WINEDLLOVERRIDES="DWrite.dll=n,b" %command%';
+    const LAUNCH_CMD_LSFG = 'WINEDLLOVERRIDES="DWrite.dll=n,b;lsfg.vk.dll=n,b" %command%';
+    const [launchHasDwrite, setLaunchHasDwrite] = SP_REACT.useState(false);
+    const [launchLoading, setLaunchLoading] = SP_REACT.useState(false);
+    const [launchCopied, setLaunchCopied] = SP_REACT.useState("");
     const pollRef = SP_REACT.useRef(null);
     const autoStartRef = SP_REACT.useRef(false);
     const runDiagnostics = SP_REACT.useCallback(async () => {
@@ -340,6 +350,94 @@ const TadpolePanel = () => {
     // -----------------------------------------------------------------------
     const SetupTab = () => (SP_JSX.jsx("div", { children: diagnostics?.ready ? (SP_JSX.jsxs("div", { style: s.card("rgba(82,183,136,0.2)"), children: [SP_JSX.jsx("div", { style: { ...s.value, color: "#52b788", textAlign: "center", marginBottom: 4 }, children: "All set!" }), SP_JSX.jsx("div", { style: { ...s.muted, textAlign: "center" }, children: "Everything is installed and ready." })] })) : (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsxs("div", { style: { ...s.card(), marginBottom: 6 }, children: [SP_JSX.jsx("div", { style: { ...s.value, fontSize: 14, marginBottom: 6 }, children: "Tadpole Setup" }), SP_JSX.jsx("div", { style: s.muted, children: "One click installs everything you need." })] }), diagnostics && (SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsx(CheckLine, { label: "BG3 Script Extender", ok: diagnostics.bg3se_installed }), SP_JSX.jsx(CheckLine, { label: diagnostics.node_installed ? `Node.js ${diagnostics.node_version || ""}` : "Node.js", ok: diagnostics.node_installed }), SP_JSX.jsx(CheckLine, { label: "Bridge Server", ok: diagnostics.bridge_found }), SP_JSX.jsx(CheckLine, { label: "BG3 Lua Mod", ok: diagnostics.lua_installed })] })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: handleInstall, disabled: installing, children: installing ? "Installing..." : "Install Everything" }) })] })) }));
     // -----------------------------------------------------------------------
+    // Tab: Launch
+    // -----------------------------------------------------------------------
+    const LaunchTab = () => (SP_JSX.jsxs("div", { children: [SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsx("div", { style: { ...s.value, fontSize: 14, marginBottom: 6 }, children: "BG3 Launch Options" }), SP_JSX.jsx("div", { style: s.muted, children: "Required for BG3 Script Extender. Steam needs a restart after changing these." })] }), SP_JSX.jsxs("div", { style: s.card(launchHasDwrite ? "rgba(82,183,136,0.2)" : "rgba(231,111,81,0.15)"), children: [SP_JSX.jsx("div", { style: { ...s.row(), marginBottom: 6 }, children: SP_JSX.jsxs("div", { style: s.row(false), children: [SP_JSX.jsx("div", { style: s.dot(launchHasDwrite ? "#52b788" : "#e76f51") }), SP_JSX.jsx("span", { style: { ...s.value, fontSize: 12, color: launchHasDwrite ? "#52b788" : "#e76f51" }, children: launchHasDwrite ? "DWrite override set" : "DWrite override missing" })] }) }), launchCurrent && (SP_JSX.jsx("div", { style: { ...s.muted, fontFamily: "monospace", fontSize: 10, background: "rgba(255,255,255,0.04)", padding: "6px 8px", borderRadius: 6, wordBreak: "break-all" }, children: launchCurrent }))] }), SP_JSX.jsxs("div", { style: s.card("rgba(120,180,255,0.12)"), children: [SP_JSX.jsx("div", { style: { ...s.row(), marginBottom: 4 }, children: SP_JSX.jsx("div", { style: { ...s.label, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }, children: "Standard (BG3SE only)" }) }), SP_JSX.jsx("div", { style: { fontFamily: "monospace", fontSize: 11, color: "rgba(120,180,255,0.9)", background: "rgba(255,255,255,0.04)", padding: "8px 10px", borderRadius: 6, wordBreak: "break-all", lineHeight: 1.5 }, children: LAUNCH_CMD_DWRITE }), SP_JSX.jsxs("div", { style: { display: "flex", gap: 6, marginTop: 8 }, children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", smol: true, onClick: async () => {
+                                        try {
+                                            const r = await callCopyToClipboard(LAUNCH_CMD_DWRITE);
+                                            if (r.success) {
+                                                setLaunchCopied("dwrite");
+                                                toaster.toast({ title: "Copied!", body: "Paste this in Steam launch options" });
+                                                setTimeout(() => setLaunchCopied(""), 2000);
+                                            }
+                                            else {
+                                                toaster.toast({ title: "Copy Failed", body: r.error || "Unknown error" });
+                                            }
+                                        }
+                                        catch {
+                                            toaster.toast({ title: "Copy Failed", body: "Copy manually from the text above" });
+                                        }
+                                    }, children: launchCopied === "dwrite" ? "✓ Copied" : "📋 Copy" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", smol: true, disabled: launchLoading, onClick: async () => {
+                                        setLaunchLoading(true);
+                                        try {
+                                            const r = await callSetLaunchOptions(LAUNCH_CMD_DWRITE);
+                                            if (r.success) {
+                                                toaster.toast({ title: "Set!", body: "Restart Steam to apply" });
+                                                const info = await callGetLaunchOptions();
+                                                if (info.success) {
+                                                    setLaunchCurrent(info.current);
+                                                    setLaunchHasDwrite(info.has_dwrite);
+                                                }
+                                            }
+                                            else {
+                                                toaster.toast({ title: "Failed", body: r.message });
+                                            }
+                                        }
+                                        catch {
+                                            toaster.toast({ title: "Error", body: "Could not set launch options" });
+                                        }
+                                        setLaunchLoading(false);
+                                    }, children: "Auto-Set" }) })] })] }), SP_JSX.jsxs("div", { style: s.card("rgba(168,85,247,0.12)"), children: [SP_JSX.jsx("div", { style: { ...s.row(), marginBottom: 4 }, children: SP_JSX.jsx("div", { style: { ...s.label, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }, children: "With Lossless Scaling (LSFG)" }) }), SP_JSX.jsx("div", { style: { fontFamily: "monospace", fontSize: 11, color: "rgba(168,85,247,0.9)", background: "rgba(255,255,255,0.04)", padding: "8px 10px", borderRadius: 6, wordBreak: "break-all", lineHeight: 1.5 }, children: LAUNCH_CMD_LSFG }), SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10, marginTop: 4, marginBottom: 8 }, children: "Use this if you have Lossless Scaling installed with LSFG frame generation." }), SP_JSX.jsxs("div", { style: { display: "flex", gap: 6 }, children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", smol: true, onClick: async () => {
+                                        try {
+                                            const r = await callCopyToClipboard(LAUNCH_CMD_LSFG);
+                                            if (r.success) {
+                                                setLaunchCopied("lsfg");
+                                                toaster.toast({ title: "Copied!", body: "Paste this in Steam launch options" });
+                                                setTimeout(() => setLaunchCopied(""), 2000);
+                                            }
+                                            else {
+                                                toaster.toast({ title: "Copy Failed", body: r.error || "Unknown error" });
+                                            }
+                                        }
+                                        catch {
+                                            toaster.toast({ title: "Copy Failed", body: "Copy manually from the text above" });
+                                        }
+                                    }, children: launchCopied === "lsfg" ? "✓ Copied" : "📋 Copy" }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", smol: true, disabled: launchLoading, onClick: async () => {
+                                        setLaunchLoading(true);
+                                        try {
+                                            const r = await callSetLaunchOptions(LAUNCH_CMD_LSFG);
+                                            if (r.success) {
+                                                toaster.toast({ title: "Set!", body: "Restart Steam to apply" });
+                                                const info = await callGetLaunchOptions();
+                                                if (info.success) {
+                                                    setLaunchCurrent(info.current);
+                                                    setLaunchHasDwrite(info.has_dwrite);
+                                                }
+                                            }
+                                            else {
+                                                toaster.toast({ title: "Failed", body: r.message });
+                                            }
+                                        }
+                                        catch {
+                                            toaster.toast({ title: "Error", body: "Could not set launch options" });
+                                        }
+                                        setLaunchLoading(false);
+                                    }, children: "Auto-Set" }) })] })] }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => {
+                        setLaunchLoading(true);
+                        try {
+                            const info = await callGetLaunchOptions();
+                            if (info.success) {
+                                setLaunchCurrent(info.current);
+                                setLaunchHasDwrite(info.has_dwrite);
+                                toaster.toast({ title: "Refreshed", body: info.has_dwrite ? "DWrite override active" : "DWrite override not found" });
+                            }
+                        }
+                        catch {
+                            toaster.toast({ title: "Error", body: "Could not read launch options" });
+                        }
+                        setLaunchLoading(false);
+                    }, children: "Refresh Status" }) })] }));
+    // -----------------------------------------------------------------------
     // Tab: Settings
     // -----------------------------------------------------------------------
     const SettingsTab = () => (SP_JSX.jsxs("div", { children: [SP_JSX.jsx("div", { style: s.card(), children: SP_JSX.jsx(DFL.ToggleField, { label: "Auto-start with BG3", checked: settings.autoStart, onChange: (v) => updateSettings({ ...settings, autoStart: v }) }) }), SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsxs("div", { style: { ...s.row(), marginBottom: 6 }, children: [SP_JSX.jsx("span", { style: s.label, children: "Port" }), SP_JSX.jsx("span", { style: s.value, children: settings.port })] }), SP_JSX.jsxs("div", { style: s.row(), children: [SP_JSX.jsx("span", { style: s.label, children: "Bridge Dir" }), SP_JSX.jsx("span", { style: { ...s.value, fontSize: 10, fontFamily: "monospace", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }, children: settings.bridgeDir })] })] }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: async () => {
@@ -383,7 +481,7 @@ const TadpolePanel = () => {
     // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------
-    return (SP_JSX.jsx(TadpoleErrorBoundary, { children: SP_JSX.jsxs("div", { style: s.root, children: [SP_JSX.jsx("div", { style: s.tabRow, children: ["live", "setup", "settings"].map(t => (SP_JSX.jsx("button", { style: s.tab(tab === t), onClick: () => setTab(t), children: t === "live" ? "Live" : t === "setup" ? "Setup" : "Settings" }, t))) }), tab === "live" && SP_JSX.jsx(LiveTab, {}), tab === "setup" && SP_JSX.jsx(SetupTab, {}), tab === "settings" && SP_JSX.jsx(SettingsTab, {})] }) }));
+    return (SP_JSX.jsx(TadpoleErrorBoundary, { children: SP_JSX.jsxs("div", { style: s.root, children: [SP_JSX.jsx("div", { style: s.tabRow, children: ["live", "setup", "launch", "settings"].map(t => (SP_JSX.jsx("button", { style: s.tab(tab === t), onClick: () => setTab(t), children: t === "live" ? "Live" : t === "setup" ? "Setup" : t === "launch" ? "Launch" : "Settings" }, t))) }), tab === "live" && SP_JSX.jsx(LiveTab, {}), tab === "setup" && SP_JSX.jsx(SetupTab, {}), tab === "launch" && SP_JSX.jsx(LaunchTab, {}), tab === "settings" && SP_JSX.jsx(SettingsTab, {})] }) }));
 };
 // ---------------------------------------------------------------------------
 // Shared Components

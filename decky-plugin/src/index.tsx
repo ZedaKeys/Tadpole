@@ -80,6 +80,9 @@ const callCheckUpdate = callable<[], {
 }>("check_update");
 const callPerformUpdate = callable<[string], { success: boolean; message: string }>("perform_update");
 const callGetLog = callable<[], { log: string }>("get_log");
+const callGetLaunchOptions = callable<[], { success: boolean; current: string; recommended: string; has_dwrite: boolean; error?: string }>("get_launch_options");
+const callSetLaunchOptions = callable<[string], { success: boolean; message: string; value?: string }>("set_launch_options");
+const callCopyToClipboard = callable<[string], { success: boolean; error?: string }>("copy_to_clipboard");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,7 +91,7 @@ const callGetLog = callable<[], { log: string }>("get_log");
 interface PluginSettings { port: number; autoStart: boolean; bridgeDir: string; }
 const DEFAULT_SETTINGS: PluginSettings = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
 
-type Tab = "live" | "setup" | "settings";
+type Tab = "live" | "setup" | "launch" | "settings";
 
 // ---------------------------------------------------------------------------
 // Main Panel
@@ -120,6 +123,14 @@ const TadpolePanel: FunctionComponent = () => {
   const [updating, setUpdating] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [logText, setLogText] = useState("");
+
+  // Launch
+  const [launchCurrent, setLaunchCurrent] = useState("");
+  const LAUNCH_CMD_DWRITE = 'WINEDLLOVERRIDES="DWrite.dll=n,b" %command%';
+  const LAUNCH_CMD_LSFG = 'WINEDLLOVERRIDES="DWrite.dll=n,b;lsfg.vk.dll=n,b" %command%';
+  const [launchHasDwrite, setLaunchHasDwrite] = useState(false);
+  const [launchLoading, setLaunchLoading] = useState(false);
+  const [launchCopied, setLaunchCopied] = useState("");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartRef = useRef(false);
@@ -437,6 +448,140 @@ const TadpolePanel: FunctionComponent = () => {
   );
 
   // -----------------------------------------------------------------------
+  // Tab: Launch
+  // -----------------------------------------------------------------------
+  const LaunchTab = () => (
+    <div>
+      <div style={s.card()}>
+        <div style={{ ...s.value, fontSize: 14, marginBottom: 6 }}>BG3 Launch Options</div>
+        <div style={s.muted}>Required for BG3 Script Extender. Steam needs a restart after changing these.</div>
+      </div>
+
+      {/* Current status */}
+      <div style={s.card(launchHasDwrite ? "rgba(82,183,136,0.2)" : "rgba(231,111,81,0.15)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <div style={s.dot(launchHasDwrite ? "#52b788" : "#e76f51")} />
+            <span style={{ ...s.value, fontSize: 12, color: launchHasDwrite ? "#52b788" : "#e76f51" }}>
+              {launchHasDwrite ? "DWrite override set" : "DWrite override missing"}
+            </span>
+          </div>
+        </div>
+        {launchCurrent && (
+          <div style={{ ...s.muted, fontFamily: "monospace", fontSize: 10, background: "rgba(255,255,255,0.04)", padding: "6px 8px", borderRadius: 6, wordBreak: "break-all" }}>
+            {launchCurrent}
+          </div>
+        )}
+      </div>
+
+      {/* DWrite command (standard) */}
+      <div style={s.card("rgba(120,180,255,0.12)")}>
+        <div style={{ ...s.row(), marginBottom: 4 }}>
+          <div style={{ ...s.label, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Standard (BG3SE only)</div>
+        </div>
+        <div style={{ fontFamily: "monospace", fontSize: 11, color: "rgba(120,180,255,0.9)", background: "rgba(255,255,255,0.04)", padding: "8px 10px", borderRadius: 6, wordBreak: "break-all", lineHeight: 1.5 }}>
+          {LAUNCH_CMD_DWRITE}
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <PanelSectionRow>
+            <ButtonItem layout="below" smol onClick={async () => {
+              try {
+                const r = await callCopyToClipboard(LAUNCH_CMD_DWRITE);
+                if (r.success) {
+                  setLaunchCopied("dwrite");
+                  toaster.toast({ title: "Copied!", body: "Paste this in Steam launch options" });
+                  setTimeout(() => setLaunchCopied(""), 2000);
+                } else { toaster.toast({ title: "Copy Failed", body: r.error || "Unknown error" }); }
+              } catch { toaster.toast({ title: "Copy Failed", body: "Copy manually from the text above" }); }
+            }}>
+              {launchCopied === "dwrite" ? "✓ Copied" : "📋 Copy"}
+            </ButtonItem>
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" smol disabled={launchLoading} onClick={async () => {
+              setLaunchLoading(true);
+              try {
+                const r = await callSetLaunchOptions(LAUNCH_CMD_DWRITE);
+                if (r.success) {
+                  toaster.toast({ title: "Set!", body: "Restart Steam to apply" });
+                  const info = await callGetLaunchOptions();
+                  if (info.success) { setLaunchCurrent(info.current); setLaunchHasDwrite(info.has_dwrite); }
+                } else { toaster.toast({ title: "Failed", body: r.message }); }
+              } catch { toaster.toast({ title: "Error", body: "Could not set launch options" }); }
+              setLaunchLoading(false);
+            }}>
+              Auto-Set
+            </ButtonItem>
+          </PanelSectionRow>
+        </div>
+      </div>
+
+      {/* Lossless Scaling command */}
+      <div style={s.card("rgba(168,85,247,0.12)")}>
+        <div style={{ ...s.row(), marginBottom: 4 }}>
+          <div style={{ ...s.label, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>With Lossless Scaling (LSFG)</div>
+        </div>
+        <div style={{ fontFamily: "monospace", fontSize: 11, color: "rgba(168,85,247,0.9)", background: "rgba(255,255,255,0.04)", padding: "8px 10px", borderRadius: 6, wordBreak: "break-all", lineHeight: 1.5 }}>
+          {LAUNCH_CMD_LSFG}
+        </div>
+        <div style={{ ...s.muted, fontSize: 10, marginTop: 4, marginBottom: 8 }}>
+          Use this if you have Lossless Scaling installed with LSFG frame generation.
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <PanelSectionRow>
+            <ButtonItem layout="below" smol onClick={async () => {
+              try {
+                const r = await callCopyToClipboard(LAUNCH_CMD_LSFG);
+                if (r.success) {
+                  setLaunchCopied("lsfg");
+                  toaster.toast({ title: "Copied!", body: "Paste this in Steam launch options" });
+                  setTimeout(() => setLaunchCopied(""), 2000);
+                } else { toaster.toast({ title: "Copy Failed", body: r.error || "Unknown error" }); }
+              } catch { toaster.toast({ title: "Copy Failed", body: "Copy manually from the text above" }); }
+            }}>
+              {launchCopied === "lsfg" ? "✓ Copied" : "📋 Copy"}
+            </ButtonItem>
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" smol disabled={launchLoading} onClick={async () => {
+              setLaunchLoading(true);
+              try {
+                const r = await callSetLaunchOptions(LAUNCH_CMD_LSFG);
+                if (r.success) {
+                  toaster.toast({ title: "Set!", body: "Restart Steam to apply" });
+                  const info = await callGetLaunchOptions();
+                  if (info.success) { setLaunchCurrent(info.current); setLaunchHasDwrite(info.has_dwrite); }
+                } else { toaster.toast({ title: "Failed", body: r.message }); }
+              } catch { toaster.toast({ title: "Error", body: "Could not set launch options" }); }
+              setLaunchLoading(false);
+            }}>
+              Auto-Set
+            </ButtonItem>
+          </PanelSectionRow>
+        </div>
+      </div>
+
+      {/* Refresh */}
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={async () => {
+          setLaunchLoading(true);
+          try {
+            const info = await callGetLaunchOptions();
+            if (info.success) {
+              setLaunchCurrent(info.current);
+              setLaunchHasDwrite(info.has_dwrite);
+              toaster.toast({ title: "Refreshed", body: info.has_dwrite ? "DWrite override active" : "DWrite override not found" });
+            }
+          } catch { toaster.toast({ title: "Error", body: "Could not read launch options" }); }
+          setLaunchLoading(false);
+        }}>
+          Refresh Status
+        </ButtonItem>
+      </PanelSectionRow>
+    </div>
+  );
+
+  // -----------------------------------------------------------------------
   // Tab: Settings
   // -----------------------------------------------------------------------
   const SettingsTab = () => (
@@ -531,15 +676,16 @@ const TadpolePanel: FunctionComponent = () => {
       <div style={s.root}>
         {/* Tab bar */}
         <div style={s.tabRow}>
-          {(["live", "setup", "settings"] as Tab[]).map(t => (
+          {(["live", "setup", "launch", "settings"] as Tab[]).map(t => (
             <button key={t} style={s.tab(tab === t)} onClick={() => setTab(t)}>
-              {t === "live" ? "Live" : t === "setup" ? "Setup" : "Settings"}
+              {t === "live" ? "Live" : t === "setup" ? "Setup" : t === "launch" ? "Launch" : "Settings"}
             </button>
           ))}
         </div>
 
         {tab === "live" && <LiveTab />}
         {tab === "setup" && <SetupTab />}
+        {tab === "launch" && <LaunchTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </TadpoleErrorBoundary>
