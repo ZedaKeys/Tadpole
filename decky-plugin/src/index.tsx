@@ -98,6 +98,7 @@ const TadpolePanel: FunctionComponent = () => {
   // Status
   const [bridgeRunning, setBridgeRunning] = useState(false);
   const [bridgeHealthy, setBridgeHealthy] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [bg3Running, setBg3Running] = useState(false);
   const [ip, setIp] = useState("...");
   const [connectedClients, setConnectedClients] = useState(0);
@@ -106,6 +107,15 @@ const TadpolePanel: FunctionComponent = () => {
   const [loading, setLoading] = useState(false);
   const [nodeMissing, setNodeMissing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+
+  // Connection stability refs
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const healthCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const failCountRef = useRef(0);
+  const backoffMsRef = useRef(2000);
+  const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevHealthyRef = useRef(false);
+  const warningToastShownRef = useRef(false);
 
   // Setup
   const [diagnostics, setDiagnostics] = useState<any>(null);
@@ -127,7 +137,6 @@ const TadpolePanel: FunctionComponent = () => {
   const [launchLoading, setLaunchLoading] = useState(false);
   const [launchCopied, setLaunchCopied] = useState("");
 
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoStartRef = useRef(false);
   const tabRef = useRef<Tab>(tab);
   tabRef.current = tab;
@@ -163,14 +172,32 @@ const TadpolePanel: FunctionComponent = () => {
       if (data.bridge_running) {
         const h = await callCheckHealth();
         setBridgeHealthy(h.healthy);
+        // Detect healthy→unhealthy transition
+        if (prevHealthyRef.current && !h.healthy) {
+          console.warn('[tadpole] Bridge went from healthy to unhealthy');
+        }
+        prevHealthyRef.current = h.healthy;
       } else {
         setBridgeHealthy(false);
+        prevHealthyRef.current = false;
       }
+      // Success: reset backoff and failure counter
+      failCountRef.current = 0;
+      backoffMsRef.current = 2000;
+      warningToastShownRef.current = false;
+      setReconnecting(false);
     } catch (e) {
       console.error('Failed to fetch status:', e);
-      // Don't silently fail - this means the backend is unreachable
       setBridgeRunning(false);
       setBridgeHealthy(false);
+      setReconnecting(true);
+      failCountRef.current++;
+      backoffMsRef.current = Math.min(backoffMsRef.current * 2, 30000);
+      // Show warning toast after 5 consecutive failures
+      if (failCountRef.current >= 5 && !warningToastShownRef.current) {
+        warningToastShownRef.current = true;
+        toaster.toast({ title: "Tadpole Warning", body: `Bridge unreachable (${failCountRef.current} failed polls). Retrying...` });
+      }
     }
   }, []);
 
@@ -223,14 +250,64 @@ const TadpolePanel: FunctionComponent = () => {
     setInstalling(false);
   }, [runDiagnostics, fetchStatus]);
 
-  // Polling - only run when live tab is active
+  // Polling with exponential backoff - only run when live tab is active
   useEffect(() => {
-    if (tab !== "live") return; // Don't poll when not viewing live tab
+    if (tab !== "live") return;
+
+    // Clear any existing backoff timer
+    if (backoffTimerRef.current) {
+      clearTimeout(backoffTimerRef.current);
+      backoffTimerRef.current = null;
+    }
+
+    // Reset backoff when switching to live tab
+    backoffMsRef.current = 2000;
+    failCountRef.current = 0;
+    setReconnecting(false);
 
     fetchStatus();
+
+    // Regular 2s polling
     pollRef.current = setInterval(fetchStatus, 2000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+
+    // Separate health check interval (every 10s)
+    healthCheckRef.current = setInterval(async () => {
+      try {
+        const h = await callCheckHealth();
+        const wasHealthy = prevHealthyRef.current;
+        setBridgeHealthy(h.healthy);
+        prevHealthyRef.current = h.healthy;
+        // Show subtle indicator when bridge goes from healthy to unhealthy
+        if (wasHealthy && !h.healthy) {
+          console.warn('[tadpole] Health check: bridge is unhealthy');
+        }
+      } catch {
+        setBridgeHealthy(false);
+        prevHealthyRef.current = false;
+      }
+    }, 10000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (healthCheckRef.current) clearInterval(healthCheckRef.current);
+      if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current);
+    };
   }, [fetchStatus, tab]);
+
+  // Exponential backoff reconnection: when reconnecting state is active,
+  // schedule retries with increasing delay
+  useEffect(() => {
+    if (!reconnecting || tab !== "live") return;
+
+    if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current);
+    backoffTimerRef.current = setTimeout(async () => {
+      await fetchStatus();
+    }, backoffMsRef.current);
+
+    return () => {
+      if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current);
+    };
+  }, [reconnecting, tab, fetchStatus]);
 
   // Auto-fetch launch options when switching to Launch tab
   useEffect(() => {
@@ -330,18 +407,29 @@ const TadpolePanel: FunctionComponent = () => {
       <div style={s.card()}>
         <div style={s.row()}>
           <div style={s.row(false)}>
-            <div style={s.dot(bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51")} />
-            <span style={{ ...s.value, fontSize: 11, color: bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51" }}>
-              {bridgeRunning && bridgeHealthy ? "Online" : bridgeRunning ? "Unhealthy" : "Offline"}
+            <div style={s.dot(reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51")} />
+            <span style={{ ...s.value, fontSize: 11, color: reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51" }}>
+              {reconnecting ? "Reconnecting..." : bridgeRunning && bridgeHealthy ? "Online" : bridgeRunning ? "Unhealthy" : "Offline"}
             </span>
+            {reconnecting && (
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                (attempt {failCountRef.current + 1})
+              </span>
+            )}
           </div>
-          {bridgeRunning && connectedClients > 0 && (
+          {bridgeRunning && !reconnecting && connectedClients > 0 && (
             <span style={s.pill("#52b788")}>{connectedClients} phone{connectedClients !== 1 ? "s" : ""}</span>
           )}
           {bg3Running && (
             <span style={s.pill("rgba(120,180,255,0.8)")}>BG3</span>
           )}
         </div>
+        {/* Unhealthy warning indicator */}
+        {bridgeRunning && !bridgeHealthy && !reconnecting && (
+          <div style={{ ...s.muted, fontSize: 10, color: "#f4a261", marginTop: 4, textAlign: "center" }}>
+            Bridge is running but unhealthy — some features may not work
+          </div>
+        )}
       </div>
 
       {/* Bridge control */}

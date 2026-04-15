@@ -1,0 +1,2 @@
+:HL["/phone/_next/static/chunks/10wm9vt8fu~0f.css","style"]
+0:{"tree":{"name":"","param":null,"prefetchHints":20,"slots":{"children":{"name":"spells","param":null,"prefetchHints":0,"slots":{"children":{"name":"spellId","param":{"type":"d","key":"speak-with-animals","siblings":null},"prefetchHints":0,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}}}}}},"staleTime":300,"buildId":"7ZGonEhDQc_Ol0TUzTNu4"}

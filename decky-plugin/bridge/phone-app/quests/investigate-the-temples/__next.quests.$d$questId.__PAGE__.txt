@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[30519,["/phone/_next/static/chunks/0qpjudyetyjk0.js","/phone/_next/static/chunks/00-csyj9a6t-x.js","/phone/_next/static/chunks/0wv4d23217jif.js"],"default"]
+3:I[97367,["/phone/_next/static/chunks/0qpjudyetyjk0.js","/phone/_next/static/chunks/00-csyj9a6t-x.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"params":{"questId":"investigate-the-temples"}}],[["$","script","script-0",{"src":"/phone/_next/static/chunks/0wv4d23217jif.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"7ZGonEhDQc_Ol0TUzTNu4"}
+5:null

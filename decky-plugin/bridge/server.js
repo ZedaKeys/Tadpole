@@ -394,13 +394,6 @@ function detectEvents(prev, curr) {
     events.push({ type: 'area_changed', timestamp: now, detail: `${prev.area || '???'} → ${curr.area}` });
   }
 
-  // Dialog started / ended
-  if (!prev.inDialog && curr.inDialog) {
-    events.push({ type: 'dialog_started', timestamp: now, detail: 'Dialog started.' });
-  } else if (prev.inDialog && !curr.inDialog) {
-    events.push({ type: 'dialog_ended', timestamp: now, detail: 'Dialog ended.' });
-  }
-
   // HP warnings — check host and all party members
   const checkHp = (label, member) => {
     if (!member) return;
@@ -440,17 +433,6 @@ function detectEvents(prev, curr) {
     if (Math.abs(delta) >= 100) {
       const direction = delta > 0 ? 'gained' : 'spent';
       events.push({ type: 'gold_change', timestamp: now, detail: `${direction} ${Math.abs(delta)} gold (now ${curr.gold})` });
-    }
-  }
-
-  // Approval changes
-  if (curr.partyApprovals && prev.partyApprovals) {
-    for (const [name, val] of Object.entries(curr.partyApprovals)) {
-      const oldVal = prev.partyApprovals[name];
-      if (typeof oldVal === 'number' && val !== oldVal) {
-        const direction = val > oldVal ? 'increased' : 'decreased';
-        events.push({ type: 'approval_change', timestamp: now, detail: `${name} approval ${direction} (${oldVal} → ${val})` });
-      }
     }
   }
 
