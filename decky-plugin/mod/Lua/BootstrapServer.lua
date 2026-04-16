@@ -1,10 +1,10 @@
 -- ============================================================
--- TadpoleNet BG3SE v30 BootstrapServer.lua v0.17.0
+-- TadpoleNet BG3SE v30 BootstrapServer.lua v0.15.0
 -- Comprehensive game state reader + command executor
 -- Deployed via GustavX piggyback on Steam Deck
 -- ============================================================
 
-local TADPOLE_VERSION = "0.17.0"
+local TADPOLE_VERSION = "0.15.0"
 local STATE_FILE = "TadpoleState.json"
 local COMMANDS_FILE = "TadpoleCommands.json"
 local EVENT_LOG_MAX = 50

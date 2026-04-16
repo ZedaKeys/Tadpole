@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
@@ -12,14 +13,13 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const NATIVE_SOCKET = process.env.NATIVE_SOCKET || '/tmp/tadpole_native.sock';
-const BRIDGE_VERSION = '0.8.0';
+const BRIDGE_VERSION = '0.15.0';
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
 const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || (() => {
   const crypto = require('crypto');
   const token = crypto.randomBytes(16).toString('hex');
-  console.log(`[auth] Generated bridge token: ${token}`);
   console.log(`[auth] Set BRIDGE_TOKEN env var to persist this across restarts.`);
   return token;
 })();
@@ -76,7 +76,7 @@ function reportBridgeError(message, stack, extra = {}) {
     // Report to PocketBase (fire and forget, 3s timeout)
     const postData = JSON.stringify(record);
     const url = new URL(PB_ERROR_ENDPOINT);
-    const req = http.request({
+    const req = https.request({
       hostname: url.hostname,
       port: 443,
       path: url.pathname,

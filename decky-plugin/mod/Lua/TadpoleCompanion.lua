@@ -392,7 +392,7 @@ Ext.Osiris.RegisterListener("LongRestFinished", 0, "after", function()
 end)
 
 -- Initialization
-Ext.Events.Session_loaded:Subscribe(function()
+Ext.Events.SessionLoaded:Subscribe(function()
   Tadpole.lastStateJson = ""
   Tadpole.recentEvents = {}
   Ext.Utils.Log("Tadpole Companion mod loaded!")

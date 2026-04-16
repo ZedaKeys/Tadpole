@@ -23,6 +23,7 @@ import io
 import re
 import ssl
 import time
+import asyncio
 import struct
 import hashlib
 import base64
@@ -1495,7 +1496,7 @@ class Plugin:
                     os.kill(orphan_pid, 0)  # Check if process exists
                     _log(f"Found orphan bridge process (PID {orphan_pid}), terminating...")
                     os.killpg(os.getpgid(orphan_pid), signal.SIGTERM)
-                    time.sleep(1)
+                    await asyncio.sleep(1)
                     try:
                         os.killpg(os.getpgid(orphan_pid), signal.SIGKILL)
                     except (OSError, ProcessLookupError):
@@ -1551,7 +1552,7 @@ class Plugin:
                 if os.path.exists(f"/proc/{pid}"):
                     try:
                         os.kill(pid, signal.SIGTERM)
-                        time.sleep(0.5)
+                        await asyncio.sleep(0.5)
                         # If still alive, force kill
                         if os.path.exists(f"/proc/{pid}"):
                             os.kill(pid, signal.SIGKILL)
@@ -1591,7 +1592,7 @@ class Plugin:
                     capture_output=True,
                     timeout=5
                 )
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
                 # If still alive, force kill
                 result = subprocess.run(
                     ["fuser", "-k", f"{port}/tcp"],
@@ -2141,7 +2142,7 @@ class Plugin:
                 _log(f"Failed to write PID file: {e}")
 
             # Brief pause then verify process didn't crash immediately
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             if _bridge_process.poll() is not None:
                 exit_code = _bridge_process.returncode
                 _bridge_process = None
@@ -2180,6 +2181,23 @@ class Plugin:
                     pass
                 return {"success": True, "message": "Bridge was not running"}
 
+            if _bridge_process is None:
+                # Something is listening on the port but we don't track the process.
+                # Try to clean up via PID file or port-based kill.
+                try:
+                    if os.path.exists(_BRIDGE_PID_FILE):
+                        with open(_BRIDGE_PID_FILE, "r") as f:
+                            pid = int(f.read().strip())
+                        os.kill(pid, signal.SIGTERM)
+                except Exception:
+                    pass
+                try:
+                    if os.path.exists(_BRIDGE_PID_FILE):
+                        os.remove(_BRIDGE_PID_FILE)
+                except OSError:
+                    pass
+                return {"success": True, "message": "Bridge was not tracked (cleaned up)"}
+
             pgid = os.getpgid(_bridge_process.pid)
             os.killpg(pgid, signal.SIGTERM)
 
@@ -2204,10 +2222,11 @@ class Plugin:
             tb = traceback.format_exc()
             decky.logger.error(f"stop_bridge error: {e}")
             _report_plugin_error(f"stop_bridge: {e}", stack=tb)
-            try:
-                _bridge_process.kill()
-            except Exception:
-                pass
+            if _bridge_process is not None:
+                try:
+                    _bridge_process.kill()
+                except Exception:
+                    pass
             _bridge_process = None
             # Clean up PID file even on error
             try:
