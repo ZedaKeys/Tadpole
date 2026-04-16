@@ -14,7 +14,7 @@ export default function QuickActionsBar({ sendCommand }: QuickActionsBarProps) {
     { action: 'heal_party', label: 'Heal', icon: <HeartPlus size={16} />, color: '#52b788' },
     { action: 'short_rest', label: 'Short Rest', icon: <Tent size={16} />, color: '#48bfe3' },
     { action: 'long_rest', label: 'Long Rest', icon: <Sparkles size={16} />, color: '#c6a255' },
-    { action: 'add_gold', label: '+500g', icon: <Coins size={16} />, color: '#f4a261', params: { amount: 500 } },
+    { action: 'add_gold', label: '+500g', icon: <Coins size={16} />, color: '#f4a261', params: { value: 500 } },
   ];
 
   return (

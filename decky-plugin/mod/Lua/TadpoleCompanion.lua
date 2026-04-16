@@ -317,6 +317,30 @@ function Tadpole:ExecuteCommand(cmd)
     if cmd.targetGuid then
       pcall(Osi.TeleportTo, hostGuid, cmd.targetGuid, "")
     end
+  elseif cmd.action == "heal_party" then
+    -- Heal all party members
+    local partySize = Osi.GetNumActiveEntities("Party Member") or 0
+    for i = 0, partySize - 1 do
+      local memberGuid = Osi.GetActiveEntityAt("Party Member", i)
+      if memberGuid then
+        pcall(Osi.Proc_CharacterFullRestore, memberGuid)
+      end
+    end
+  elseif cmd.action == "long_rest" then
+    pcall(Osi.RestSessionStarted)
+  elseif cmd.action == "revive" then
+    -- Alias for resurrect
+    local partySize = Osi.GetNumActiveEntities("Party Member") or 0
+    for i = 0, partySize - 1 do
+      local memberGuid = Osi.GetActiveEntityAt("Party Member", i)
+      if memberGuid and Osi.IsDead(memberGuid) == 1 then
+        pcall(Osi.CharacterResurrect, memberGuid)
+      end
+    end
+  elseif cmd.action == "teleport_to_waypoint" then
+    if cmd.waypoint then
+      pcall(Osi.TeleportTo, hostGuid, cmd.waypoint, "")
+    end
   end
 end
 

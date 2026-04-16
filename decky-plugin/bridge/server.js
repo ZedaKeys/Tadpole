@@ -25,8 +25,13 @@ const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || (() => {
 })();
 
 const ALLOWED_COMMANDS = new Set([
-  'trigger_rest', 'add_gold', 'give_item', 'heal_party',
-  'revive', 'god_mode', 'teleport_to_waypoint',
+  'trigger_rest', 'long_rest', 'short_rest',
+  'add_gold', 'give_item',
+  'heal_party', 'heal', 'full_restore',
+  'revive', 'resurrect',
+  'god_mode',
+  'reset_cooldowns',
+  'teleport_to', 'teleport_to_waypoint',
 ]);
 
 const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
@@ -125,8 +130,6 @@ const ALLOWED_ORIGINS = [
   'http://192.168.',
   'http://10.',
   'http://172.',
-  'https://tadpole-omega.vercel.app',
-  'https://split-easy-one.vercel.app',
 ];
 
 app.use((req, res, next) => {
@@ -284,15 +287,7 @@ app.use('/phone', safeWrap((req, res, next) => {
 </div>
 
 <div class="box">
-  <h2 style="color:#f4a261;font-size:1em;margin-top:0">⚠️ If you came from the HTTPS version</h2>
-  <p><strong>Bookmark this page instead!</strong> The HTTPS version at
-  <code>tadpole-omega.vercel.app</code> cannot connect to the bridge because browsers
-  block <code>ws://</code> from HTTPS pages.</p>
-  <p>This HTTP version works perfectly because everything is on the same network.</p>
-</div>
-
-<div class="box">
-  <h2 style="color:#72ddf7;font-size:1em;margin-top:0">📋 Full Setup</h2>
+  <h2 style="color:#72ddf7;font-size:1em;margin-top:0">📋 Setup</h2>
   <div class="step" data-n="1.">
     Make sure the bridge server is running on your Steam Deck.
   </div>
@@ -364,7 +359,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({
   server,
   path: '/ws',
-  // ISSUE 8: WebSocket keepalive — ping every 30s, destroy if no pong in 10s
+  // WebSocket keepalive — ping every 30s, destroy if no pong in 10s
   clientTracking: true,
 });
 
@@ -927,7 +922,7 @@ server.listen(PORT, '0.0.0.0', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ISSUE 8: WebSocket keepalive — ping every 30s
+// WebSocket keepalive — ping every 30s
 // ---------------------------------------------------------------------------
 const KEEPALIVE_INTERVAL = 30000;
 const keepaliveTimer = setInterval(() => {
@@ -953,7 +948,7 @@ wss.on('connection', (ws) => {
 });
 
 // ---------------------------------------------------------------------------
-// ISSUE 7: Graceful shutdown on SIGINT / SIGTERM
+// Graceful shutdown on SIGINT / SIGTERM
 // ---------------------------------------------------------------------------
 function gracefulShutdown(signal) {
   console.log(`\n[shutdown] Received ${signal}. Closing connections...`);
