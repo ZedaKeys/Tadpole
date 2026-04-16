@@ -2,6 +2,7 @@
 
 import type { GameCharacter } from '@/types';
 import SpellSlotGrid from './SpellSlotGrid';
+import ActionResourcesPanel from './ActionResourcesPanel';
 import ConditionMonitor from './ConditionMonitor';
 
 interface SpellAndConditionsProps {
@@ -13,13 +14,14 @@ export default function SpellAndConditions({ host, party }: SpellAndConditionsPr
   const allChars = host ? [host, ...party] : party;
 
   const hasAnySpellSlots = allChars.some((c) => c.spellSlots && Object.keys(c.spellSlots).length > 0);
+  const hasAnyActionResources = allChars.some((c) => c.actionResources && c.actionResources.length > 0);
   const hasAnyConditions = allChars.some((c) => c.conditions && c.conditions.length > 0);
 
-  if (!hasAnySpellSlots && !hasAnyConditions) return null;
+  if (!hasAnySpellSlots && !hasAnyActionResources && !hasAnyConditions) return null;
 
   return (
     <div style={{ marginBottom: 20 }}>
-      {(hasAnySpellSlots || hasAnyConditions) && (
+      {(hasAnySpellSlots || hasAnyActionResources || hasAnyConditions) && (
         <span
           style={{
             fontSize: 11,
@@ -31,12 +33,13 @@ export default function SpellAndConditions({ host, party }: SpellAndConditionsPr
             display: 'block',
           }}
         >
-          Spells & Conditions
+          Spells & Resources
         </span>
       )}
       {allChars.map((c) => (
         <div key={c.guid}>
           <SpellSlotGrid character={c} />
+          <ActionResourcesPanel character={c} />
           <ConditionMonitor character={c} />
         </div>
       ))}

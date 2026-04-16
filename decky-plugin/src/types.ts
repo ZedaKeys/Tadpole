@@ -7,6 +7,14 @@
 // Core game state — matches Lua mod output exactly
 // ---------------------------------------------------------------------------
 
+/** A class resource (Bardic Inspiration, Sorcery Points, Ki, Rages, etc) */
+export interface ActionResource {
+  id: string;
+  name: string;
+  current: number;
+  max: number;
+}
+
 /** A character (host or party member) as reported by the Lua mod */
 export interface GameCharacter {
   guid: string;
@@ -14,7 +22,13 @@ export interface GameCharacter {
   hp: number;
   maxHp: number;
   level: number;
+  armorClass?: number;
+  isDead?: boolean;
+  isInvulnerable?: boolean;
+  isSneaking?: boolean;
   position: { x: number; y: number; z: number };
+  spellSlots?: { [level: string]: { current: number; max: number } };
+  actionResources?: ActionResource[];
 }
 
 /** A game event from the Lua mod's Osiris listeners */

@@ -521,6 +521,13 @@ const CharacterHpCard = memo(function CharacterHpCard({
           <SpellSlotDisplay slots={character.spellSlots} />
         </div>
       )}
+
+      {/* Expanded: Action Resources (Bardic, Ki, Sorcery, etc) */}
+      {expanded && character.actionResources && character.actionResources.length > 0 && (
+        <div className="animate-fade-in" style={{ marginTop: 8 }}>
+          <ActionResourceDisplay resources={character.actionResources} />
+        </div>
+      )}
     </div>
   );
 });
@@ -639,6 +646,45 @@ function SpellSlotDisplay({ slots }: { slots: Record<string, { current: number; 
                 />
               ))}
             </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Action Resources display (Bardic, Ki, Sorcery, Rages, etc)
+function ActionResourceDisplay({ resources }: { resources: { id: string; name: string; current: number; max: number }[] }) {
+  const active = resources.filter((r) => r.max > 0);
+  if (active.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        padding: '8px 12px',
+        borderRadius: 10,
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+        <Zap size={12} style={{ color: '#48bfe3' }} />
+        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#48bfe3' }}>Class Resources</span>
+      </div>
+      {active.map((r) => {
+        const pct = r.max > 0 ? r.current / r.max : 0;
+        const barColor = pct > 0.5 ? '#48bfe3' : pct > 0.25 ? '#f4a261' : '#e76f51';
+        return (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: '0.65rem', color: '#9ca3af', width: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {r.name}
+            </span>
+            <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+              <div style={{ width: `${pct * 100}%`, height: '100%', borderRadius: 3, background: barColor, transition: 'width 0.3s ease' }} />
+            </div>
+            <span style={{ fontSize: '0.6rem', color: '#d1d5db', width: 28, textAlign: 'right' }}>
+              {r.current}/{r.max}
+            </span>
           </div>
         );
       })}

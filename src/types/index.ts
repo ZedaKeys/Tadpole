@@ -240,6 +240,14 @@ export interface SpellSlots {
   [level: string]: { current: number; max: number };
 }
 
+/** A class resource (Bardic Inspiration, Sorcery Points, Ki, Rages, etc) */
+export interface ActionResource {
+  id: string;
+  name: string;
+  current: number;
+  max: number;
+}
+
 export interface ConcentrationInfo {
   spellId: string;
   caster: string;
@@ -267,6 +275,7 @@ export interface GameCharacter {
   proficiencyBonus?: number;
   abilityScores?: AbilityScores;
   spellSlots?: SpellSlots;
+  actionResources?: ActionResource[];
   conditions?: string[];
   concentration?: ConcentrationInfo | null;
   deathSaves?: DeathSaves;
