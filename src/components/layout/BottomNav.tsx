@@ -2,16 +2,18 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Activity, Zap, Settings } from "lucide-react";
-
-const tabs = [
-  { href: "/", label: "Live", icon: Activity },
-  { href: "/cheats", label: "Cheats", icon: Zap },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+import { useI18n } from "@/lib/i18n";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useI18n();
+
+  const tabs = [
+    { href: "/", label: t("nav.live"), icon: Activity },
+    { href: "/cheats", label: t("nav.cheats"), icon: Zap },
+    { href: "/settings", label: t("nav.settings"), icon: Settings },
+  ];
 
   return (
     <nav style={{

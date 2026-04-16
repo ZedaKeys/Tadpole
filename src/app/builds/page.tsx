@@ -25,7 +25,7 @@ export default function BuildsPage() {
   return (
     <AppShell title="Build Planner">
       {/* Quick actions */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3 mb-4">
         <Link
           href="/builds/new"
           className="stagger-in flex-1 py-3 font-semibold text-sm text-center"
@@ -41,6 +41,29 @@ export default function BuildsPage() {
           Saved Builds
         </Link>
       </div>
+
+      <Link
+        href="/builds/presets"
+        className="stagger-in mb-6"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'linear-gradient(135deg, rgba(168,85,247,0.15), rgba(168,85,247,0.05))',
+          border: '1px solid rgba(168,85,247,0.25)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          textDecoration: 'none',
+          animationDelay: '0.15s',
+          minHeight: 44,
+        }}
+      >
+        <span style={{ fontSize: '1.1rem' }}>⚔️</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#a855f7' }}>Preset Meta Builds</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>8 curated builds for Honour Mode</div>
+        </div>
+      </Link>
 
       <p
         className="stagger-in mb-5"

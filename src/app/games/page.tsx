@@ -1,6 +1,6 @@
 'use client';
 
-import { Brain, Dices } from 'lucide-react';
+import { Brain, Dices, Sword } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AppShell } from '@/components/layout/AppShell';
@@ -27,10 +27,19 @@ const GAMES: GameInfo[] = [
   {
     id: 'dice-poker',
     name: 'Dice Poker',
-    description: 'A classic dice game with a BG3 twist. Bet, roll, and bluff your way to victory.',
+    description: 'A classic dice game with a BG3 twist. Bet, roll, and bluff your way to victory against companions.',
+    href: '/games/dice-poker',
     icon: <Dices size={32} />,
-    badge: { label: 'Coming Soon', color: '#6b7280' },
-    accentColor: '#6b7280',
+    accentColor: '#f59e0b',
+  },
+  {
+    id: 'tracker',
+    name: 'Loot Tracker',
+    description: 'Log items found during gameplay, track session stats, and export your haul for sharing.',
+    href: '/tracker',
+    icon: <Sword size={32} />,
+    badge: { label: 'NEW', color: '#52b788' },
+    accentColor: '#52b788',
   },
 ];
 

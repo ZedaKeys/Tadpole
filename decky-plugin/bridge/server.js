@@ -436,6 +436,35 @@ function detectEvents(prev, curr) {
     }
   }
 
+  // Approval changes — compare party members' approval values
+  if (curr.party && prev.party) {
+    const prevApprovalMap = new Map();
+    for (const pm of prev.party) {
+      if (typeof pm.approval === 'number') {
+        prevApprovalMap.set(pm.guid, pm.approval);
+      }
+    }
+    for (const cm of curr.party) {
+      if (typeof cm.approval === 'number') {
+        const prevApproval = prevApprovalMap.get(cm.guid);
+        if (prevApproval !== undefined && prevApproval !== cm.approval) {
+          const delta = cm.approval - prevApproval;
+          const isPositive = delta > 0;
+          events.push({
+            type: 'approval_change',
+            timestamp: now,
+            detail: `${cm.name} ${isPositive ? 'approved' : 'disapproved'} (${isPositive ? '+' : ''}${delta}, now ${cm.approval})`,
+            companionName: cm.name,
+            companionGuid: cm.guid,
+            delta,
+            approval: cm.approval,
+            action: cm.approvalAction || undefined,
+          });
+        }
+      }
+    }
+  }
+
   return events;
 }
 

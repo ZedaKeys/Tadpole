@@ -23,6 +23,10 @@ import io
 import re
 import ssl
 import time
+import struct
+import hashlib
+import base64
+import threading
 
 import decky
 
@@ -64,6 +68,313 @@ _status_cache = {
     "ip": "...", "ip_ts": 0,
     "node_installed": False, "node_ts": 0,
 }
+
+# ---------------------------------------------------------------------------
+# WebSocket listener thread — connects to bridge and pushes updates via decky.emit
+# ---------------------------------------------------------------------------
+_ws_listener_thread = None
+_ws_listener_stop = threading.Event()
+_ws_last_state = None  # Track last pushed state to deduplicate
+
+
+def _ws_send_ping(sock):
+    """Send a WebSocket ping frame (opcode 0x9)."""
+    frame = struct.pack('!BB', 0x89, 0)
+    sock.sendall(frame)
+
+
+def _ws_pong(sock):
+    """Send a WebSocket pong frame (opcode 0xA)."""
+    frame = struct.pack('!BB', 0x8A, 0)
+    sock.sendall(frame)
+
+
+def _ws_send_close(sock):
+    """Send a WebSocket close frame."""
+    frame = struct.pack('!BB', 0x88, 0)
+    try:
+        sock.sendall(frame)
+    except Exception:
+        pass
+
+
+def _ws_connect(host, port, path='/ws'):
+    """Perform a raw WebSocket handshake over a TCP socket.
+    
+    Returns the connected socket on success, None on failure.
+    Uses the standard RFC 6455 handshake with a Sec-WebSocket-Key.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        sock.connect((host, port))
+
+        # Generate WebSocket key
+        key = base64.b64encode(os.urandom(16)).decode('utf-8')
+
+        handshake = (
+            f"GET {path} HTTP/1.1\r\n"
+            f"Host: {host}:{port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n"
+            f"\r\n"
+        )
+        sock.sendall(handshake.encode('utf-8'))
+
+        # Read response headers
+        response = b""
+        while b"\r\n\r\n" not in response:
+            chunk = sock.recv(4096)
+            if not chunk:
+                sock.close()
+                return None
+            response += chunk
+
+        # Verify upgrade
+        if b"101" not in response.split(b"\r\n")[0]:
+            sock.close()
+            return None
+
+        return sock
+    except Exception as e:
+        _log(f"WS connect failed: {e}", "DEBUG")
+        try:
+            sock.close()
+        except Exception:
+            pass
+        return None
+
+
+def _ws_recv_message(sock):
+    """Read a single WebSocket text message from the socket.
+    
+    Returns the decoded text payload, or None on error/close.
+    Handles fragmentation, ping frames, and close frames.
+    """
+    payload = b""
+    opcode = None
+
+    while True:
+        # Read frame header (first 2 bytes)
+        header = b""
+        try:
+            while len(header) < 2:
+                chunk = sock.recv(2 - len(header))
+                if not chunk:
+                    return None
+                header += chunk
+        except socket.timeout:
+            return None
+        except Exception:
+            return None
+
+        byte1, byte2 = header[0], header[1]
+        fin = bool(byte1 & 0x80)
+        frame_opcode = byte1 & 0x0F
+        masked = bool(byte2 & 0x80)
+        payload_len = byte2 & 0x7F
+
+        # Determine opcode for the message
+        if opcode is None:
+            opcode = frame_opcode
+
+        # Connection close
+        if frame_opcode == 0x8:
+            return None
+
+        # Ping — respond with pong
+        if frame_opcode == 0x9:
+            # Read ping payload if any
+            ping_data = b""
+            if payload_len > 0:
+                ping_data = _recv_exact(sock, payload_len)
+            # Read mask if present
+            if masked:
+                _recv_exact(sock, 4)
+            try:
+                # Send pong with same payload
+                pong_header = struct.pack('!BB', 0x8A, len(ping_data))
+                sock.sendall(pong_header + ping_data)
+            except Exception:
+                pass
+            continue
+
+        # Pong — just consume and continue
+        if frame_opcode == 0xA:
+            if masked and payload_len > 0:
+                _recv_exact(sock, payload_len + 4)
+            elif payload_len > 0:
+                _recv_exact(sock, payload_len)
+            continue
+
+        # Extended payload length
+        if payload_len == 126:
+            ext = _recv_exact(sock, 2)
+            if not ext:
+                return None
+            payload_len = struct.unpack('!H', ext)[0]
+        elif payload_len == 127:
+            ext = _recv_exact(sock, 8)
+            if not ext:
+                return None
+            payload_len = struct.unpack('!Q', ext)[0]
+
+        # Read mask key
+        mask_key = None
+        if masked:
+            mask_key = _recv_exact(sock, 4)
+            if not mask_key:
+                return None
+
+        # Read payload data
+        data = b""
+        if payload_len > 0:
+            data = _recv_exact(sock, payload_len)
+            if not data:
+                return None
+
+        # Unmask if needed
+        if masked and mask_key:
+            data = bytes(b ^ mask_key[i % 4] for i, b in enumerate(data))
+
+        # Append continuation data
+        if frame_opcode in (0x0, 0x1, 0x2):
+            payload += data
+
+        if fin:
+            break
+
+    if opcode == 0x1:  # Text frame
+        return payload.decode('utf-8', errors='replace')
+    elif opcode == 0x2:  # Binary frame
+        return payload.decode('utf-8', errors='replace')
+    return None
+
+
+def _recv_exact(sock, nbytes):
+    """Read exactly nbytes from socket, or return None on failure."""
+    buf = b""
+    while len(buf) < nbytes:
+        try:
+            chunk = sock.recv(nbytes - len(buf))
+            if not chunk:
+                return None
+            buf += chunk
+        except Exception:
+            return None
+    return buf
+
+
+def _ws_listener_loop():
+    """Background thread: connect to bridge WS and emit state updates to frontend."""
+    global _ws_last_state
+
+    _log("WS listener thread started")
+    reconnect_delay = 1  # Start with 1s, increase on failure
+
+    while not _ws_listener_stop.is_set():
+        try:
+            sock = _ws_connect('127.0.0.1', _bridge_port, '/ws')
+            if not sock:
+                # Bridge not available yet — wait and retry
+                _ws_listener_stop.wait(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 30)
+                continue
+
+            # Connected — reset reconnect delay
+            reconnect_delay = 1
+            sock.settimeout(30)  # Read timeout for keepalive
+            _log("WS listener connected to bridge")
+
+            while not _ws_listener_stop.is_set():
+                msg = _ws_recv_message(sock)
+                if msg is None:
+                    # Connection lost or close frame
+                    _log("WS listener: connection lost", "DEBUG")
+                    break
+
+                try:
+                    data = json.loads(msg)
+                except Exception:
+                    continue
+
+                msg_type = data.get('type')
+
+                if msg_type == 'state':
+                    game_state = data.get('data')
+                    events = data.get('events', [])
+
+                    # Deduplicate: skip if same timestamp as last push
+                    new_ts = game_state.get('timestamp') if game_state else None
+                    if new_ts is not None and _ws_last_state == new_ts:
+                        continue
+                    _ws_last_state = new_ts
+
+                    # Push to frontend via decky.emit
+                    try:
+                        decky.emit('game-state-update', {
+                            'game_state': game_state,
+                            'recent_events': events,
+                        })
+                    except Exception as e:
+                        _log(f"decky.emit failed: {e}", "ERROR")
+
+                elif msg_type == 'history':
+                    # Initial history dump — extract latest state if we don't have one
+                    history = data.get('data', [])
+                    if history and _ws_last_state is None:
+                        latest = history[-1]
+                        game_state = latest if isinstance(latest, dict) else None
+                        if game_state:
+                            new_ts = game_state.get('timestamp')
+                            _ws_last_state = new_ts
+                            try:
+                                decky.emit('game-state-update', {
+                                    'game_state': game_state,
+                                    'recent_events': [],
+                                })
+                            except Exception:
+                                pass
+
+        except Exception as e:
+            _log(f"WS listener error: {e}", "ERROR")
+
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+        # Wait before reconnecting (unless stop requested)
+        if not _ws_listener_stop.is_set():
+            _ws_listener_stop.wait(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, 30)
+
+    _log("WS listener thread stopped")
+
+
+def _start_ws_listener():
+    """Start the WebSocket listener thread."""
+    global _ws_listener_thread, _ws_listener_stop
+    _stop_ws_listener()
+    _ws_listener_stop.clear()
+    _ws_listener_thread = threading.Thread(
+        target=_ws_listener_loop,
+        name="tadpole-ws-listener",
+        daemon=True,
+    )
+    _ws_listener_thread.start()
+
+
+def _stop_ws_listener():
+    """Stop the WebSocket listener thread."""
+    global _ws_listener_thread
+    if _ws_listener_thread and _ws_listener_thread.is_alive():
+        _ws_listener_stop.set()
+        _ws_listener_thread.join(timeout=5)
+    _ws_listener_thread = None
 
 def _log(msg, level="INFO"):
     """Write to local log file with level tracking."""
@@ -1163,6 +1474,9 @@ class Plugin:
         decky.logger.info("Tadpole BG3 Companion plugin loaded")
         decky.logger.info(f"Plugin version: {PLUGIN_VERSION}")
 
+        # Start WebSocket listener for reactive state updates
+        _start_ws_listener()
+
         # Check for orphaned bridge process from previous crash
         if os.path.exists(_BRIDGE_PID_FILE):
             try:
@@ -1202,6 +1516,9 @@ class Plugin:
         """Lifecycle: called when the plugin is unloaded."""
         decky.logger.info("Tadpole BG3 Companion plugin unloading")
         global _bridge_process, _bridge_stdout_log, _bridge_stderr_log
+
+        # Stop the WebSocket listener thread
+        _stop_ws_listener()
 
         # 1. Stop the tracked process first
         if _bridge_process and _is_bridge_running():

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import Link from 'next/link';
+import { Search, Swords } from 'lucide-react';
 import { items } from '@/data/items';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -62,6 +63,46 @@ export default function ItemsPage() {
 
   return (
     <AppShell title="Items">
+      {/* Equipment guide link */}
+      <Link
+        href="/items/equipment"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 16px',
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(198,162,85,0.15), rgba(198,162,85,0.05))',
+          border: '1px solid rgba(198,162,85,0.2)',
+          textDecoration: 'none',
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: 'rgba(198,162,85,0.15)',
+            color: 'var(--gold)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Swords size={20} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+            Equipment Guide
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            Class-specific gear recommendations by act
+          </div>
+        </div>
+      </Link>
+
       {/* Count */}
       <p
         className="mb-5"

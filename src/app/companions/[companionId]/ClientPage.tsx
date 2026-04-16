@@ -181,6 +181,61 @@ export default function CompanionDetailClientPage({ params }: { params: { compan
         </div>
       </div>
 
+      {/* Romance path details */}
+      {companion.romance && (
+        <>
+          {/* Requirements */}
+          <div className="stagger-in mb-3" style={{ animationDelay: '0.22s' }}>
+            <Accordion title="Romance Requirements" defaultOpen={true}>
+              <p style={{ color: 'var(--text-primary)', fontSize: '0.85rem', lineHeight: 1.7 }}>
+                {companion.romance.requirements}
+              </p>
+            </Accordion>
+          </div>
+
+          {/* Key Moments */}
+          <div className="stagger-in mb-3" style={{ animationDelay: '0.24s' }}>
+            <Accordion title={`Romance Story (${companion.romance.keyMoments.length} moments)`} defaultOpen={true}>
+              <div className="space-y-3">
+                {companion.romance.keyMoments.map((moment, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <Badge label={`Act ${moment.act}`} color="#ec407a" />
+                    <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', lineHeight: 1.6, flex: 1 }}>
+                      {moment.description}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Accordion>
+          </div>
+
+          {/* Ending type + Tips */}
+          <div className="stagger-in mb-3" style={{ animationDelay: '0.26s' }}>
+            <Accordion title="Ending & Tips">
+              <div className="space-y-3">
+                <div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    Ending Type
+                  </div>
+                  <Badge label={companion.romance.endingType} color={
+                    companion.romance.endingType === 'Happy' ? '#4caf50' :
+                    companion.romance.endingType === 'Bittersweet' ? '#ff9800' : '#f44336'
+                  } />
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    Tips for Success
+                  </div>
+                  <p style={{ color: 'var(--gold)', fontSize: '0.85rem', lineHeight: 1.7 }}>
+                    {companion.romance.tips}
+                  </p>
+                </div>
+              </div>
+            </Accordion>
+          </div>
+        </>
+      )}
+
       {/* Approval triggers - Likes */}
       {likes.length > 0 && (
         <div className="stagger-in mb-3" style={{ animationDelay: '0.25s' }}>

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
-import { Swords, Wifi, WifiOff, Shield, MessageSquare, Cloud } from 'lucide-react';
+import { Swords, Wifi, WifiOff, Shield, MessageSquare, Cloud, Search, Map, Activity, Heart } from 'lucide-react';
+import Link from 'next/link';
 
 import PartyHealthDashboard from '@/components/game/PartyHealthDashboard';
 import CombatTracker from '@/components/game/CombatTrackerNew';
@@ -89,6 +90,49 @@ export default function HomePage() {
             background: 'linear-gradient(90deg, transparent, rgba(198,162,85,0.4), transparent)',
             borderRadius: 1,
           }} />
+
+          {/* Quick links */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+            <Link
+              href="/map"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 20px',
+                borderRadius: 20,
+                background: 'rgba(198,162,85,0.06)',
+                border: '1px solid rgba(198,162,85,0.15)',
+                color: '#c6a255',
+                fontSize: 13,
+                textDecoration: 'none',
+                fontWeight: 600,
+                transition: 'background-color 0.2s, border-color 0.2s',
+              }}
+            >
+              <Map size={14} />
+              World Map
+            </Link>
+            <Link
+              href="/search"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 20px',
+                borderRadius: 20,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: 'var(--text-dim)',
+                fontSize: 13,
+                textDecoration: 'none',
+                transition: 'background-color 0.2s, border-color 0.2s',
+              }}
+            >
+              <Search size={14} />
+              Search
+            </Link>
+          </div>
         </div>
 
         {/* Connection card */}
@@ -272,6 +316,65 @@ export default function HomePage() {
           </span>
         )}
       </div>
+
+      {/* Combat Overlay link */}
+      <Link
+        href="/live/combat"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: 'rgba(231,111,81,0.06)',
+          border: '1px solid rgba(231,111,81,0.15)',
+          marginBottom: 16,
+          textDecoration: 'none',
+          transition: 'background 0.2s, border-color 0.2s',
+        }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: 'rgba(231,111,81,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Swords size={18} style={{ color: '#e76f51' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e0d8' }}>Combat Overlay</div>
+          <div style={{ fontSize: 11, color: '#9ca3af' }}>HP bars, conditions, combat log</div>
+        </div>
+        <Activity size={16} style={{ color: '#e76f51' }} />
+      </Link>
+
+      {/* Approval Tracker link */}
+      <Link
+        href="/live/approval"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: 'rgba(198,162,85,0.06)',
+          border: '1px solid rgba(198,162,85,0.15)',
+          marginBottom: 16,
+          textDecoration: 'none',
+          transition: 'background 0.2s, border-color 0.2s',
+        }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: 'rgba(198,162,85,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Heart size={18} style={{ color: '#c6a255' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e0d8' }}>Approval Tracker</div>
+          <div style={{ fontSize: 11, color: '#9ca3af' }}>Companion approval changes</div>
+        </div>
+      </Link>
 
       {/* Feature 7: Gold/XP Tracker */}
       <GoldXpTracker gameState={gameState} />

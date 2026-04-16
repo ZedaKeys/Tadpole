@@ -87,6 +87,19 @@ export interface ApprovalTrigger {
   act?: number;
 }
 
+export interface RomanceKeyMoment {
+  act: number;
+  description: string;
+}
+
+export interface RomancePath {
+  romanceable: boolean;
+  requirements: string;
+  keyMoments: RomanceKeyMoment[];
+  endingType: string;
+  tips: string;
+}
+
 export interface Companion {
   id: string;
   name: string;
@@ -98,6 +111,7 @@ export interface Companion {
   act: number;
   approvalTriggers: ApprovalTrigger[];
   romanceable: boolean;
+  romance?: RomancePath;
   personalityTraits: string[];
   likes: string[];
   dislikes: string[];
@@ -256,6 +270,8 @@ export interface GameCharacter {
   conditions?: string[];
   concentration?: ConcentrationInfo | null;
   deathSaves?: DeathSaves;
+  approval?: number;
+  approvalLevel?: ApprovalLevel;
 }
 
 export interface GameEvent {
@@ -270,6 +286,25 @@ export interface BridgeEvent {
   type: string;
   timestamp: number;
   detail?: string;
+}
+
+/** Approval change event emitted by the bridge */
+export interface ApprovalEvent {
+  type: 'approval_change';
+  companionName: string;
+  companionGuid: string;
+  delta: number;
+  approval: number;
+  action?: string;
+  timestamp: number;
+}
+
+/** Approval level for a companion in live game state */
+export interface CompanionApproval {
+  guid: string;
+  name: string;
+  approval: number;       // -100 to +100
+  approvalLevel: ApprovalLevel;
 }
 
 export interface CampSupplies {

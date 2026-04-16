@@ -1,7 +1,7 @@
 'use client';
 
-import { useReducer, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useReducer, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { BackButton } from '@/components/ui/BackButton';
 import { Badge } from '@/components/ui/Badge';
@@ -10,7 +10,7 @@ import { classes } from '@/data/classes';
 import { feats } from '@/data/feats';
 import { backgrounds } from '@/data/backgrounds';
 import { skills as allSkills } from '@/data/skills';
-import { saveBuild } from '@/lib/build-storage';
+import { saveBuild, loadBuild } from '@/lib/build-storage';
 import { spells as spellsData } from '@/data/spells';
 import type { AbilityType, BuildLevel, FeatChoice, BuildSpells, SavedBuild } from '@/types';
 
@@ -75,7 +75,8 @@ type Action =
   | { type: 'SET_LEVELS'; levels: BuildLevel[] }
   | { type: 'SET_FEAT'; atLevel: number; featId: string; asiBoosts?: { ability: AbilityType; amount: number }[] }
   | { type: 'TOGGLE_SKILL'; skill: string }
-  | { type: 'SET_SPELLS'; classId: string; cantrips: string[]; spells: string[] };
+  | { type: 'SET_SPELLS'; classId: string; cantrips: string[]; spells: string[] }
+  | { type: 'LOAD_BUILD'; state: WizardState };
 
 const initialState: WizardState = {
   step: 1,
@@ -123,6 +124,7 @@ function reducer(state: WizardState, action: Action): WizardState {
       }
       return { ...state, chosenSpells: [...state.chosenSpells, sp] };
     }
+    case 'LOAD_BUILD': return { ...action.state };
   }
 }
 
@@ -838,13 +840,61 @@ function StepSummary({ state }: { state: WizardState }) {
 
 // ── Main Page ──
 export default function NewBuildPage() {
+  return (
+    <Suspense fallback={
+      <AppShell title="New Build">
+        <div className="mb-4">
+          <BackButton href="/builds" />
+        </div>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+      </AppShell>
+    }>
+      <NewBuildContent />
+    </Suspense>
+  );
+}
+
+function buildToState(build: SavedBuild): WizardState {
+  return {
+    step: 1,
+    name: build.name,
+    raceId: build.race,
+    subraceId: build.subrace ?? '',
+    backgroundId: build.background,
+    baseScores: build.baseScores,
+    levels: build.levels,
+    featChoices: build.featChoices,
+    chosenSkills: build.chosenSkills,
+    chosenSpells: build.chosenSpells,
+  };
+}
+
+function NewBuildContent() {
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
+  const [loaded, setLoaded] = useState(!editId);
+  const [editBuildId, setEditBuildId] = useState<string | null>(null);
+  const [editCreatedAt, setEditCreatedAt] = useState<number | null>(null);
   const [state, dispatch] = useReducer(reducer, initialState);
   const router = useRouter();
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!editId) return;
+    loadBuild(editId).then(build => {
+      if (build) {
+        setEditBuildId(build.id);
+        setEditCreatedAt(build.createdAt);
+        dispatch({ type: 'LOAD_BUILD', state: buildToState(build) });
+      }
+      setLoaded(true);
+    });
+  }, [editId]);
+
   const totalSteps = state.levels.some(l => SPELLCASTING_CLASSES.has(l.classId) || HALF_CASTERS.has(l.classId)) ? 7 : 6;
   const currentStep = state.step > totalSteps ? totalSteps : state.step;
   const hasSpells = state.levels.some(l => SPELLCASTING_CLASSES.has(l.classId) || HALF_CASTERS.has(l.classId));
+  const isEditing = !!editBuildId;
 
   function canProceed(step: number): boolean {
     switch (step) {
@@ -860,11 +910,12 @@ export default function NewBuildPage() {
 
   async function handleSave() {
     setSaving(true);
+    const now = Date.now();
     const build: SavedBuild = {
-      id: crypto.randomUUID(),
+      id: isEditing ? editBuildId! : crypto.randomUUID(),
       name: state.name,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: isEditing ? editCreatedAt! : now,
+      updatedAt: now,
       race: state.raceId,
       subrace: state.subraceId || undefined,
       background: state.backgroundId,
@@ -895,8 +946,19 @@ export default function NewBuildPage() {
     dispatch({ type: 'SET_STEP', step: prev });
   }
 
+  if (!loaded) {
+    return (
+      <AppShell title="Edit Build">
+        <div className="mb-4">
+          <BackButton href="/builds" />
+        </div>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading build...</p>
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell title="New Build">
+    <AppShell title={isEditing ? 'Edit Build' : 'New Build'}>
       <div className="mb-4">
         <BackButton href="/builds" />
       </div>

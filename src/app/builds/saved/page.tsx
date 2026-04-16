@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { Pencil } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { BackButton } from '@/components/ui/BackButton';
 import { Badge } from '@/components/ui/Badge';
 import { loadAllBuilds, deleteBuild } from '@/lib/build-storage';
+import { getSharePath } from '@/lib/build-share';
 import { races } from '@/data/races';
 import { classes } from '@/data/classes';
 import { backgrounds } from '@/data/backgrounds';
@@ -22,10 +24,34 @@ export default function SavedBuildsPage() {
     });
   }, []);
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   async function handleDelete(id: string) {
     await deleteBuild(id);
     setBuilds(prev => prev.filter(b => b.id !== id));
   }
+
+  const handleShare = useCallback(async (build: SavedBuild) => {
+    const sharePath = getSharePath(build);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin + '/phone' : '';
+    const fullUrl = `${baseUrl}${sharePath}`;
+
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopiedId(build.id);
+      setTimeout(() => setCopiedId(prev => prev === build.id ? null : prev), 2000);
+    } catch {
+      // Fallback: create a temporary input
+      const input = document.createElement('input');
+      input.value = fullUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedId(build.id);
+      setTimeout(() => setCopiedId(prev => prev === build.id ? null : prev), 2000);
+    }
+  }, []);
 
   return (
     <AppShell title="Saved Builds">
@@ -67,10 +93,11 @@ export default function SavedBuildsPage() {
             });
 
             return (
-              <div
+              <Link
                 key={build.id}
-                className="stagger-in p-4"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, animationDelay: `${0.1 + index * 0.08}s` }}
+                href={`/builds/view?id=${build.id}`}
+                className="stagger-in p-4 block"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, animationDelay: `${0.1 + index * 0.08}s`, textDecoration: 'none' }}
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
@@ -82,7 +109,22 @@ export default function SavedBuildsPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDelete(build.id)}
+                    onClick={(e) => { e.preventDefault(); handleShare(build); }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: copiedId === build.id ? '#10b98122' : 'rgba(59, 130, 246, 0.15)', color: copiedId === build.id ? '#10b981' : '#3b82f6', minHeight: 32 }}
+                  >
+                    {copiedId === build.id ? 'Copied!' : 'Share'}
+                  </button>
+                  <Link
+                    href={`/builds/new?edit=${build.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', minHeight: 32 }}
+                  >
+                    <Pencil size={14} />
+                  </Link>
+                  <button
+                    onClick={(e) => { e.preventDefault(); handleDelete(build.id); }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium"
                     style={{ background: '#ef444422', color: '#ef4444', minHeight: 32 }}
                   >
@@ -92,7 +134,7 @@ export default function SavedBuildsPage() {
                 <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                   {bg?.name ?? build.background} · Updated {new Date(build.updatedAt).toLocaleDateString()}
                 </p>
-              </div>
+              </Link>
             );
           })}
         </div>

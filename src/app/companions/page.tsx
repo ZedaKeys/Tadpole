@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Users } from 'lucide-react';
+import { Users, Heart } from 'lucide-react';
 import { companions } from '@/data/companions';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -19,6 +19,7 @@ const COMPANION_ACCENT: Record<string, string> = {
   halsin: '#22c55e',
   minsc: '#10b981',
   jaheira: '#8b5cf6',
+  minthara: '#a855f7',
 };
 
 export default function CompanionsPage() {
@@ -72,6 +73,29 @@ export default function CompanionsPage() {
           <option value={2}>Act 2</option>
           <option value={3}>Act 3</option>
         </select>
+      </div>
+
+      {/* Romance overview link */}
+      <div className="stagger-in mb-6" style={{ animationDelay: '0.12s' }}>
+        <a
+          href="/companions/romance"
+          className="flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{
+            background: 'rgba(236, 64, 122, 0.08)',
+            border: '1px solid rgba(236, 64, 122, 0.2)',
+            textDecoration: 'none',
+          }}
+        >
+          <Heart size={18} style={{ color: '#ec407a', flexShrink: 0 }} />
+          <div>
+            <div style={{ color: '#ec407a', fontSize: '0.875rem', fontWeight: 600 }}>
+              Romance Guide
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+              View all romance paths, key moments, and tips
+            </div>
+          </div>
+        </a>
       </div>
 
       {/* Companion grid */}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import BottomNav from "@/components/layout/BottomNav";
+import { I18nProvider } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Tadpole",
@@ -19,10 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body style={{ margin: 0, padding: 0, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", background: "#0a0a0f", color: "#e8e8ef" }}>
-        <main style={{ minHeight: "100vh", paddingBottom: 64 }}>
-          {children}
-        </main>
-        <BottomNav />
+        <I18nProvider>
+          <main style={{ minHeight: "100vh", paddingBottom: 64 }}>
+            {children}
+          </main>
+          <BottomNav />
+        </I18nProvider>
       </body>
     </html>
   );

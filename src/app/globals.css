@@ -102,6 +102,14 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes dice-tumble {
+  0% { transform: rotate(-8deg) scale(0.95); }
+  25% { transform: rotate(6deg) scale(1.05); }
+  50% { transform: rotate(-4deg) scale(0.98); }
+  75% { transform: rotate(8deg) scale(1.03); }
+  100% { transform: rotate(-6deg) scale(0.96); }
+}
+
 /* ── Components ─────────────────────────────────────────────── */
 @layer components {
   /* Card */

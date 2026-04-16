@@ -1,4 +1,4 @@
-import { definePlugin, callable, toaster } from "@decky/api";
+import { definePlugin, callable, toaster, addEventListener, removeEventListener } from "@decky/api";
 import {
   PanelSection,
   PanelSectionRow,
@@ -250,9 +250,32 @@ const TadpolePanel: FunctionComponent = () => {
     setInstalling(false);
   }, [runDiagnostics, fetchStatus]);
 
-  // Polling with exponential backoff - only run when live tab is active
+  // Reactive game state updates via decky.emit (no polling)
+  // Listen for game-state-update events pushed from main.py's WS listener
+  useEffect(() => {
+    const handler = (data: any) => {
+      if (data?.game_state) {
+        setGameState(data.game_state);
+      }
+      if (data?.recent_events) {
+        setRecentEvents(data.recent_events);
+      }
+    };
+
+    // Subscribe to reactive updates from Python backend
+    addEventListener('game-state-update', handler);
+    return () => {
+      removeEventListener('game-state-update', handler);
+    };
+  }, []);
+
+  // Connection monitoring — periodic checks for bridge/BG3 status (not game state)
+  // Only run when live tab is active. Uses slower interval since game data comes via events.
   useEffect(() => {
     if (tab !== "live") return;
+
+    // Initial fetch on tab switch
+    fetchStatus();
 
     // Clear any existing backoff timer
     if (backoffTimerRef.current) {
@@ -265,10 +288,8 @@ const TadpolePanel: FunctionComponent = () => {
     failCountRef.current = 0;
     setReconnecting(false);
 
-    fetchStatus();
-
-    // Regular 2s polling
-    pollRef.current = setInterval(fetchStatus, 2000);
+    // Slower health/bridge check interval (every 10s) — game state comes via events
+    pollRef.current = setInterval(fetchStatus, 10000);
 
     // Separate health check interval (every 10s)
     healthCheckRef.current = setInterval(async () => {
