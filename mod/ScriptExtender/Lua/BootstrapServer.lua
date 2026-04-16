@@ -1,5 +1,5 @@
 -- ============================================================
--- TadpoleNet BG3SE v30 BootstrapServer.lua v0.17.0
+-- TadpoleNet BG3SE v30 BootstrapServer.lua v0.15.0
 -- Comprehensive game state reader + command executor
 -- Deployed via GustavX piggyback on Steam Deck
 -- ============================================================
@@ -589,65 +589,157 @@ local function getAbilityScores(guid)
 end
 
 -- ============================================================
--- Spell Slots
+-- Action Resources (Spell Slots + all class resources)
 -- ============================================================
-local function getSpellSlots(guid)
-    if not guid then return nil end
+
+-- Known resource ID patterns and their display names
+local RESOURCE_NAMES = {
+    -- Spell slots
+    SpellSlot = "Spell Slot",
+    -- Class resources
+    BardicInspiration = "Bardic Inspiration",
+    SorceryPoint = "Sorcery Point",
+    KiPoint = "Ki Point",
+    MartialArtsDie = "Martial Arts",
+    Rage = "Rage",
+    LayOnHands = "Lay on Hands",
+    WildShape = "Wild Shape",
+    SneakAttack = "Sneak Attack",
+    ChannelOath = "Channel Oath",
+    ChannelDivinity = "Channel Divinity",
+    SuperiorityDie = "Superiority Die",
+    HellishRapture = "Hellish Rapture",
+    FrenziedStrike = "Frenzied Strike",
+    BloodCurse = "Blood Curse",
+    AbiDalzarHorror = "Horror",
+    ArcaneRecovery = "Arcane Recovery",
+    NaturalRecovery = "Natural Recovery",
+    ActionSurge = "Action Surge",
+    SecondWind = "Second Wind",
+    Indomitable = "Indomitable",
+    UnarmoredMovement = "Unarmored Movement",
+    SongOfRest = "Song of Rest",
+    HealingLight = "Healing Light",
+    FavorOfTheGods = "Favor of the Gods",
+    TidesOfChaos = "Tides of Chaos",
+    Metamagic = "Metamagic",
+    Conjuration = "Conjuration",
+    Divination = "Divination",
+    Enchantment = "Enchantment",
+    Evocation = "Evocation",
+    Illusion = "Illusion",
+    Necromancy = "Necromancy",
+    Transmutation = "Transmutation",
+    Abjuration = "Abjuration",
+    WarMagic = "War Magic",
+    PactSlot = "Pact Slot",
+    Smite = "Smite",
+    DivineSmite = "Divine Smite",
+    HuntersMark = "Hunter's Mark",
+}
+
+local function getResourceDisplayName(key)
+    if not key or type(key) ~= "string" then return "Unknown" end
+    -- Check exact match first
+    if RESOURCE_NAMES[key] then return RESOURCE_NAMES[key] end
+    -- Check if key contains a known pattern
+    for pattern, name in pairs(RESOURCE_NAMES) do
+        if key:find(pattern) then return name end
+    end
+    -- Return cleaned-up key as fallback
+    return key:gsub("([A-Z])", " %1"):gsub("^%s", ""):gsub("^%s*(.-)%s*$", "%1")
+end
+
+local function getActionResources(guid)
+    if not guid then return { spellSlots = {}, resources = {} } end
 
     local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
+    if not entity then return { spellSlots = {}, resources = {} } end
 
-    local slots = {}
+    local spellSlots = {}
+    local resources = {}
     local foundAny = false
 
-    -- Try ActionResources
-    local actionResources = tryCall(function() return entity.ActionResources end)
-    if actionResources then
-        local resources = tryCall(function() return actionResources.Resources end)
-        if resources and type(resources) == "table" then
-            for k, v in pairs(resources) do
-                if type(k) == "string" and k:find("SpellSlot") then
+    -- Try ActionResources component
+    local actionResComp = tryCall(function() return entity.ActionResources end)
+    if actionResComp then
+        local resTable = tryCall(function() return actionResComp.Resources end)
+        if resTable and type(resTable) == "table" then
+            for k, v in pairs(resTable) do
+                if type(k) == "string" then
                     foundAny = true
+                    local entry = nil
+
                     if type(v) == "table" then
-                        local current = tryCall(function() return v.CurrentAmount end) or tryCall(function() return v[1] end) or 0
-                        local maxAmt = tryCall(function() return v.MaxAmount end) or tryCall(function() return v[2] end) or 0
-                        slots[k] = {
-                            current = tonumber(current) or 0,
-                            max = tonumber(maxAmt) or 0
-                        }
+                        local current = tryCall(function() return v.CurrentAmount end)
+                            or tryCall(function() return v[1] end)
+                        local maxAmt = tryCall(function() return v.MaxAmount end)
+                            or tryCall(function() return v[2] end)
+                        if current ~= nil or maxAmt ~= nil then
+                            entry = {
+                                current = tonumber(current) or 0,
+                                max = tonumber(maxAmt) or 0
+                            }
+                        end
                     elseif type(v) == "number" then
-                        slots[k] = { current = v, max = v }
+                        entry = { current = v, max = v }
+                    end
+
+                    if entry then
+                        -- Classify: spell slots vs other resources
+                        if k:find("SpellSlot") or k:find("PactSlot") then
+                            spellSlots[k] = entry
+                        else
+                            entry.id = k
+                            entry.name = getResourceDisplayName(k)
+                            table.insert(resources, entry)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Also try ActionResources.Tables (alternative structure in some BG3SE versions)
+        if not foundAny then
+            local resTables = tryCall(function() return actionResComp.Tables end)
+            if resTables and type(resTables) == "table" then
+                for k, v in pairs(resTables) do
+                    if type(k) == "string" and type(v) == "table" then
+                        foundAny = true
+                        local current = tryCall(function() return v.CurrentAmount end)
+                            or tryCall(function() return v.Amount end)
+                        local maxAmt = tryCall(function() return v.MaxAmount end)
+                            or tryCall(function() return v.Max end)
+                        if current ~= nil or maxAmt ~= nil then
+                            local entry = {
+                                current = tonumber(current) or 0,
+                                max = tonumber(maxAmt) or 0
+                            }
+                            if k:find("SpellSlot") or k:find("PactSlot") then
+                                spellSlots[k] = entry
+                            else
+                                entry.id = k
+                                entry.name = getResourceDisplayName(k)
+                                table.insert(resources, entry)
+                            end
+                        end
                     end
                 end
             end
         end
     end
 
-    -- If not found via ActionResources, try the stats approach
+    -- Sort resources by name for consistent output
+    table.sort(resources, function(a, b) return (a.name or "") < (b.name or "") end)
+
     if not foundAny then
-        local stats = tryCall(function() return entity.Stats end)
-        if stats then
-            local dynStats = tryCall(function() return stats.DynamicStats end)
-            if dynStats and type(dynStats) == "table" then
-                for _, ds in pairs(dynStats) do
-                    if type(ds) == "table" then
-                        local mem = tryCall(function() return ds.MemorizedSpells end)
-                        if mem then
-                            -- Try to extract slot info from memorized spell slots
-                            -- This is a fallback approach
-                        end
-                        local ml = tryCall(function() return ds.MaxLevel end)
-                        if ml then
-                            foundAny = true
-                        end
-                    end
-                end
-            end
-        end
+        return { spellSlots = {}, resources = {} }
     end
 
-    if not foundAny then return nil end
-    return slots
+    return {
+        spellSlots = spellSlots,
+        resources = resources
+    }
 end
 
 -- ============================================================
@@ -954,6 +1046,7 @@ local function buildCharacterData(guid)
 
     local hpData = getHP(guid)
     local pos = getPosition(guid)
+    local actionRes = getActionResources(guid)
 
     return {
         guid = guid,
@@ -966,7 +1059,9 @@ local function buildCharacterData(guid)
         position = pos,
         isInvulnerable = getIsInvulnerable(guid),
         isDead = getIsDead(guid),
-        isSneaking = getIsSneaking(guid)
+        isSneaking = getIsSneaking(guid),
+        spellSlots = next(actionRes.spellSlots) and actionRes.spellSlots or nil,
+        actionResources = next(actionRes.resources) and actionRes.resources or nil
     }
 end
 
@@ -987,7 +1082,6 @@ local function buildGameState()
         experience = getExperience(),
         events = _eventLog,
         deathSaves = nil,
-        spellSlots = nil,
         conditions = {},
         concentration = nil,
         proficiencyBonus = 0,
@@ -1001,7 +1095,6 @@ local function buildGameState()
     if hostGuid then
         state.host = buildCharacterData(hostGuid)
         state.deathSaves = getDeathSaves(hostGuid)
-        state.spellSlots = getSpellSlots(hostGuid)
         state.conditions = getConditions(hostGuid)
         state.concentration = getConcentration(hostGuid)
         state.proficiencyBonus = getProficiencyBonus(hostGuid)
