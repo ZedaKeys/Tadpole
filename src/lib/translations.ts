@@ -26,6 +26,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'nav.quests': 'Quests',
     'nav.areas': 'Areas',
     'nav.games': 'Games',
+    'nav.browse': 'Browse',
+    'nav.map': 'Map',
     'nav.search': 'Search',
 
     // Build planner
@@ -109,6 +111,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'nav.quests': 'Misiones',
     'nav.areas': 'Zonas',
     'nav.games': 'Juegos',
+    'nav.browse': 'Explorar',
+    'nav.map': 'Mapa',
     'nav.search': 'Buscar',
 
     // Build planner
@@ -192,6 +196,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'nav.quests': 'Quêtes',
     'nav.areas': 'Zones',
     'nav.games': 'Jeux',
+    'nav.browse': 'Parcourir',
+    'nav.map': 'Carte',
     'nav.search': 'Recherche',
 
     // Build planner
@@ -275,6 +281,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'nav.quests': 'Quests',
     'nav.areas': 'Gebiete',
     'nav.games': 'Spiele',
+    'nav.browse': 'Durchsuchen',
+    'nav.map': 'Karte',
     'nav.search': 'Suche',
 
     // Build planner
