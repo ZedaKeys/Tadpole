@@ -281,6 +281,30 @@ export interface GameCharacter {
   deathSaves?: DeathSaves;
   approval?: number;
   approvalLevel?: ApprovalLevel;
+  /** Initiative bonus from Stats component */
+  initiative?: number;
+  /** Detailed XP breakdown from Experience component */
+  experienceDetail?: { currentLevelXp: number; nextLevelXp: number; totalXp: number };
+  /** Carry weight and encumbrance state */
+  encumbrance?: { weight: number; weightDisplay: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number };
+  /** Stealth state and obscurity level */
+  stealthState?: { sneaking: boolean; obscurity: number };
+  /** Vision ranges */
+  vision?: { darkvisionRange: number; sightRange: number; fov: number };
+  /** Current movement speed */
+  movementSpeed?: number;
+  /** Combat-specific data */
+  combatDetail?: { initiativeRoll: number; combatGroupId: string };
+  /** Character state flags */
+  characterFlags?: { fightMode: boolean; floating: boolean; invisible: boolean; offStage: boolean; storyNPC: boolean; isCompanion: boolean; isPet: boolean; cannotDie: boolean };
+  /** Illithid tadpole tree state */
+  tadpoleState?: { state: number };
+  /** Race/Background/Origin IDs */
+  raceAndBackground?: { raceId?: string; backgroundId?: string; origin?: string };
+  /** Passive ability IDs */
+  passives?: string[];
+  /** Entity tags */
+  tags?: string[];
 }
 
 export interface GameEvent {

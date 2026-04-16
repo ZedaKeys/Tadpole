@@ -4,7 +4,7 @@
 -- Deployed via GustavX piggyback on Steam Deck
 -- ============================================================
 
-local TADPOLE_VERSION = "0.17.0"
+local TADPOLE_VERSION = "0.18.0"
 local STATE_FILE = "TadpoleState.json"
 local COMMANDS_FILE = "TadpoleCommands.json"
 local EVENT_LOG_MAX = 50
@@ -903,6 +903,338 @@ local function getWeather()
 end
 
 -- ============================================================
+-- Experience Detail (per-level XP, total XP, next level threshold)
+-- ============================================================
+local function getExperienceDetail(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local expComp = tryCall(function() return entity.Experience end)
+    if not expComp then return nil end
+
+    local currentLevelXp = tryCall(function() return expComp._CurrentLevelExperience end)
+    local nextLevelXp = tryCall(function() return expComp._NextLevelExperience end)
+    local totalXp = tryCall(function() return expComp._TotalExperience end)
+
+    if currentLevelXp or nextLevelXp or totalXp then
+        return {
+            currentLevelXp = tonumber(currentLevelXp) or 0,
+            nextLevelXp = tonumber(nextLevelXp) or 0,
+            totalXp = tonumber(totalXp) or 0
+        }
+    end
+
+    return nil
+end
+
+-- ============================================================
+-- Encumbrance
+-- ============================================================
+local function getEncumbrance(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local weight = tryCall(function() return entity.InventoryWeight end)
+    local stateComp = tryCall(function() return entity.EncumbranceState end)
+    local statsComp = tryCall(function() return entity.EncumbranceStats end)
+
+    local result = {}
+
+    if weight then
+        result.weight = tonumber(tryCall(function() return weight.Weight end) or tryCall(function() return weight._Weight end)) or 0
+        -- Convert from internal units (divide by 10000 for display)
+        result.weightDisplay = math.floor(result.weight / 10000)
+    end
+
+    if stateComp then
+        local st = tryCall(function() return stateComp._State end)
+        -- 0=unencumbered, 1=encumbered, 2=heavily encumbered
+        result.state = tonumber(st) or 0
+    end
+
+    if statsComp then
+        result.maxWeight = math.floor((tonumber(tryCall(function() return statsComp._UnencumberedWeight end)) or 0) / 10000)
+        result.encumberedWeight = math.floor((tonumber(tryCall(function() return statsComp._EncumberedWeight end)) or 0) / 10000)
+        result.heavilyEncumberedWeight = math.floor((tonumber(tryCall(function() return statsComp._HeavilyEncumberedWeight end)) or 0) / 10000)
+    end
+
+    if next(result) == nil then return nil end
+    return result
+end
+
+-- ============================================================
+-- Stealth / Darkness state
+-- ============================================================
+local function getStealthState(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local darkness = tryCall(function() return entity.Darkness end)
+    if not darkness then return nil end
+
+    return {
+        sneaking = tryCall(function() return darkness.Sneaking end) == 1 or tryCall(function() return darkness._Sneaking end) == 1,
+        obscurity = tonumber(tryCall(function() return darkness._Obscurity end)) or 0
+    }
+end
+
+-- ============================================================
+-- Vision (darkvision range, sight range, FOV)
+-- ============================================================
+local function getVision(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local sightData = tryCall(function() return entity.SightData end)
+    if not sightData then
+        sightData = tryCall(function() return entity.Sight end)
+    end
+    if not sightData then return nil end
+
+    return {
+        darkvisionRange = tonumber(tryCall(function() return sightData._DarkvisionRange end)) or 0,
+        sightRange = tonumber(tryCall(function() return sightData._Sight end)) or 0,
+        fov = tonumber(tryCall(function() return sightData._FOV end)) or 0
+    }
+end
+
+-- ============================================================
+-- Movement speed
+-- ============================================================
+local function getMovementSpeed(guid)
+    if not guid then return 0 end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return 0 end
+
+    local movement = tryCall(function() return entity.Movement end)
+    if movement then
+        local speed = tryCall(function() return movement.Speed end) or tryCall(function() return movement._Speed end)
+        if speed then return tonumber(speed) or 0 end
+    end
+
+    return 0
+end
+
+-- ============================================================
+-- Initiative (from Stats component)
+-- ============================================================
+local function getInitiative(guid)
+    if not guid then return 0 end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return 0 end
+
+    -- Try Stats._InitiativeBonus
+    local stats = tryCall(function() return entity.Stats end)
+    if stats then
+        local init = tryCall(function() return stats._InitiativeBonus end)
+        if init then return tonumber(init) or 0 end
+    end
+
+    -- Fallback: ServerBaseStats
+    local baseStats = tryCall(function() return entity.ServerBaseStats end)
+    if baseStats then
+        local init = tryCall(function() return baseStats.Initiative end) or tryCall(function() return baseStats._Initiative end)
+        if init then return tonumber(init) or 0 end
+    end
+
+    return 0
+end
+
+-- ============================================================
+-- Combat detail (initiative roll, combat group)
+-- ============================================================
+local function getCombatDetail(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local comp = tryCall(function() return entity.CombatParticipant end)
+    if not comp then return nil end
+
+    return {
+        initiativeRoll = tonumber(tryCall(function() return comp._InitiativeRoll end)) or 0,
+        combatGroupId = tryCall(function() return comp._CombatGroupId end) or ""
+    }
+end
+
+-- ============================================================
+-- Character Flags (from ServerCharacter)
+-- ============================================================
+local function getCharacterFlags(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local sc = tryCall(function() return entity.ServerCharacter end)
+    if not sc then return nil end
+
+    return {
+        fightMode = tryCall(function() return sc._FightMode end) == true,
+        floating = tryCall(function() return sc._Floating end) == true,
+        invisible = tryCall(function() return sc._Invisible end) == true,
+        offStage = tryCall(function() return sc._OffStage end) == true,
+        storyNPC = tryCall(function() return sc._StoryNPC end) == true,
+        isCompanion = tryCall(function() return sc._IsCompanion_M end) == true,
+        isPet = tryCall(function() return sc._IsPet end) == true,
+        cannotDie = tryCall(function() return sc._CannotDie end) == true
+    }
+end
+
+-- ============================================================
+-- Illithid / Tadpole Powers State
+-- ============================================================
+local function getTadpoleState(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local treeState = tryCall(function() return entity.TadpoleTreeState end)
+    if not treeState then return nil end
+
+    local state = tryCall(function() return treeState._State end)
+    if state ~= nil then
+        return { state = tonumber(state) or 0 }
+    end
+
+    return nil
+end
+
+-- ============================================================
+-- Race & Background UUIDs
+-- ============================================================
+local function getRaceAndBackground(guid)
+    if not guid then return nil end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return nil end
+
+    local result = {}
+
+    local raceComp = tryCall(function() return entity.Race end)
+    if raceComp then
+        result.raceId = tryCall(function() return raceComp.Race end) or tryCall(function() return raceComp._Race end)
+    end
+
+    local bgComp = tryCall(function() return entity.Background end)
+    if bgComp then
+        result.backgroundId = tryCall(function() return bgComp.Background end) or tryCall(function() return bgComp._Background end)
+    end
+
+    local originComp = tryCall(function() return entity.Origin end)
+    if originComp then
+        result.origin = tryCall(function() return originComp._Origin end)
+    end
+
+    if next(result) == nil then return nil end
+    return result
+end
+
+-- ============================================================
+-- Passive Abilities List
+-- ============================================================
+local function getPassives(guid)
+    if not guid then return {} end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return {} end
+
+    local passives = {}
+
+    local pc = tryCall(function() return entity.PassiveContainer end)
+    if pc then
+        local pList = tryCall(function() return pc.Passives end)
+        if pList and type(pList) == "table" then
+            for k, v in pairs(pList) do
+                if type(k) == "string" then
+                    table.insert(passives, k)
+                elseif type(v) == "string" then
+                    table.insert(passives, v)
+                end
+            end
+        end
+        -- Try pairs on userdata
+        local ok, _ = pcall(function()
+            for k, v in pairs(pList) do
+                local name = type(k) == "string" and k or (type(v) == "string" and v or nil)
+                if name and not passives[name] then
+                    table.insert(passives, name)
+                end
+            end
+        end)
+    end
+
+    -- Also try OriginPassives
+    local op = tryCall(function() return entity.OriginPassives end)
+    if op then
+        local oList = tryCall(function() return op.Passives end)
+        if oList then
+            local ok, _ = pcall(function()
+                for k, v in pairs(oList) do
+                    local name = type(k) == "string" and k or (type(v) == "string" and v or nil)
+                    if name then
+                        table.insert(passives, name)
+                    end
+                end
+            end)
+        end
+    end
+
+    return passives
+end
+
+-- ============================================================
+-- Tags
+-- ============================================================
+local function getTags(guid)
+    if not guid then return {} end
+
+    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
+    if not entity then return {} end
+
+    local tags = {}
+
+    local tagSources = {"Tag", "ClassTag", "OriginTag", "BackgroundTag", "ServerOsirisTag", "ServerTemplateTag"}
+    for _, src in ipairs(tagSources) do
+        local comp = tryCall(function() return entity[src] end)
+        if comp then
+            local tagList = tryCall(function() return comp.Tags end)
+            if tagList then
+                pcall(function()
+                    for k, v in pairs(tagList) do
+                        local t = type(k) == "string" and k or (type(v) == "string" and v or nil)
+                        if t then
+                            -- Avoid duplicates
+                            local found = false
+                            for _, existing in ipairs(tags) do
+                                if existing == t then found = true; break end
+                            end
+                            if not found then table.insert(tags, t) end
+                        end
+                    end
+                end)
+            end
+        end
+    end
+
+    return tags
+end
+
+
+
+-- ============================================================
 -- Camp Supplies
 -- ============================================================
 local function getCampSupplies()
@@ -1061,7 +1393,19 @@ local function buildCharacterData(guid)
         isDead = getIsDead(guid),
         isSneaking = getIsSneaking(guid),
         spellSlots = next(actionRes.spellSlots) and actionRes.spellSlots or nil,
-        actionResources = next(actionRes.resources) and actionRes.resources or nil
+        actionResources = next(actionRes.resources) and actionRes.resources or nil,
+        initiative = getInitiative(guid),
+        experienceDetail = getExperienceDetail(guid),
+        encumbrance = getEncumbrance(guid),
+        stealthState = getStealthState(guid),
+        vision = getVision(guid),
+        movementSpeed = getMovementSpeed(guid),
+        combatDetail = getCombatDetail(guid),
+        characterFlags = getCharacterFlags(guid),
+        tadpoleState = getTadpoleState(guid),
+        raceAndBackground = getRaceAndBackground(guid),
+        passives = getPassives(guid),
+        tags = getTags(guid)
     }
 end
 
@@ -1646,6 +1990,287 @@ end)
 Ext.Osiris.RegisterListener("LevelGameplayStarted", 2, "after", function(level, isEditorMode)
     pushEvent("level_gameplay_started", { level = level })
     -- Force immediate state write on level load
+    if _ready then
+        local state = buildGameState()
+        writeState(state)
+    end
+end)
+
+-- ============================================================
+-- Ext.Events — Real-time game event subscriptions
+-- ============================================================
+
+-- Spell cast events
+Ext.Events.SpellCast:Subscribe(function(e)
+    pushEvent("spell_cast", {
+        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
+        spellId = e.SpellId or "",
+        spellName = e.SpellName or ""
+    })
+end)
+
+Ext.Events.SpellCastHit:Subscribe(function(e)
+    pushEvent("spell_cast_hit", {
+        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
+        spellId = e.SpellId or ""
+    })
+end)
+
+Ext.Events.SpellCastFinished:Subscribe(function(e)
+    pushEvent("spell_cast_finished", {
+        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
+        spellId = e.SpellId or ""
+    })
+end)
+
+-- Damage and healing
+Ext.Events.DamageTaken:Subscribe(function(e)
+    pushEvent("damage_taken", {
+        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
+        source = e.Source and e.Source.Uuid and e.Source.Uuid._EntityUuid or "",
+        damage = tonumber(e.Damage) or 0,
+        damageType = e.DamageType or ""
+    })
+end)
+
+Ext.Events.HealingReceived:Subscribe(function(e)
+    pushEvent("healing_received", {
+        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
+        source = e.Source and e.Source.Uuid and e.Source.Uuid._EntityUuid or "",
+        amount = tonumber(e.Amount) or 0
+    })
+end)
+
+-- Status changes
+Ext.Events.StatusApplied:Subscribe(function(e)
+    pushEvent("status_applied_ext", {
+        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
+        source = e.Source and e.Source.Uuid and e.Source.Uuid._EntityUuid or "",
+        statusId = e.StatusId or ""
+    })
+end)
+
+Ext.Events.StatusRemoved:Subscribe(function(e)
+    pushEvent("status_removed", {
+        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
+        statusId = e.StatusId or ""
+    })
+end)
+
+-- Concentration
+Ext.Events.ConcentrationGain:Subscribe(function(e)
+    pushEvent("concentration_gain", {
+        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
+        spellId = e.SpellId or ""
+    })
+end)
+
+Ext.Events.ConcentrationLost:Subscribe(function(e)
+    pushEvent("concentration_lost", {
+        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
+        spellId = e.SpellId or ""
+    })
+end)
+
+-- XP and leveling
+Ext.Events.ExperienceGained:Subscribe(function(e)
+    pushEvent("experience_gained", {
+        amount = tonumber(e.Amount) or 0
+    })
+end)
+
+Ext.Events.LevelUp:Subscribe(function(e)
+    pushEvent("level_up_ext", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.LevelChanged:Subscribe(function(e)
+    pushEvent("level_changed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        newLevel = tonumber(e.NewLevel) or 0
+    })
+end)
+
+-- Equipment changes
+Ext.Events.ItemEquipped:Subscribe(function(e)
+    pushEvent("item_equipped", {
+        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
+        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.ItemUnequipped:Subscribe(function(e)
+    pushEvent("item_unequipped", {
+        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
+        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.ItemAddedToInventory:Subscribe(function(e)
+    pushEvent("item_added", {
+        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
+        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.ItemRemovedFromInventory:Subscribe(function(e)
+    pushEvent("item_removed", {
+        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
+        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
+    })
+end)
+
+-- Combat detail
+Ext.Events.CombatStarted:Subscribe(function(e)
+    pushEvent("combat_started_ext", {})
+end)
+
+Ext.Events.CombatEnded:Subscribe(function(e)
+    pushEvent("combat_ended_ext", {})
+end)
+
+Ext.Events.CombatRoundStarted:Subscribe(function(e)
+    pushEvent("combat_round_started", { round = tonumber(e.Round) or 0 })
+end)
+
+Ext.Events.CombatRoundEnded:Subscribe(function(e)
+    pushEvent("combat_round_ended", { round = tonumber(e.Round) or 0 })
+end)
+
+Ext.Events.TurnStarted:Subscribe(function(e)
+    pushEvent("turn_started", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.TurnEnded:Subscribe(function(e)
+    pushEvent("turn_ended", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+-- Death
+Ext.Events.DeathDied:Subscribe(function(e)
+    pushEvent("death_died", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.DeathResurrected:Subscribe(function(e)
+    pushEvent("death_resurrected", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+-- Passives and boosts
+Ext.Events.PassiveAdded:Subscribe(function(e)
+    pushEvent("passive_added", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        passive = e.PassiveId or ""
+    })
+end)
+
+Ext.Events.PassiveRemoved:Subscribe(function(e)
+    pushEvent("passive_removed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        passive = e.PassiveId or ""
+    })
+end)
+
+Ext.Events.BoostAdded:Subscribe(function(e)
+    pushEvent("boost_added", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        boost = e.BoostId or ""
+    })
+end)
+
+Ext.Events.BoostRemoved:Subscribe(function(e)
+    pushEvent("boost_removed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        boost = e.BoostId or ""
+    })
+end)
+
+-- Tags
+Ext.Events.TagAdded:Subscribe(function(e)
+    pushEvent("tag_added", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        tag = e.Tag or ""
+    })
+end)
+
+Ext.Events.TagRemoved:Subscribe(function(e)
+    pushEvent("tag_removed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        tag = e.Tag or ""
+    })
+end)
+
+-- Saving throws
+Ext.Events.SavingThrowRolled:Subscribe(function(e)
+    pushEvent("saving_throw_rolled", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        ability = e.Ability or "",
+        roll = tonumber(e.Roll) or 0,
+        dc = tonumber(e.DC) or 0,
+        success = e.Success == true
+    })
+end)
+
+-- Skill checks
+Ext.Events.SkillCheck:Subscribe(function(e)
+    pushEvent("skill_check", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        skill = e.Skill or "",
+        roll = tonumber(e.Roll) or 0,
+        dc = tonumber(e.DC) or 0,
+        success = e.Success == true
+    })
+end)
+
+-- Proficiency and attribute changes
+Ext.Events.ProficiencyChanged:Subscribe(function(e)
+    pushEvent("proficiency_changed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+Ext.Events.AttributeChanged:Subscribe(function(e)
+    pushEvent("attribute_changed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
+        attribute = e.Attribute or "",
+        newValue = tonumber(e.NewValue) or 0
+    })
+end)
+
+-- Shapeshift
+Ext.Events.ShapeshiftChanged:Subscribe(function(e)
+    pushEvent("shapeshift_changed", {
+        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
+    })
+end)
+
+-- Long/short rest (Ext.Events versions — more reliable than Osiris)
+Ext.Events.LongRestStarted:Subscribe(function(e)
+    pushEvent("long_rest_started_ext", {})
+end)
+
+Ext.Events.LongRestFinished:Subscribe(function(e)
+    pushEvent("long_rest_finished_ext", {})
+    -- Force immediate state write after rest
+    if _ready then
+        local state = buildGameState()
+        writeState(state)
+    end
+end)
+
+Ext.Events.ShortRestStarted:Subscribe(function(e)
+    pushEvent("short_rest_started_ext", {})
+end)
+
+Ext.Events.ShortRestFinished:Subscribe(function(e)
+    pushEvent("short_rest_finished_ext", {})
     if _ready then
         local state = buildGameState()
         writeState(state)
