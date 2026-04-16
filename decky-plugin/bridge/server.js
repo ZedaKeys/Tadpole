@@ -700,6 +700,27 @@ function writeCommandToLua(command) {
 async function writeCommand(command) {
   // Try Lua mod first (preferred - more features)
   const luaSuccess = writeCommandToLua(command);
+  
+  // Also write to /tmp/tadpole_commands.json for the Lua mod's polling path
+  // The Lua mod reads from os.tmpdir()/tadpole_commands.json which is /tmp on Linux
+  try {
+    const tmpCmdPath = path.join(os.tmpdir(), 'tadpole_commands.json');
+    let tmpCommands = [];
+    if (fs.existsSync(tmpCmdPath)) {
+      const raw = fs.readFileSync(tmpCmdPath, 'utf8');
+      if (raw.trim()) {
+        tmpCommands = JSON.parse(raw);
+        if (!Array.isArray(tmpCommands)) tmpCommands = [tmpCommands];
+      }
+    }
+    tmpCommands.push({ ...command, _bridgeTimestamp: Date.now() });
+    if (tmpCommands.length > 50) tmpCommands = tmpCommands.slice(-50);
+    fs.writeFileSync(tmpCmdPath, JSON.stringify(tmpCommands, null, 2), { mode: 0o600 });
+  } catch (err) {
+    // Non-critical - the Lua mod might read from the SE path instead
+    console.error('[commands] Failed to write to /tmp command file:', err.message);
+  }
+  
   if (luaSuccess) return true;
 
   // Fallback: try native daemon
