@@ -430,7 +430,7 @@ const TadpolePanel: FunctionComponent = () => {
           <div style={s.row(false)}>
             <div style={s.dot(reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51")} />
             <span style={{ ...s.value, fontSize: 11, color: reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51" }}>
-              {reconnecting ? "Reconnecting..." : bridgeRunning && bridgeHealthy ? "Online" : bridgeRunning ? "Unhealthy" : "Offline"}
+              {reconnecting ? "Reconnecting..." : bridgeRunning && bridgeHealthy ? (bg3Running ? "Online — BG3 Running" : "Online — BG3 Not Running") : bridgeRunning ? "Unhealthy" : "Offline — Start Bridge"}
             </span>
             {reconnecting && (
               <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>

@@ -16,6 +16,8 @@ if (api._version != API_VERSION) {
     console.warn(`[@decky/api] Requested API version ${API_VERSION} but the running loader only supports version ${api._version}. Some features may not work.`);
 }
 const callable = api.callable;
+const addEventListener = api.addEventListener;
+const removeEventListener = api.removeEventListener;
 const toaster = api.toaster;
 const definePlugin = (fn) => {
     return (...args) => {
@@ -291,10 +293,30 @@ const TadpolePanel = () => {
         }
         setInstalling(false);
     }, [runDiagnostics, fetchStatus]);
-    // Polling with exponential backoff - only run when live tab is active
+    // Reactive game state updates via decky.emit (no polling)
+    // Listen for game-state-update events pushed from main.py's WS listener
+    SP_REACT.useEffect(() => {
+        const handler = (data) => {
+            if (data?.game_state) {
+                setGameState(data.game_state);
+            }
+            if (data?.recent_events) {
+                setRecentEvents(data.recent_events);
+            }
+        };
+        // Subscribe to reactive updates from Python backend
+        addEventListener('game-state-update', handler);
+        return () => {
+            removeEventListener('game-state-update', handler);
+        };
+    }, []);
+    // Connection monitoring — periodic checks for bridge/BG3 status (not game state)
+    // Only run when live tab is active. Uses slower interval since game data comes via events.
     SP_REACT.useEffect(() => {
         if (tab !== "live")
             return;
+        // Initial fetch on tab switch
+        fetchStatus();
         // Clear any existing backoff timer
         if (backoffTimerRef.current) {
             clearTimeout(backoffTimerRef.current);
@@ -304,9 +326,8 @@ const TadpolePanel = () => {
         backoffMsRef.current = 2000;
         failCountRef.current = 0;
         setReconnecting(false);
-        fetchStatus();
-        // Regular 2s polling
-        pollRef.current = setInterval(fetchStatus, 2000);
+        // Slower health/bridge check interval (every 10s) — game state comes via events
+        pollRef.current = setInterval(fetchStatus, 10000);
         // Separate health check interval (every 10s)
         healthCheckRef.current = setInterval(async () => {
             try {
@@ -443,7 +464,7 @@ const TadpolePanel = () => {
     // -----------------------------------------------------------------------
     // Tab: Live
     // -----------------------------------------------------------------------
-    const LiveTab = () => (SP_JSX.jsxs("div", { children: [SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsxs("div", { style: s.row(), children: [SP_JSX.jsxs("div", { style: s.row(false), children: [SP_JSX.jsx("div", { style: s.dot(reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51") }), SP_JSX.jsx("span", { style: { ...s.value, fontSize: 11, color: reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51" }, children: reconnecting ? "Reconnecting..." : bridgeRunning && bridgeHealthy ? "Online" : bridgeRunning ? "Unhealthy" : "Offline" }), reconnecting && (SP_JSX.jsxs("span", { style: { fontSize: 10, color: "rgba(255,255,255,0.35)" }, children: ["(attempt ", failCountRef.current + 1, ")"] }))] }), bridgeRunning && !reconnecting && connectedClients > 0 && (SP_JSX.jsxs("span", { style: s.pill("#52b788"), children: [connectedClients, " phone", connectedClients !== 1 ? "s" : ""] })), bg3Running && (SP_JSX.jsx("span", { style: s.pill("rgba(120,180,255,0.8)"), children: "BG3" }))] }), bridgeRunning && !bridgeHealthy && !reconnecting && (SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10, color: "#f4a261", marginTop: 4, textAlign: "center" }, children: "Bridge is running but unhealthy \u2014 some features may not work" }))] }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: loading || nodeMissing, onClick: bridgeRunning ? stopBridge : startBridge, children: loading ? "..." : bridgeRunning ? "Stop Bridge" : "Start Bridge" }) }), bridgeRunning && (SP_JSX.jsxs("div", { style: s.card("rgba(120,180,255,0.12)"), children: [SP_JSX.jsx("div", { style: { ...s.muted, marginBottom: 4, textAlign: "center" }, children: "Open on your phone:" }), SP_JSX.jsxs("div", { style: s.ip, children: [ip, ":", settings.port] })] })), hasLiveData && (SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsxs("div", { style: { ...s.row(), marginBottom: 8 }, children: [gameState.area && SP_JSX.jsx("span", { style: { ...s.value, fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: gameState.area }), SP_JSX.jsxs("div", { style: { ...s.row(false), gap: 4, flexShrink: 0 }, children: [gameState.inCombat && SP_JSX.jsx("span", { style: s.pill("#e76f51"), children: "Combat" }), gameState.inDialog && SP_JSX.jsx("span", { style: s.pill("#f4a261"), children: "Dialog" }), !gameState.inCombat && !gameState.inDialog && SP_JSX.jsx("span", { style: s.pill("#52b788"), children: "Explore" })] })] }), SP_JSX.jsxs("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 8 }, children: [typeof gameState.gold === "number" && (SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10 }, children: "Gold" }), SP_JSX.jsx("div", { style: { ...s.value, color: "#f4a261" }, children: gameState.gold })] })), partyHp.m > 0 && (SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10 }, children: "Party HP" }), SP_JSX.jsxs("div", { style: { ...s.value, color: hpColor(partyHp.c / partyHp.m) }, children: [partyHp.c, "/", partyHp.m] })] })), gameState.party && (SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10 }, children: "Party" }), SP_JSX.jsx("div", { style: s.value, children: gameState.party.length + 1 })] }))] }), gameState.host?.maxHp > 0 && (SP_JSX.jsx(HpRow, { name: gameState.host.name || "Host", hp: gameState.host.hp, maxHp: gameState.host.maxHp, bold: true })), gameState.party?.map((m, i) => m.maxHp > 0 ? (SP_JSX.jsx(HpRow, { name: m.name, hp: m.hp, maxHp: m.maxHp }, m.guid || i)) : null), recentEvents.length > 0 && (SP_JSX.jsxs("div", { style: { marginTop: 6 }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }, children: "Recent" }), recentEvents.slice(-4).reverse().map((evt, i) => (SP_JSX.jsxs("div", { style: s.eventRow, children: [SP_JSX.jsx("span", { style: { color: "rgba(255,255,255,0.3)" }, children: EVENT_ICON[evt.type] || "-" }), SP_JSX.jsxs("span", { style: { color: "rgba(255,255,255,0.45)" }, children: [evt.type.replace(/_/g, " "), evt.detail ? ` - ${evt.detail}` : ""] })] }, i)))] }))] })), !hasLiveData && bridgeRunning && (SP_JSX.jsx("div", { style: s.card(), children: SP_JSX.jsx("div", { style: { ...s.muted, textAlign: "center" }, children: bg3Running ? "Waiting for game data... make sure the Lua mod is installed." : "Start BG3 to see live data here." }) }))] }));
+    const LiveTab = () => (SP_JSX.jsxs("div", { children: [SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsxs("div", { style: s.row(), children: [SP_JSX.jsxs("div", { style: s.row(false), children: [SP_JSX.jsx("div", { style: s.dot(reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51") }), SP_JSX.jsx("span", { style: { ...s.value, fontSize: 11, color: reconnecting ? "#e76f51" : bridgeRunning && bridgeHealthy ? "#52b788" : bridgeRunning ? "#f4a261" : "#e76f51" }, children: reconnecting ? "Reconnecting..." : bridgeRunning && bridgeHealthy ? (bg3Running ? "Online — BG3 Running" : "Online — BG3 Not Running") : bridgeRunning ? "Unhealthy" : "Offline — Start Bridge" }), reconnecting && (SP_JSX.jsxs("span", { style: { fontSize: 10, color: "rgba(255,255,255,0.35)" }, children: ["(attempt ", failCountRef.current + 1, ")"] }))] }), bridgeRunning && !reconnecting && connectedClients > 0 && (SP_JSX.jsxs("span", { style: s.pill("#52b788"), children: [connectedClients, " phone", connectedClients !== 1 ? "s" : ""] })), bg3Running && (SP_JSX.jsx("span", { style: s.pill("rgba(120,180,255,0.8)"), children: "BG3" }))] }), bridgeRunning && !bridgeHealthy && !reconnecting && (SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10, color: "#f4a261", marginTop: 4, textAlign: "center" }, children: "Bridge is running but unhealthy \u2014 some features may not work" }))] }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: loading || nodeMissing, onClick: bridgeRunning ? stopBridge : startBridge, children: loading ? "..." : bridgeRunning ? "Stop Bridge" : "Start Bridge" }) }), bridgeRunning && (SP_JSX.jsxs("div", { style: s.card("rgba(120,180,255,0.12)"), children: [SP_JSX.jsx("div", { style: { ...s.muted, marginBottom: 4, textAlign: "center" }, children: "Open on your phone:" }), SP_JSX.jsxs("div", { style: s.ip, children: [ip, ":", settings.port] })] })), hasLiveData && (SP_JSX.jsxs("div", { style: s.card(), children: [SP_JSX.jsxs("div", { style: { ...s.row(), marginBottom: 8 }, children: [gameState.area && SP_JSX.jsx("span", { style: { ...s.value, fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: gameState.area }), SP_JSX.jsxs("div", { style: { ...s.row(false), gap: 4, flexShrink: 0 }, children: [gameState.inCombat && SP_JSX.jsx("span", { style: s.pill("#e76f51"), children: "Combat" }), gameState.inDialog && SP_JSX.jsx("span", { style: s.pill("#f4a261"), children: "Dialog" }), !gameState.inCombat && !gameState.inDialog && SP_JSX.jsx("span", { style: s.pill("#52b788"), children: "Explore" })] })] }), SP_JSX.jsxs("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 8 }, children: [typeof gameState.gold === "number" && (SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10 }, children: "Gold" }), SP_JSX.jsx("div", { style: { ...s.value, color: "#f4a261" }, children: gameState.gold })] })), partyHp.m > 0 && (SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10 }, children: "Party HP" }), SP_JSX.jsxs("div", { style: { ...s.value, color: hpColor(partyHp.c / partyHp.m) }, children: [partyHp.c, "/", partyHp.m] })] })), gameState.party && (SP_JSX.jsxs("div", { style: { textAlign: "center", padding: "4px 0" }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10 }, children: "Party" }), SP_JSX.jsx("div", { style: s.value, children: gameState.party.length + 1 })] }))] }), gameState.host?.maxHp > 0 && (SP_JSX.jsx(HpRow, { name: gameState.host.name || "Host", hp: gameState.host.hp, maxHp: gameState.host.maxHp, bold: true })), gameState.party?.map((m, i) => m.maxHp > 0 ? (SP_JSX.jsx(HpRow, { name: m.name, hp: m.hp, maxHp: m.maxHp }, m.guid || i)) : null), recentEvents.length > 0 && (SP_JSX.jsxs("div", { style: { marginTop: 6 }, children: [SP_JSX.jsx("div", { style: { ...s.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }, children: "Recent" }), recentEvents.slice(-4).reverse().map((evt, i) => (SP_JSX.jsxs("div", { style: s.eventRow, children: [SP_JSX.jsx("span", { style: { color: "rgba(255,255,255,0.3)" }, children: EVENT_ICON[evt.type] || "-" }), SP_JSX.jsxs("span", { style: { color: "rgba(255,255,255,0.45)" }, children: [evt.type.replace(/_/g, " "), evt.detail ? ` - ${evt.detail}` : ""] })] }, i)))] }))] })), !hasLiveData && bridgeRunning && (SP_JSX.jsx("div", { style: s.card(), children: SP_JSX.jsx("div", { style: { ...s.muted, textAlign: "center" }, children: bg3Running ? "Waiting for game data... make sure the Lua mod is installed." : "Start BG3 to see live data here." }) }))] }));
     // -----------------------------------------------------------------------
     // Tab: Setup
     // -----------------------------------------------------------------------

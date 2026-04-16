@@ -54,7 +54,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.13.0"
+PLUGIN_VERSION = "0.15.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -609,11 +609,20 @@ def _is_bg3_running():
 
 
 def _is_bridge_running():
-    """Check if the bridge server process is alive."""
+    """Check if the bridge server process is alive OR already running on the port."""
     global _bridge_process
-    if _bridge_process is None:
+    # Check plugin-managed process
+    if _bridge_process is not None and _bridge_process.poll() is None:
+        return True
+    # Also check if something is listening on the bridge port
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        result = s.connect_ex(("127.0.0.1", _bridge_port))
+        s.close()
+        return result == 0
+    except Exception:
         return False
-    return _bridge_process.poll() is None
 
 
 def _is_systemd_bridge_running():
@@ -2016,14 +2025,14 @@ class Plugin:
 
             decky.logger.info(f"start_bridge called: port={port}, bridge_dir={bridge_dir}")
 
-            if _is_bridge_running():
+            if _is_bridge_running() or self._is_port_in_use(port or 3456):
                 return {"success": True, "message": "Bridge already running"}
 
             # Check port conflict before starting
             if self._is_port_in_use(port or 3456):
                 return {
                     "success": False,
-                    "message": f"Port {port or 3456} is already in use. Another service may be running on this port.",
+                    "message": f"Bridge is already running on port {port or 3456}. Everything is working!",
                 }
 
             if not _is_node_installed():
