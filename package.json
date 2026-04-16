@@ -1,6 +1,6 @@
 {
   "name": "tadpole",
-  "version": "2.0.0",
+  "version": "2.0.4",
   "private": true,
   "scripts": {
     "dev": "next dev",
