@@ -1,17 +1,17 @@
 /// <reference lib="webworker" />
 
-const CACHE_VERSION = '2.0.1';
+const CACHE_VERSION = '2.0.4';
 const CACHE_NAME = `tadpole-v${CACHE_VERSION}`;
 
 // Critical assets to pre-cache on install
 const PRE_CACHE_URLS = [
-  '/',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-192.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/apple-touch-icon-180.png',
+  '/phone/',
+  '/phone/manifest.json',
+  '/phone/icons/icon-192.png',
+  '/phone/icons/icon-512.png',
+  '/phone/icons/icon-maskable-192.png',
+  '/phone/icons/icon-maskable-512.png',
+  '/phone/icons/apple-touch-icon-180.png',
 ];
 
 // Static asset extensions — cache-first strategy
@@ -125,7 +125,7 @@ async function navigationHandler(request) {
     if (cached) return cached;
 
     // Fall back to cached root page
-    const rootCached = await caches.match('/');
+    const rootCached = await caches.match('/phone/');
     if (rootCached) return rootCached;
 
     // Ultimate fallback

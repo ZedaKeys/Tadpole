@@ -30,13 +30,11 @@ export function registerServiceWorker(): void {
           if (newWorker.state === 'installed') {
             if (navigator.serviceWorker.controller) {
               // New content is available — there's a waiting SW
-              console.log('[SW] New update available');
               if (updateCallback) {
                 updateCallback();
               }
             } else {
               // First install — content is cached for offline use
-              console.log('[SW] Content cached for offline use');
             }
           }
         });
@@ -44,7 +42,6 @@ export function registerServiceWorker(): void {
 
       // If there's already a waiting SW on load, notify immediately
       if (registration.waiting) {
-        console.log('[SW] Update already waiting');
         if (updateCallback) {
           updateCallback();
         }

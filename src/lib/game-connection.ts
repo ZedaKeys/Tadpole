@@ -305,7 +305,7 @@ export function getGameConnection(): GameConnection {
   return instance;
 }
 
-// ISSUE 9: Allow singleton to be nulled when no longer needed
+// Allow singleton to be nulled when no longer needed
 export function resetGameConnection() {
   if (instance) {
     instance.disconnect();

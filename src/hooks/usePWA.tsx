@@ -81,7 +81,12 @@ export function PWAProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return;
     if (isInstalled) return;
 
-    const dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
+    let dismissed: string | null = null;
+    try {
+      dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
+    } catch {
+      // localStorage may be unavailable (e.g. private browsing)
+    }
     if (dismissed) return;
 
     const handler = (e: Event) => {

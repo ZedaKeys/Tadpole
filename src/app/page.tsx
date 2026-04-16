@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import { useGameConnection } from '@/hooks/useGameConnection';
 import { Swords, Wifi, WifiOff, Shield, MessageSquare, Cloud, Search, Map, Activity, Heart } from 'lucide-react';
 import Link from 'next/link';
@@ -42,7 +43,10 @@ export default function HomePage() {
     connect(ip.trim(), 3456);
   };
 
-  if (connecting && isConnected) setConnecting(false);
+  // Sync connecting state when connection is established
+  useEffect(() => {
+    if (connecting && isConnected) setConnecting(false);
+  }, [connecting, isConnected]);
 
   // ── Connection Panel ──
   if (!isConnected || !gameState) {
