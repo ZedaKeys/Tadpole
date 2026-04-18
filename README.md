@@ -125,7 +125,58 @@ WINEDLLOVERRIDES="DWrite.dll=n,b" ~/lsfg %command%
 
 ---
 
-## Manual Install (Troubleshooting)
+## Windows Install (ROG Ally X / Gaming PC)
+
+For Windows devices, there's a standalone executable that auto-deploys everything.
+
+### Quick Setup
+
+1. Download **[TadpoleBridge-v0.20.0-Windows.zip](https://github.com/ZedaKeys/Tadpole/releases/tag/v0.20.0)** from GitHub Releases
+2. Extract the ZIP to any folder (e.g. `C:\Tadpole`)
+3. Double-click **TadpoleBridge.exe**
+4. It will auto-detect your BG3 install, deploy the Lua mod, and start the bridge server
+5. Open **http://[YOUR-PC-IP]:3456/phone** on your phone
+
+### What the exe does
+
+- Auto-detects BG3 installation (Steam / GOG / Xbox Game Pass)
+- Deploys the BG3 ScriptExtender Lua mod to the correct folder
+- Starts the bridge server on port 3456
+- Serves the phone app at `/phone`
+
+### Finding your IP on Windows
+
+Open Command Prompt and run:
+```
+ipconfig | findstr IPv4
+```
+Look for your WiFi adapter's IPv4 address (e.g. `192.168.1.67`).
+
+### SmartScreen Warning
+
+The exe is not code-signed, so Windows SmartScreen will show a warning. Click **More info** then **Run anyway**. This is safe -- the source code is all in this repo.
+
+### Manual Windows Install (Alternative)
+
+If you prefer not to use the exe:
+
+1. Install [Node.js](https://nodejs.org/) (v18+)
+2. Install [BG3 ScriptExtender](https://github.com/Norbyte/bg3se/releases/latest) -- extract `DWrite.dll` into your BG3 folder next to `bg3.exe`
+3. Clone this repo
+4. Copy `mod/ScriptExtender/Lua/BootstrapServer.lua` to your BG3 Script Extender Lua folder:
+   ```
+   %LOCALAPPDATA%\Larian Studios\Baldur's Gate 3\Script Extender\Lua\BootstrapServer.lua
+   ```
+5. Install bridge dependencies and start:
+   ```
+   cd bridge
+   npm install
+   node server.js
+   ```
+
+---
+
+## Steam Deck Manual Install (Troubleshooting)
 
 If the one-click setup fails, switch to Desktop Mode, open Konsole, and run:
 
@@ -151,7 +202,7 @@ curl -s http://127.0.0.1:3456/status
 
 ---
 
-## Plugin Settings
+## Plugin Settings (Steam Deck)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
