@@ -1,6 +1,6 @@
 // Tadpole Decky Plugin — TypeScript interfaces
 // These match the ACTUAL data produced by:
-//   1. TadpoleCompanion.lua (writes to tadpole_state.json)
+//   1. BootstrapServer.lua v0.18.0 (writes TadpoleState.json via Ext.IO.SaveFile)
 //   2. bridge/server.js (adds events, enriches state)
 
 // ---------------------------------------------------------------------------
@@ -15,20 +15,79 @@ export interface ActionResource {
   max: number;
 }
 
+/** Ability scores (STR/DEX/CON/INT/WIS/CHA) */
+export interface AbilityScores {
+  str: number;
+  dex: number;
+  con: number;
+  int: number;
+  wis: number;
+  cha: number;
+}
+
+/** Concentration info */
+export interface ConcentrationInfo {
+  spellId: string;
+  caster: string;
+}
+
+/** Death saves tracker */
+export interface DeathSaves {
+  successes: number;
+  failures: number;
+  isDead: boolean;
+}
+
+/** Spell slots per level */
+export interface SpellSlots {
+  [level: string]: { current: number; max: number };
+}
+
 /** A character (host or party member) as reported by the Lua mod */
 export interface GameCharacter {
   guid: string;
   name: string;
   hp: number;
   maxHp: number;
+  tempHp?: number;
   level: number;
   armorClass?: number;
   isDead?: boolean;
   isInvulnerable?: boolean;
   isSneaking?: boolean;
   position: { x: number; y: number; z: number };
-  spellSlots?: { [level: string]: { current: number; max: number } };
+  experience?: number;
+  proficiencyBonus?: number;
+  abilityScores?: AbilityScores;
+  spellSlots?: SpellSlots;
   actionResources?: ActionResource[];
+  conditions?: string[];
+  concentration?: ConcentrationInfo | null;
+  deathSaves?: DeathSaves;
+  /** Initiative bonus from Stats component */
+  initiative?: number;
+  /** Detailed XP breakdown from Experience component */
+  experienceDetail?: { currentLevelXp: number; nextLevelXp: number; totalXp: number };
+  /** Carry weight and encumbrance state */
+  encumbrance?: { weight: number; weightDisplay: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number };
+  /** Stealth state and obscurity level */
+  stealthState?: { sneaking: boolean; obscurity: number };
+  /** Vision ranges */
+  vision?: { darkvisionRange: number; sightRange: number; fov: number };
+  /** Current movement speed */
+  movementSpeed?: number;
+  /** Combat-specific data */
+  combatDetail?: { initiativeRoll: number; combatGroupId: string };
+  /** Character state flags */
+  characterFlags?: { fightMode: boolean; floating: boolean; invisible: boolean; offStage: boolean; storyNPC: boolean; isCompanion: boolean; isPet: boolean; cannotDie: boolean };
+  /** Illithid tadpole tree state */
+  tadpoleState?: { state: number };
+  /** Race/Background/Origin IDs */
+  raceAndBackground?: { raceId?: string; backgroundId?: string; origin?: string };
+  /** Passive ability IDs */
+  passives?: string[];
+  /** Entity tags */
+  tags?: string[];
 }
 
 /** A game event from the Lua mod's Osiris listeners */
@@ -36,17 +95,28 @@ export interface GameEvent {
   type: string;
   timestamp: number;
   area?: string;
+  detail?: string;
 }
 
-/** The full game state snapshot written by the Lua mod every ~2s */
+/** Camp supplies info */
+export interface CampSupplies {
+  current: number;
+  max: number;
+  canRest: boolean;
+}
+
+/** The full game state snapshot written by the Lua mod */
 export interface GameState {
   timestamp: number;
   area: string;
   inCombat: boolean;
+  inDialog?: boolean;
+  weather?: string;
   host: GameCharacter | null;
   party: GameCharacter[];
   gold: number;
   events: GameEvent[];
+  campSupplies?: CampSupplies;
 }
 
 // ---------------------------------------------------------------------------

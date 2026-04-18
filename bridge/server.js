@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
@@ -12,21 +13,28 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const NATIVE_SOCKET = process.env.NATIVE_SOCKET || '/tmp/tadpole_native.sock';
-const BRIDGE_VERSION = '0.9.0';
+const BRIDGE_VERSION = '0.15.0';
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
 const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || (() => {
   const crypto = require('crypto');
   const token = crypto.randomBytes(16).toString('hex');
-  console.log(`[auth] Generated bridge token: ${token}`);
   console.log(`[auth] Set BRIDGE_TOKEN env var to persist this across restarts.`);
   return token;
 })();
 
 const ALLOWED_COMMANDS = new Set([
-  'trigger_rest', 'add_gold', 'give_item', 'heal_party',
-  'revive', 'god_mode', 'teleport_to_waypoint',
+  'trigger_rest', 'long_rest', 'short_rest',
+  'add_gold', 'give_item',
+  'heal_party', 'heal', 'full_restore',
+  'revive', 'resurrect',
+  'god_mode',
+  'reset_cooldowns',
+  'teleport_to', 'teleport_to_waypoint',
+  'toggle_combat', 'add_xp',
+  'set_level', 'set_hp', 'apply_status', 'remove_status',
+  'kill_target', 'deal_damage', 'spawn_item',
 ]);
 
 const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
@@ -76,7 +84,7 @@ function reportBridgeError(message, stack, extra = {}) {
     // Report to PocketBase (fire and forget, 3s timeout)
     const postData = JSON.stringify(record);
     const url = new URL(PB_ERROR_ENDPOINT);
-    const req = http.request({
+    const req = https.request({
       hostname: url.hostname,
       port: 443,
       path: url.pathname,
@@ -125,8 +133,6 @@ const ALLOWED_ORIGINS = [
   'http://192.168.',
   'http://10.',
   'http://172.',
-  'https://tadpole-omega.vercel.app',
-  'https://split-easy-one.vercel.app',
 ];
 
 app.use((req, res, next) => {
@@ -241,8 +247,8 @@ const PHONE_APP_DIR = path.join(__dirname, 'phone-app');
 
 app.use('/phone', safeWrap((req, res, next) => {
   // Try to serve the static phone app from bridge/phone-app/
-  const subpath = req.path === '/' ? '/index.html' : req.path;
-  const filePath = path.join(PHONE_APP_DIR, subpath);
+  let subpath = req.path === '/' ? '/index.html' : req.path;
+  let filePath = path.join(PHONE_APP_DIR, subpath);
 
   // Security: prevent directory traversal
   if (!filePath.startsWith(PHONE_APP_DIR)) {
@@ -251,6 +257,18 @@ app.use('/phone', safeWrap((req, res, next) => {
 
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     return res.sendFile(filePath);
+  }
+
+  // Static export: try .html extension (e.g. /live/combat -> live/combat.html)
+  const htmlPath = filePath + '.html';
+  if (fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+    return res.sendFile(htmlPath);
+  }
+
+  // Static export: try directory/index.html
+  const dirIndex = path.join(filePath, 'index.html');
+  if (fs.existsSync(dirIndex) && fs.statSync(dirIndex).isFile()) {
+    return res.sendFile(dirIndex);
   }
 
   // For SPA: fall back to index.html for client-side routing
@@ -284,15 +302,7 @@ app.use('/phone', safeWrap((req, res, next) => {
 </div>
 
 <div class="box">
-  <h2 style="color:#f4a261;font-size:1em;margin-top:0">⚠️ If you came from the HTTPS version</h2>
-  <p><strong>Bookmark this page instead!</strong> The HTTPS version at
-  <code>tadpole-omega.vercel.app</code> cannot connect to the bridge because browsers
-  block <code>ws://</code> from HTTPS pages.</p>
-  <p>This HTTP version works perfectly because everything is on the same network.</p>
-</div>
-
-<div class="box">
-  <h2 style="color:#72ddf7;font-size:1em;margin-top:0">📋 Full Setup</h2>
+  <h2 style="color:#72ddf7;font-size:1em;margin-top:0">📋 Setup</h2>
   <div class="step" data-n="1.">
     Make sure the bridge server is running on your Steam Deck.
   </div>
@@ -364,7 +374,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({
   server,
   path: '/ws',
-  // ISSUE 8: WebSocket keepalive — ping every 30s, destroy if no pong in 10s
+  // WebSocket keepalive — ping every 30s, destroy if no pong in 10s
   clientTracking: true,
 });
 
@@ -392,13 +402,6 @@ function detectEvents(prev, curr) {
   // Area changed
   if (prev.area !== curr.area && curr.area) {
     events.push({ type: 'area_changed', timestamp: now, detail: `${prev.area || '???'} → ${curr.area}` });
-  }
-
-  // Dialog started / ended
-  if (!prev.inDialog && curr.inDialog) {
-    events.push({ type: 'dialog_started', timestamp: now, detail: 'Dialog started.' });
-  } else if (prev.inDialog && !curr.inDialog) {
-    events.push({ type: 'dialog_ended', timestamp: now, detail: 'Dialog ended.' });
   }
 
   // HP warnings — check host and all party members
@@ -443,13 +446,31 @@ function detectEvents(prev, curr) {
     }
   }
 
-  // Approval changes
-  if (curr.partyApprovals && prev.partyApprovals) {
-    for (const [name, val] of Object.entries(curr.partyApprovals)) {
-      const oldVal = prev.partyApprovals[name];
-      if (typeof oldVal === 'number' && val !== oldVal) {
-        const direction = val > oldVal ? 'increased' : 'decreased';
-        events.push({ type: 'approval_change', timestamp: now, detail: `${name} approval ${direction} (${oldVal} → ${val})` });
+  // Approval changes — compare party members' approval values
+  if (curr.party && prev.party) {
+    const prevApprovalMap = new Map();
+    for (const pm of prev.party) {
+      if (typeof pm.approval === 'number') {
+        prevApprovalMap.set(pm.guid, pm.approval);
+      }
+    }
+    for (const cm of curr.party) {
+      if (typeof cm.approval === 'number') {
+        const prevApproval = prevApprovalMap.get(cm.guid);
+        if (prevApproval !== undefined && prevApproval !== cm.approval) {
+          const delta = cm.approval - prevApproval;
+          const isPositive = delta > 0;
+          events.push({
+            type: 'approval_change',
+            timestamp: now,
+            detail: `${cm.name} ${isPositive ? 'approved' : 'disapproved'} (${isPositive ? '+' : ''}${delta}, now ${cm.approval})`,
+            companionName: cm.name,
+            companionGuid: cm.guid,
+            delta,
+            approval: cm.approval,
+            action: cm.approvalAction || undefined,
+          });
+        }
       }
     }
   }
@@ -595,10 +616,40 @@ function processStateUpdate() {
   if (currentState && newState.timestamp === currentState.timestamp) return;
 
   previousState = currentState;
-  currentState = newState;
+
+  // Normalize: BootstrapServer.lua puts some host fields at top level.
+  // Move them into the host GameCharacter object so the phone app finds them.
+  const normalized = { ...newState };
+  if (normalized.host && typeof normalized.host === 'object') {
+    const hostFields = ['conditions', 'concentration', 'deathSaves',
+      'proficiencyBonus', 'abilityScores', 'experience',
+      'abilityModifiers', 'encumbrance', 'vision', 'movementSpeed',
+      'combatDetail', 'characterFlags', 'hasTadpole', 'tadpoleState',
+      'raceAndBackground', 'passives', 'tags', 'isSneaking',
+      'stealthState', 'isInvulnerable', 'isPlayer', 'isAvatar',
+      'area', 'god', 'experienceDetail'];
+    for (const field of hostFields) {
+      if (normalized[field] !== undefined && normalized.host[field] === undefined) {
+        normalized.host = { ...normalized.host, [field]: normalized[field] };
+      }
+    }
+
+    // Normalize experience: Lua mod sends {currentLevelXp, nextLevelXp, totalXp}
+    // but phone app expects a number. Extract totalXp for backward compat,
+    // and keep the full breakdown in experienceDetail.
+    if (normalized.host.experience && typeof normalized.host.experience === 'object') {
+      const xpObj = normalized.host.experience;
+      if (!normalized.host.experienceDetail) {
+        normalized.host.experienceDetail = xpObj;
+      }
+      normalized.host.experience = xpObj.totalXp;
+    }
+  }
+
+  currentState = normalized;
 
   // Rolling buffer
-  stateHistory.push({ ...newState, _receivedAt: Date.now() });
+  stateHistory.push({ ...normalized, _receivedAt: Date.now() });
   if (stateHistory.length > 100) stateHistory.shift();
 
   // Detect events
@@ -689,6 +740,27 @@ function writeCommandToLua(command) {
 async function writeCommand(command) {
   // Try Lua mod first (preferred - more features)
   const luaSuccess = writeCommandToLua(command);
+  
+  // Also write to /tmp/tadpole_commands.json for the Lua mod's polling path
+  // The Lua mod reads from os.tmpdir()/tadpole_commands.json which is /tmp on Linux
+  try {
+    const tmpCmdPath = path.join(os.tmpdir(), 'tadpole_commands.json');
+    let tmpCommands = [];
+    if (fs.existsSync(tmpCmdPath)) {
+      const raw = fs.readFileSync(tmpCmdPath, 'utf8');
+      if (raw.trim()) {
+        tmpCommands = JSON.parse(raw);
+        if (!Array.isArray(tmpCommands)) tmpCommands = [tmpCommands];
+      }
+    }
+    tmpCommands.push({ ...command, _bridgeTimestamp: Date.now() });
+    if (tmpCommands.length > 50) tmpCommands = tmpCommands.slice(-50);
+    fs.writeFileSync(tmpCmdPath, JSON.stringify(tmpCommands, null, 2), { mode: 0o600 });
+  } catch (err) {
+    // Non-critical - the Lua mod might read from the SE path instead
+    console.error('[commands] Failed to write to /tmp command file:', err.message);
+  }
+  
   if (luaSuccess) return true;
 
   // Fallback: try native daemon
@@ -895,7 +967,7 @@ server.listen(PORT, '0.0.0.0', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ISSUE 8: WebSocket keepalive — ping every 30s
+// WebSocket keepalive — ping every 30s
 // ---------------------------------------------------------------------------
 const KEEPALIVE_INTERVAL = 30000;
 const keepaliveTimer = setInterval(() => {
@@ -921,7 +993,7 @@ wss.on('connection', (ws) => {
 });
 
 // ---------------------------------------------------------------------------
-// ISSUE 7: Graceful shutdown on SIGINT / SIGTERM
+// Graceful shutdown on SIGINT / SIGTERM
 // ---------------------------------------------------------------------------
 function gracefulShutdown(signal) {
   console.log(`\n[shutdown] Received ${signal}. Closing connections...`);

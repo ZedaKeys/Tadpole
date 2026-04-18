@@ -1,29 +1,37 @@
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import { I18nProvider } from "@/lib/i18n";
-import PWAMount from "@/components/pwa/PWAMount";
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import { I18nProvider } from '@/lib/i18n';
+import PWAMount from '@/components/pwa/PWAMount';
+import AppShell from '@/components/layout/AppShell';
 
 export const metadata: Metadata = {
-  title: "Tadpole",
-  description: "BG3 Live Companion",
+  title: 'Tadpole',
+  description: 'BG3 Live Companion',
 };
 
 export const viewport: Viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0a0a0f",
+  themeColor: '#0a0a0f',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, padding: 0, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", background: "#0a0a0f", color: "#e8e8ef" }}>
+      <body style={{
+        margin: 0,
+        padding: 0,
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        background: '#0a0a0f',
+        color: '#e8e8ef',
+        WebkitFontSmoothing: 'antialiased',
+      }}>
         <I18nProvider>
-          <main style={{ minHeight: "100vh", paddingBottom: 64 }}>
+          <AppShell>
             {children}
-          </main>
+          </AppShell>
           <PWAMount />
         </I18nProvider>
       </body>

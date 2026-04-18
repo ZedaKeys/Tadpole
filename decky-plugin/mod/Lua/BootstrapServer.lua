@@ -1,2284 +1,1556 @@
--- ============================================================
--- TadpoleNet BG3SE v30 BootstrapServer.lua v0.15.0
--- Comprehensive game state reader + command executor
--- Deployed via GustavX piggyback on Steam Deck
--- ============================================================
-
-local TADPOLE_VERSION = "0.18.0"
-local STATE_FILE = "TadpoleState.json"
-local COMMANDS_FILE = "TadpoleCommands.json"
-local EVENT_LOG_MAX = 50
-
--- ============================================================
--- Globals
--- ============================================================
-local _tickCount = 0
-local _eventLog = {}
-local _lastHostGuid = nil
-local _stateCache = nil
-local _ready = false
-
--- ============================================================
--- Utility: safe call wrapper
--- ============================================================
-local function tryCall(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local ok, result = pcall(fn, ...)
-    if not ok then
-        Ext.Utils.PrintWarning("[Tadpole] Error: " .. tostring(result))
-        return nil
-    end
-    return result
-end
-
-local function tryCall1(fn, a1)
-    if type(fn) ~= "function" then return nil end
-    local ok, result = pcall(fn, a1)
-    if not ok then
-        Ext.Utils.PrintWarning("[Tadpole] Error: " .. tostring(result))
-        return nil
-    end
-    return result
-end
-
-local function tryCall2(fn, a1, a2)
-    if type(fn) ~= "function" then return nil end
-    local ok, result = pcall(fn, a1, a2)
-    if not ok then
-        Ext.Utils.PrintWarning("[Tadpole] Error: " .. tostring(result))
-        return nil
-    end
-    return result
-end
-
-local function tryCall3(fn, a1, a2, a3)
-    if type(fn) ~= "function" then return nil end
-    local ok, result = pcall(fn, a1, a2, a3)
-    if not ok then
-        Ext.Utils.PrintWarning("[Tadpole] Error: " .. tostring(result))
-        return nil
-    end
-    return result
-end
-
--- Safely index a table without throwing
-local function safeGet(t, key)
-    if type(t) ~= "table" then return nil end
-    return t[key]
-end
-
--- Safely index nested tables
-local function safeGetPath(t, ...)
-    local current = t
-    for i = 1, select("#", ...) do
-        if type(current) ~= "table" then return nil end
-        current = current[select(i, ...)]
-    end
-    return current
-end
-
--- Resolve a name that might be a TranslatedString or a plain string
-local function resolveName(nameVal)
-    if nameVal == nil then return "Unknown" end
-    if type(nameVal) == "string" then return nameVal end
-    if type(nameVal) == "userdata" then
-        -- TranslatedString has a :Get() method
-        local ok, result = pcall(function()
-            if type(nameVal.Get) == "function" then
-                return nameVal:Get()
-            end
-            return tostring(nameVal)
-        end)
-        if ok then return result or tostring(nameVal) end
-    end
-    return tostring(nameVal)
-end
-
--- Push an event to the log
-local function pushEvent(eventType, data)
-    local evt = {
-        type = eventType,
-        timestamp = _tickCount
-    }
-    if type(data) == "table" then
-        for k, v in pairs(data) do
-            evt[k] = v
-        end
-    end
-    table.insert(_eventLog, evt)
-    if #_eventLog > EVENT_LOG_MAX then
-        table.remove(_eventLog, 1)
-    end
-end
-
--- ============================================================
--- Host detection
--- ============================================================
-local function getHostGuid()
-    -- Primary: Osi.GetHostCharacter (works in Tick)
-    local guid = tryCall(function()
-        return Osi.GetHostCharacter()
-    end)
-    if guid and type(guid) == "string" and guid ~= "" then
-        _lastHostGuid = guid
-        return guid
-    end
-
-    -- Fallback: cached host
-    if _lastHostGuid then
-        return _lastHostGuid
-    end
-
-    return nil
-end
-
--- ============================================================
--- Area / Level detection
--- ============================================================
-local function getCurrentArea()
-    local hostGuid = getHostGuid()
-    if not hostGuid then return "Unknown" end
-
-    -- Try Osi.GetCurrentLevel
-    local level = tryCall(function()
-        return Osi.GetCurrentLevel(hostGuid)
-    end)
-    if level and type(level) == "string" and level ~= "" then
-        return level
-    end
-
-    -- Try entity ServerCharacter
-    local entity = tryCall(function()
-        return Ext.Entity.Get(hostGuid)
-    end)
-    if entity then
-        local char = tryCall(function()
-            return entity.ServerCharacter
-        end)
-        if char then
-            local template = tryCall(function()
-                return char.Template
-            end)
-            if template then
-                local currentLvl = tryCall(function()
-                    return template.CurrentLevel
-                end)
-                if currentLvl and currentLvl ~= "" then return currentLvl end
-            end
-        end
-    end
-
-    return "Unknown"
-end
-
--- ============================================================
--- Combat state
--- ============================================================
-local function getInCombat()
-    local hostGuid = getHostGuid()
-    if not hostGuid then return false end
-
-    local inCombat = tryCall(function()
-        return Osi.IsInCombat(hostGuid) == 1
-    end)
-    if inCombat ~= nil then return inCombat end
-
-    -- Fallback: entity check
-    local entity = tryCall(function()
-        return Ext.Entity.Get(hostGuid)
-    end)
-    if entity then
-        local combatGroup = tryCall(function()
-            return entity.CombatGroup
-        end)
-        if combatGroup ~= nil then
-            return combatGroup ~= "" and combatGroup ~= nil
-        end
-    end
-
-    return false
-end
-
--- ============================================================
--- Dialog state
--- ============================================================
-local function getInDialog()
-    local hostGuid = getHostGuid()
-    if not hostGuid then return false end
-
-    -- Try Osi.IsInDialogWith
-    local inDialog = tryCall(function()
-        -- Check if anyone is in dialog with host
-        return Osi.IsInDialogWith(hostGuid, hostGuid) == 1
-    end)
-    if inDialog ~= nil then return inDialog end
-
-    -- Try entity check
-    local entity = tryCall(function()
-        return Ext.Entity.Get(hostGuid)
-    end)
-    if entity then
-        local dialog = tryCall(function()
-            return entity.Dialog
-        end)
-        if dialog ~= nil then
-            return true
-        end
-    end
-
-    return false
-end
-
--- ============================================================
--- Position
--- ============================================================
-local function getPosition(guid)
-    if not guid then return { x = 0, y = 0, z = 0 } end
-
-    -- Try Osi.GetTransform
-    local x, y, z = tryCall(function()
-        return Osi.GetTransform(guid)
-    end)
-    if x and y and z then
-        return { x = tonumber(x) or 0, y = tonumber(y) or 0, z = tonumber(z) or 0 }
-    end
-
-    -- Fallback: entity transform
-    local entity = tryCall(function()
-        return Ext.Entity.Get(guid)
-    end)
-    if entity then
-        local transform = tryCall(function()
-            return entity.Transform
-        end)
-        if transform then
-            local pos = tryCall(function()
-                return transform.Transform
-            end)
-            if pos then
-                local tx = tryCall(function() return pos["x"] or pos[1] end)
-                local ty = tryCall(function() return pos["y"] or pos[2] end)
-                local tz = tryCall(function() return pos["z"] or pos[3] end)
-                if tx then
-                    return { x = tonumber(tx) or 0, y = tonumber(ty) or 0, z = tonumber(tz) or 0 }
-                end
-            end
-        end
-    end
-
-    return { x = 0, y = 0, z = 0 }
-end
-
--- ============================================================
--- Entity name
--- ============================================================
-local function getEntityName(guid)
-    if not guid then return "Unknown" end
-
-    local entity = tryCall(function()
-        return Ext.Entity.Get(guid)
-    end)
-    if entity then
-        -- Try DisplayName
-        local dn = tryCall(function()
-            return entity.DisplayName
-        end)
-        if dn then
-            local name = tryCall(function()
-                return dn.Name
-            end)
-            if name then
-                return resolveName(name)
-            end
-        end
-
-        -- Try ServerCharacter.Template.Name
-        local sc = tryCall(function()
-            return entity.ServerCharacter
-        end)
-        if sc then
-            local tmpl = tryCall(function()
-                return sc.Template
-            end)
-            if tmpl then
-                local n = tryCall(function()
-                    return tmpl.Name
-                end)
-                if n and type(n) == "string" and n ~= "" then
-                    return n
-                end
-            end
-        end
-    end
-
-    -- Fallback: Osi version
-    local osiName = tryCall(function()
-        return Osi.GetName(guid)
-    end)
-    if osiName and type(osiName) == "string" and osiName ~= "" then
-        return osiName
-    end
-
-    return "Unknown"
-end
-
--- ============================================================
--- HP reading
--- ============================================================
-local function getHP(guid)
-    if not guid then return { hp = 0, maxHp = 0, tempHp = 0 } end
-
-    local hp = 0
-    local maxHp = 0
-    local tempHp = 0
-
-    -- Try Osi getters first
-    hp = tryCall(function() return Osi.GetHp(guid) end) or 0
-    maxHp = tryCall(function() return Osi.GetMaxHp(guid) end) or 0
-    tempHp = tryCall(function() return Osi.GetTempHp(guid) end) or 0
-
-    -- If Osi failed, try entity
-    if hp == 0 and maxHp == 0 then
-        local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-        if entity then
-            local health = tryCall(function() return entity.Health end)
-            if health then
-                hp = tryCall(function() return health.Hp end) or hp
-                maxHp = tryCall(function() return health.MaxHp end) or maxHp
-                tempHp = tryCall(function() return health.TemporaryHp end) or tempHp
-            end
-        end
-    end
-
-    return {
-        hp = tonumber(hp) or 0,
-        maxHp = tonumber(maxHp) or 0,
-        tempHp = tonumber(tempHp) or 0
-    }
-end
-
--- ============================================================
--- Level
--- ============================================================
-local function getLevel(guid)
-    if not guid then return 0 end
-
-    local level = tryCall(function()
-        return Osi.GetLevel(guid)
-    end)
-    if level then return tonumber(level) or 0 end
-
-    -- Entity fallback
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if entity then
-        local stats = tryCall(function() return entity.Stats end)
-        if stats then
-            local lvl = tryCall(function() return stats.Level end) or tryCall(function() return stats.LevelModifier end)
-            if lvl then return tonumber(lvl) or 0 end
-        end
-    end
-
-    return 0
-end
-
--- ============================================================
--- Armor Class
--- ============================================================
-local function getArmorClass(guid)
-    if not guid then return 0 end
-
-    local ac = tryCall(function()
-        return Osi.GetArmorClass(guid)
-    end)
-    if ac then return tonumber(ac) or 0 end
-
-    -- Entity fallback
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if entity then
-        local stats = tryCall(function() return entity.Stats end)
-        if stats then
-            local armor = tryCall(function() return stats.Armor end) or tryCall(function() return stats.AC end)
-            if armor then return tonumber(armor) or 0 end
-        end
-    end
-
-    return 10
-end
-
--- ============================================================
--- Is Dead
--- ============================================================
-local function getIsDead(guid)
-    if not guid then return false end
-
-    local dead = tryCall(function()
-        return Osi.IsDead(guid) == 1
-    end)
-    if dead ~= nil then return dead end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if entity then
-        local hp = tryCall(function() return entity.Health end)
-        if hp then
-            local hpVal = tryCall(function() return hp.Hp end)
-            if hpVal ~= nil then return hpVal <= 0 end
-        end
-    end
-
-    return false
-end
-
--- ============================================================
--- Is Sneaking
--- ============================================================
-local function getIsSneaking(guid)
-    if not guid then return false end
-
-    local sneaking = tryCall(function()
-        return Osi.IsSneaking(guid) == 1
-    end)
-    if sneaking ~= nil then return sneaking end
-
-    return false
-end
-
--- ============================================================
--- Is Invulnerable
--- ============================================================
-local function getIsInvulnerable(guid)
-    if not guid then return false end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if entity then
-        local invuln = tryCall(function()
-            return entity.Invulnerable
-        end)
-        if invuln ~= nil then
-            local enabled = tryCall(function()
-                return invuln.Invulnerable
-            end)
-            if enabled ~= nil then return enabled end
-        end
-    end
-
-    -- Check via status
-    local hasStatus = tryCall(function()
-        return Osi.HasStatus(guid, "INVULNERABLE")
-    end)
-    if hasStatus and hasStatus ~= 0 then return true end
-
-    return false
-end
-
--- ============================================================
--- Gold
--- ============================================================
-local function getGold()
-    local hostGuid = getHostGuid()
-    if not hostGuid then return 0 end
-
-    local gold = tryCall(function()
-        return Osi.GetGold(hostGuid)
-    end)
-    if gold then return tonumber(gold) or 0 end
-
-    return 0
-end
-
--- ============================================================
--- Experience
--- ============================================================
-local function getExperience()
-    local hostGuid = getHostGuid()
-    if not hostGuid then return 0 end
-
-    local xp = tryCall(function()
-        return Osi.GetExperience(hostGuid)
-    end)
-    if xp then return tonumber(xp) or 0 end
-
-    return 0
-end
-
--- ============================================================
--- Proficiency Bonus
--- ============================================================
-local function getProficiencyBonus(guid)
-    if not guid then return 0 end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if entity then
-        local stats = tryCall(function() return entity.Stats end)
-        if stats then
-            local pb = tryCall(function() return stats.ProficiencyBonus end)
-            if pb then return tonumber(pb) or 0 end
-
-            -- Try dynamic stats
-            local dynStats = tryCall(function() return stats.DynamicStats end)
-            if dynStats then
-                -- Could be array-like or object
-                if type(dynStats) == "table" then
-                    for _, ds in pairs(dynStats) do
-                        if type(ds) == "table" then
-                            local p = tryCall(function() return ds.ProficiencyBonus end)
-                            if p then return tonumber(p) or 0 end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- Calculate from level
-    local level = getLevel(guid)
-    if level > 0 then
-        return math.floor((level - 1) / 4) + 2
-    end
-
-    return 2
-end
-
--- ============================================================
--- Ability Scores
--- ============================================================
-local function getAbilityScores(guid)
-    local scores = { str = 10, dex = 10, con = 10, int = 10, wis = 10, cha = 10 }
-
-    if not guid then return scores end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return scores end
-
-    local stats = tryCall(function() return entity.Stats end)
-    if not stats then return scores end
-
-    -- Try direct properties
-    local function tryStat(key, statName)
-        local val = tryCall(function() return stats[statName] end)
-        if val == nil then
-            -- Try DynamicStats
-            local dynStats = tryCall(function() return stats.DynamicStats end)
-            if dynStats and type(dynStats) == "table" then
-                for _, ds in pairs(dynStats) do
-                    if type(ds) == "table" then
-                        val = tryCall(function() return ds[statName] end)
-                        if val then break end
-                    end
-                end
-            end
-        end
-        if val then scores[key] = tonumber(val) or scores[key] end
-    end
-
-    tryStat("str", "Strength")
-    tryStat("dex", "Dexterity")
-    tryStat("con", "Constitution")
-    tryStat("int", "Intelligence")
-    tryStat("wis", "Wisdom")
-    tryStat("cha", "Charisma")
-
-    -- Also try lowercase variants
-    if scores.str == 10 then tryStat("str", "strength") end
-    if scores.dex == 10 then tryStat("dex", "dexterity") end
-    if scores.con == 10 then tryStat("con", "constitution") end
-    if scores.int == 10 then tryStat("int", "intelligence") end
-    if scores.wis == 10 then tryStat("wis", "wisdom") end
-    if scores.cha == 10 then tryStat("cha", "charisma") end
-
-    return scores
-end
-
--- ============================================================
--- Action Resources (Spell Slots + all class resources)
--- ============================================================
-
--- Known resource ID patterns and their display names
-local RESOURCE_NAMES = {
-    -- Spell slots
-    SpellSlot = "Spell Slot",
-    -- Class resources
-    BardicInspiration = "Bardic Inspiration",
-    SorceryPoint = "Sorcery Point",
-    KiPoint = "Ki Point",
-    MartialArtsDie = "Martial Arts",
-    Rage = "Rage",
-    LayOnHands = "Lay on Hands",
-    WildShape = "Wild Shape",
-    SneakAttack = "Sneak Attack",
-    ChannelOath = "Channel Oath",
-    ChannelDivinity = "Channel Divinity",
-    SuperiorityDie = "Superiority Die",
-    HellishRapture = "Hellish Rapture",
-    FrenziedStrike = "Frenzied Strike",
-    BloodCurse = "Blood Curse",
-    AbiDalzarHorror = "Horror",
-    ArcaneRecovery = "Arcane Recovery",
-    NaturalRecovery = "Natural Recovery",
-    ActionSurge = "Action Surge",
-    SecondWind = "Second Wind",
-    Indomitable = "Indomitable",
-    UnarmoredMovement = "Unarmored Movement",
-    SongOfRest = "Song of Rest",
-    HealingLight = "Healing Light",
-    FavorOfTheGods = "Favor of the Gods",
-    TidesOfChaos = "Tides of Chaos",
-    Metamagic = "Metamagic",
-    Conjuration = "Conjuration",
-    Divination = "Divination",
-    Enchantment = "Enchantment",
-    Evocation = "Evocation",
-    Illusion = "Illusion",
-    Necromancy = "Necromancy",
-    Transmutation = "Transmutation",
-    Abjuration = "Abjuration",
-    WarMagic = "War Magic",
-    PactSlot = "Pact Slot",
-    Smite = "Smite",
-    DivineSmite = "Divine Smite",
-    HuntersMark = "Hunter's Mark",
+-- TadpoleCompanion v0.20.0
+-- BG3 ScriptExtender mod for Tadpole companion app
+-- BG3SE v30/v31 — comprehensive state capture with error suppression
+
+local Tadpole = {
+  lastStateJson = "",
+  elapsed = 0,
+  recentEvents = {},
+  prevState = nil,
+  version = "0.20.0",
+  sessionStats = {
+    damageDealt = 0,
+    damageTaken = 0,
+    healingDone = 0,
+    spellsCast = 0,
+    kills = 0,
+    criticalHits = 0,
+    savingThrows = 0,
+    turnsTaken = 0,
+  },
 }
 
-local function getResourceDisplayName(key)
-    if not key or type(key) ~= "string" then return "Unknown" end
-    -- Check exact match first
-    if RESOURCE_NAMES[key] then return RESOURCE_NAMES[key] end
-    -- Check if key contains a known pattern
-    for pattern, name in pairs(RESOURCE_NAMES) do
-        if key:find(pattern) then return name end
-    end
-    -- Return cleaned-up key as fallback
-    return key:gsub("([A-Z])", " %1"):gsub("^%s", ""):gsub("^%s*(.-)%s*$", "%1")
+local MAX_EVENTS = 50
+
+-- Frame counter (e.Time.Delta is userdata in BG3SE, not a number)
+local _tickCounter = 0
+local function getTime()
+  _tickCounter = _tickCounter + 1
+  return _tickCounter
 end
 
-local function getActionResources(guid)
-    if not guid then return { spellSlots = {}, resources = {} } end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return { spellSlots = {}, resources = {} } end
-
-    local spellSlots = {}
-    local resources = {}
-    local foundAny = false
-
-    -- Try ActionResources component
-    local actionResComp = tryCall(function() return entity.ActionResources end)
-    if actionResComp then
-        local resTable = tryCall(function() return actionResComp.Resources end)
-        if resTable and type(resTable) == "table" then
-            for k, v in pairs(resTable) do
-                if type(k) == "string" then
-                    foundAny = true
-                    local entry = nil
-
-                    if type(v) == "table" then
-                        local current = tryCall(function() return v.CurrentAmount end)
-                            or tryCall(function() return v[1] end)
-                        local maxAmt = tryCall(function() return v.MaxAmount end)
-                            or tryCall(function() return v[2] end)
-                        if current ~= nil or maxAmt ~= nil then
-                            entry = {
-                                current = tonumber(current) or 0,
-                                max = tonumber(maxAmt) or 0
-                            }
-                        end
-                    elseif type(v) == "number" then
-                        entry = { current = v, max = v }
-                    end
-
-                    if entry then
-                        -- Classify: spell slots vs other resources
-                        if k:find("SpellSlot") or k:find("PactSlot") then
-                            spellSlots[k] = entry
-                        else
-                            entry.id = k
-                            entry.name = getResourceDisplayName(k)
-                            table.insert(resources, entry)
-                        end
-                    end
-                end
-            end
-        end
-
-        -- Also try ActionResources.Tables (alternative structure in some BG3SE versions)
-        if not foundAny then
-            local resTables = tryCall(function() return actionResComp.Tables end)
-            if resTables and type(resTables) == "table" then
-                for k, v in pairs(resTables) do
-                    if type(k) == "string" and type(v) == "table" then
-                        foundAny = true
-                        local current = tryCall(function() return v.CurrentAmount end)
-                            or tryCall(function() return v.Amount end)
-                        local maxAmt = tryCall(function() return v.MaxAmount end)
-                            or tryCall(function() return v.Max end)
-                        if current ~= nil or maxAmt ~= nil then
-                            local entry = {
-                                current = tonumber(current) or 0,
-                                max = tonumber(maxAmt) or 0
-                            }
-                            if k:find("SpellSlot") or k:find("PactSlot") then
-                                spellSlots[k] = entry
-                            else
-                                entry.id = k
-                                entry.name = getResourceDisplayName(k)
-                                table.insert(resources, entry)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- Sort resources by name for consistent output
-    table.sort(resources, function(a, b) return (a.name or "") < (b.name or "") end)
-
-    if not foundAny then
-        return { spellSlots = {}, resources = {} }
-    end
-
-    return {
-        spellSlots = spellSlots,
-        resources = resources
-    }
+-- Error suppression — log each unique error ONCE, then silence
+local _suppressedErrors = {}
+local function suppressError(msg)
+  msg = tostring(msg)
+  _suppressedErrors[msg] = (_suppressedErrors[msg] or 0) + 1
+  if _suppressedErrors[msg] <= 1 then
+    pcall(function() Ext.Utils.PrintWarning("[Tadpole] " .. msg) end)
+  end
 end
 
--- ============================================================
--- Conditions / Status Effects
--- ============================================================
-local function getConditions(guid)
-    if not guid then return {} end
-
-    local conditions = {}
-
-    -- Try Osi.GetStatusIds
-    local statusIds = tryCall(function()
-        return Osi.GetStatusIds(guid)
-    end)
-    if statusIds then
-        if type(statusIds) == "table" then
-            for _, s in pairs(statusIds) do
-                if type(s) == "string" and s ~= "" then
-                    table.insert(conditions, s)
-                end
-            end
-        elseif type(statusIds) == "string" then
-            -- Might be comma-separated
-            for s in statusIds:gmatch("[^,]+") do
-                s = s:match("^%s*(.-)%s*$")
-                if s ~= "" then
-                    table.insert(conditions, s)
-                end
-            end
-        end
-        if #conditions > 0 then return conditions end
-    end
-
-    -- Fallback: entity approach
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if entity then
-        local statusContainer = tryCall(function() return entity.StatusContainer end)
-        if statusContainer then
-            local statuses = tryCall(function() return statusContainer.Statuses end)
-            if statuses and type(statuses) == "table" then
-                for k, v in pairs(statuses) do
-                    if type(k) == "string" then
-                        table.insert(conditions, k)
-                    elseif type(v) == "string" then
-                        table.insert(conditions, v)
-                    end
-                end
-            end
-        end
-    end
-
-    return conditions
+local function tryCall(fn)
+  if type(fn) ~= "function" then return nil end
+  local ok, result = pcall(fn)
+  if not ok then suppressError(result); return nil end
+  return result
 end
 
--- ============================================================
--- Death Saves
--- ============================================================
-local function getDeathSaves(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local deathState = tryCall(function() return entity.DeathState end)
-    if not deathState then
-        -- Only return death saves if actually dying
-        local isDead = getIsDead(guid)
-        if isDead then
-            return { successes = 0, failures = 0, isDead = true }
-        end
-        return nil
-    end
-
-    local successes = tryCall(function() return deathState.SuccessCount end)
-        or tryCall(function() return deathState.DeathSaveSuccessCount end) or 0
-    local failures = tryCall(function() return deathState.FailureCount end)
-        or tryCall(function() return deathState.DeathSaveFailureCount end) or 0
-    local isDead = tryCall(function() return deathState.IsDead end) or false
-
-    -- Only report if the character has death saves active
-    if successes == 0 and failures == 0 and not isDead then
-        -- Check if actually in dying state
-        local dyingStatus = tryCall(function()
-            return Osi.HasStatus(guid, "DYING")
-        end)
-        if not dyingStatus or dyingStatus == 0 then
-            return nil
-        end
-    end
-
-    return {
-        successes = tonumber(successes) or 0,
-        failures = tonumber(failures) or 0,
-        isDead = isDead
-    }
+-- Safe entity getter
+local function safeGetEntity(guid)
+  return tryCall(function() return Ext.Entity.Get(guid) end)
 end
 
--- ============================================================
--- Concentration
--- ============================================================
-local function getConcentration(guid)
-    if not guid then return nil end
+-- Resource UUID -> Name lookup (engine-internal UUIDs, NOT stat references)
+local RESOURCE_NAMES = {
+  ["734cbcfb-8922-4b6d-8330-b2a7e4c14b6a"] = "Action",
+  ["420c8df5-45c2-4253-93c2-7ec44e127930"] = "BonusAction",
+  ["45ff0f48-b210-4024-972f-b64a44dc6985"] = "Reaction",
+  ["d136c5d9-0ff0-43da-acce-a74a07f8d6bf"] = "SpellSlot",
+  ["d6b2369d-84f0-4ca4-a3a7-62d2d192a185"] = "SorceryPoints",
+  ["46886ba5-6505-4875-a747-ac14118e1e08"] = "ChannelDivinity",
+}
 
-    -- Check if has CONCENTRATING status
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
+-- Known BG3 passives for Osi.HasPassive scanning
+local KNOWN_PASSIVES = {
+  "Darkvision", "FeyAncestry", "Backstab", "Rage", "SneakAttack",
+  "Alert", "ArmorMaster", "Athlete", "Actor", "ChargeBound",
+  "Cleave", "DefensiveDuelist", "DrowMagic", "ElementalAdept",
+  "GreatWeaponMaster", "HeavyArmorMaster", "KeenMind", "Lucky",
+  "MageSlayer", "Mobile", "ModeratelyArmored", "MountedCombatant",
+  "Observant", "PolearmMaster", "Resilient", "RitualCaster",
+  "SavageAttacker", "Sentinel", "Sharpshooter", "ShieldMaster",
+  "Skilled", "Skulker", "SpellSniper", "TavernBrawler",
+  "Tough", "WarCaster", "WeaponMaster",
+  "HellishResistance", "HellishRebuke", "SuperiorDarkvision",
+  "SunlightSensitivity", "Brave", "DwarvenResilience", "GnomeCunning",
+  "HalflingLucky", "RelentlessEndurance", "SavageAttacks", "Trance",
+  "FightingStyle", "SecondWind", "ActionSurge", "ExtraAttack",
+  "Indomitable", "ArcaneRecovery", "Metamagic",
+  "DivineSmite", "LayOnHands", "ChannelOath",
+  "Evasion", "UncannyDodge", "WildShape", "NaturalRecovery",
+  "UnarmoredDefense", "MartialArts", "Ki", "FlurryOfBlows",
+  "SorcerousRestoration", "FontOfMagic",
+  "HighElfCantrip", "DraconicResilience",
+}
 
-    -- Try to find concentration through status
-    local hasConc = tryCall(function()
-        return Osi.HasStatus(guid, "CONCENTRATING")
-    end)
-    if hasConc and hasConc ~= 0 then
-        -- Try to get the concentrated spell
-        local statusContainer = tryCall(function() return entity.StatusContainer end)
-        if statusContainer then
-            local statuses = tryCall(function() return statusContainer.Statuses end)
-            if statuses and type(statuses) == "table" then
-                for k, v in pairs(statuses) do
-                    local statusName = type(k) == "string" and k or (type(v) == "string" and v or nil)
-                    if statusName and statusName:find("CONCENTRATING") then
-                        return { spellId = statusName, caster = guid }
-                    end
-                end
-            end
-        end
-
-        -- Basic concentration info
-        return { spellId = "CONCENTRATING", caster = guid }
+-- Spell name resolver cache
+local _spellNameCache = {}
+local function resolveSpellName(spellId)
+  if not spellId or spellId == "" then return nil end
+  if _spellNameCache[spellId] then return _spellNameCache[spellId] end
+  local name = tryCall(function()
+    local stat = Ext.Stats.Get(spellId)
+    if stat then
+      local n = stat.DisplayName
+      if n and type(n) == "string" and n ~= "" then return n end
+      if n and type(n) == "table" and type(n.Get) == "function" then
+        local resolved = n:Get()
+        if resolved and resolved ~= "" then return resolved end
+      end
+      if stat.Name and stat.Name ~= "" then return stat.Name end
     end
-
     return nil
+  end)
+  if name then
+    _spellNameCache[spellId] = name
+    return name
+  end
+  return nil
 end
 
--- ============================================================
--- Weather
--- ============================================================
-local function getWeather()
-    local weather = tryCall(function()
-        return Osi.GetCurrentWeather()
-    end)
-    if weather and type(weather) == "string" then
-        return weather
-    end
-
-    -- Fallback entity approach
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        local entity = tryCall(function() return Ext.Entity.Get(hostGuid) end)
-        if entity then
-            local climate = tryCall(function() return entity.Climate end)
-            if climate then
-                local w = tryCall(function() return climate.Weather end)
-                if w and type(w) == "string" and w ~= "" then
-                    return w
-                end
-            end
-        end
-    end
-
-    return "Clear"
-end
-
--- ============================================================
--- Experience Detail (per-level XP, total XP, next level threshold)
--- ============================================================
-local function getExperienceDetail(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local expComp = tryCall(function() return entity.Experience end)
-    if not expComp then return nil end
-
-    local currentLevelXp = tryCall(function() return expComp._CurrentLevelExperience end)
-    local nextLevelXp = tryCall(function() return expComp._NextLevelExperience end)
-    local totalXp = tryCall(function() return expComp._TotalExperience end)
-
-    if currentLevelXp or nextLevelXp or totalXp then
-        return {
-            currentLevelXp = tonumber(currentLevelXp) or 0,
-            nextLevelXp = tonumber(nextLevelXp) or 0,
-            totalXp = tonumber(totalXp) or 0
-        }
-    end
-
-    return nil
-end
-
--- ============================================================
--- Encumbrance
--- ============================================================
-local function getEncumbrance(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local weight = tryCall(function() return entity.InventoryWeight end)
-    local stateComp = tryCall(function() return entity.EncumbranceState end)
-    local statsComp = tryCall(function() return entity.EncumbranceStats end)
-
-    local result = {}
-
-    if weight then
-        result.weight = tonumber(tryCall(function() return weight.Weight end) or tryCall(function() return weight._Weight end)) or 0
-        -- Convert from internal units (divide by 10000 for display)
-        result.weightDisplay = math.floor(result.weight / 10000)
-    end
-
-    if stateComp then
-        local st = tryCall(function() return stateComp._State end)
-        -- 0=unencumbered, 1=encumbered, 2=heavily encumbered
-        result.state = tonumber(st) or 0
-    end
-
-    if statsComp then
-        result.maxWeight = math.floor((tonumber(tryCall(function() return statsComp._UnencumberedWeight end)) or 0) / 10000)
-        result.encumberedWeight = math.floor((tonumber(tryCall(function() return statsComp._EncumberedWeight end)) or 0) / 10000)
-        result.heavilyEncumberedWeight = math.floor((tonumber(tryCall(function() return statsComp._HeavilyEncumberedWeight end)) or 0) / 10000)
-    end
-
-    if next(result) == nil then return nil end
-    return result
-end
-
--- ============================================================
--- Stealth / Darkness state
--- ============================================================
-local function getStealthState(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local darkness = tryCall(function() return entity.Darkness end)
-    if not darkness then return nil end
-
-    return {
-        sneaking = tryCall(function() return darkness.Sneaking end) == 1 or tryCall(function() return darkness._Sneaking end) == 1,
-        obscurity = tonumber(tryCall(function() return darkness._Obscurity end)) or 0
-    }
-end
-
--- ============================================================
--- Vision (darkvision range, sight range, FOV)
--- ============================================================
-local function getVision(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local sightData = tryCall(function() return entity.SightData end)
-    if not sightData then
-        sightData = tryCall(function() return entity.Sight end)
-    end
-    if not sightData then return nil end
-
-    return {
-        darkvisionRange = tonumber(tryCall(function() return sightData._DarkvisionRange end)) or 0,
-        sightRange = tonumber(tryCall(function() return sightData._Sight end)) or 0,
-        fov = tonumber(tryCall(function() return sightData._FOV end)) or 0
-    }
-end
-
--- ============================================================
--- Movement speed
--- ============================================================
-local function getMovementSpeed(guid)
-    if not guid then return 0 end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return 0 end
-
-    local movement = tryCall(function() return entity.Movement end)
-    if movement then
-        local speed = tryCall(function() return movement.Speed end) or tryCall(function() return movement._Speed end)
-        if speed then return tonumber(speed) or 0 end
-    end
-
-    return 0
-end
-
--- ============================================================
--- Initiative (from Stats component)
--- ============================================================
-local function getInitiative(guid)
-    if not guid then return 0 end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return 0 end
-
-    -- Try Stats._InitiativeBonus
-    local stats = tryCall(function() return entity.Stats end)
-    if stats then
-        local init = tryCall(function() return stats._InitiativeBonus end)
-        if init then return tonumber(init) or 0 end
-    end
-
-    -- Fallback: ServerBaseStats
-    local baseStats = tryCall(function() return entity.ServerBaseStats end)
-    if baseStats then
-        local init = tryCall(function() return baseStats.Initiative end) or tryCall(function() return baseStats._Initiative end)
-        if init then return tonumber(init) or 0 end
-    end
-
-    return 0
-end
-
--- ============================================================
--- Combat detail (initiative roll, combat group)
--- ============================================================
-local function getCombatDetail(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local comp = tryCall(function() return entity.CombatParticipant end)
-    if not comp then return nil end
-
-    return {
-        initiativeRoll = tonumber(tryCall(function() return comp._InitiativeRoll end)) or 0,
-        combatGroupId = tryCall(function() return comp._CombatGroupId end) or ""
-    }
-end
-
--- ============================================================
--- Character Flags (from ServerCharacter)
--- ============================================================
-local function getCharacterFlags(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local sc = tryCall(function() return entity.ServerCharacter end)
-    if not sc then return nil end
-
-    return {
-        fightMode = tryCall(function() return sc._FightMode end) == true,
-        floating = tryCall(function() return sc._Floating end) == true,
-        invisible = tryCall(function() return sc._Invisible end) == true,
-        offStage = tryCall(function() return sc._OffStage end) == true,
-        storyNPC = tryCall(function() return sc._StoryNPC end) == true,
-        isCompanion = tryCall(function() return sc._IsCompanion_M end) == true,
-        isPet = tryCall(function() return sc._IsPet end) == true,
-        cannotDie = tryCall(function() return sc._CannotDie end) == true
-    }
-end
-
--- ============================================================
--- Illithid / Tadpole Powers State
--- ============================================================
-local function getTadpoleState(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local treeState = tryCall(function() return entity.TadpoleTreeState end)
-    if not treeState then return nil end
-
-    local state = tryCall(function() return treeState._State end)
-    if state ~= nil then
-        return { state = tonumber(state) or 0 }
-    end
-
-    return nil
-end
-
--- ============================================================
--- Race & Background UUIDs
--- ============================================================
-local function getRaceAndBackground(guid)
-    if not guid then return nil end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return nil end
-
-    local result = {}
-
-    local raceComp = tryCall(function() return entity.Race end)
-    if raceComp then
-        result.raceId = tryCall(function() return raceComp.Race end) or tryCall(function() return raceComp._Race end)
-    end
-
-    local bgComp = tryCall(function() return entity.Background end)
-    if bgComp then
-        result.backgroundId = tryCall(function() return bgComp.Background end) or tryCall(function() return bgComp._Background end)
-    end
-
-    local originComp = tryCall(function() return entity.Origin end)
-    if originComp then
-        result.origin = tryCall(function() return originComp._Origin end)
-    end
-
-    if next(result) == nil then return nil end
-    return result
-end
-
--- ============================================================
--- Passive Abilities List
--- ============================================================
-local function getPassives(guid)
-    if not guid then return {} end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return {} end
-
-    local passives = {}
-
-    local pc = tryCall(function() return entity.PassiveContainer end)
-    if pc then
-        local pList = tryCall(function() return pc.Passives end)
-        if pList and type(pList) == "table" then
-            for k, v in pairs(pList) do
-                if type(k) == "string" then
-                    table.insert(passives, k)
-                elseif type(v) == "string" then
-                    table.insert(passives, v)
-                end
-            end
-        end
-        -- Try pairs on userdata
-        local ok, _ = pcall(function()
-            for k, v in pairs(pList) do
-                local name = type(k) == "string" and k or (type(v) == "string" and v or nil)
-                if name and not passives[name] then
-                    table.insert(passives, name)
-                end
-            end
-        end)
-    end
-
-    -- Also try OriginPassives
-    local op = tryCall(function() return entity.OriginPassives end)
-    if op then
-        local oList = tryCall(function() return op.Passives end)
-        if oList then
-            local ok, _ = pcall(function()
-                for k, v in pairs(oList) do
-                    local name = type(k) == "string" and k or (type(v) == "string" and v or nil)
-                    if name then
-                        table.insert(passives, name)
-                    end
-                end
-            end)
-        end
-    end
-
-    return passives
-end
-
--- ============================================================
--- Tags
--- ============================================================
-local function getTags(guid)
-    if not guid then return {} end
-
-    local entity = tryCall(function() return Ext.Entity.Get(guid) end)
-    if not entity then return {} end
-
-    local tags = {}
-
-    local tagSources = {"Tag", "ClassTag", "OriginTag", "BackgroundTag", "ServerOsirisTag", "ServerTemplateTag"}
-    for _, src in ipairs(tagSources) do
-        local comp = tryCall(function() return entity[src] end)
-        if comp then
-            local tagList = tryCall(function() return comp.Tags end)
-            if tagList then
-                pcall(function()
-                    for k, v in pairs(tagList) do
-                        local t = type(k) == "string" and k or (type(v) == "string" and v or nil)
-                        if t then
-                            -- Avoid duplicates
-                            local found = false
-                            for _, existing in ipairs(tags) do
-                                if existing == t then found = true; break end
-                            end
-                            if not found then table.insert(tags, t) end
-                        end
-                    end
-                end)
-            end
-        end
-    end
-
-    return tags
-end
-
-
-
--- ============================================================
--- Camp Supplies
--- ============================================================
-local function getCampSupplies()
-    local count = tryCall(function()
-        return Osi.GetCampSuppliesCount()
-    end)
-
-    if count ~= nil then
-        local current = tonumber(count) or 0
-        local maxSupplies = 80  -- Standard long rest cost
-        return {
-            current = current,
-            max = maxSupplies,
-            canRest = current >= maxSupplies
-        }
-    end
-
-    -- Fallback: try to count inventory items
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        local itemCount = tryCall(function()
-            return Osi.GetCampSuppliesCount(hostGuid)
-        end)
-        if itemCount ~= nil then
-            local current = tonumber(itemCount) or 0
-            return {
-                current = current,
-                max = 80,
-                canRest = current >= 80
-            }
-        end
-    end
-
-    return nil
-end
-
--- ============================================================
--- Party Members
--- ============================================================
+-- Helper: get all party member GUIDs (host + companions)
+-- Tries multiple methods because DB_Players can be nil in some BG3SE versions
 local function getPartyMembers()
-    local hostGuid = getHostGuid()
-    local party = {}
+  local members = {}
+  local seen = {}
 
-    -- Strategy 1: Osi.DB_IsInPartyWith
-    if hostGuid then
-        local partyResults = tryCall(function()
-            return Osi.DB_IsInPartyWith:Get(hostGuid, nil)
-        end)
-        if partyResults and type(partyResults) == "table" then
-            for _, row in pairs(partyResults) do
-                if type(row) == "table" then
-                    for _, memberGuid in pairs(row) do
-                        if type(memberGuid) == "string" and memberGuid ~= hostGuid then
-                            table.insert(party, memberGuid)
-                        end
-                    end
-                elseif type(row) == "string" and row ~= hostGuid then
-                    table.insert(party, row)
-                end
-            end
+  -- Method 1: DB_Players (the "proper" way)
+  tryCall(function()
+    local _, playerRows = Osi.DB_Players:Get(nil)
+    if playerRows then
+      for _, row in ipairs(playerRows) do
+        if row[1] and not seen[row[1]] then
+          table.insert(members, row[1])
+          seen[row[1]] = true
         end
-
-        -- Also get reverse direction
-        local partyResults2 = tryCall(function()
-            return Osi.DB_IsInPartyWith:Get(nil, hostGuid)
-        end)
-        if partyResults2 and type(partyResults2) == "table" then
-            for _, row in pairs(partyResults2) do
-                if type(row) == "table" then
-                    for _, memberGuid in pairs(row) do
-                        if type(memberGuid) == "string" and memberGuid ~= hostGuid then
-                            -- Check not already in party
-                            local found = false
-                            for _, p in pairs(party) do
-                                if p == memberGuid then found = true; break end
-                            end
-                            if not found then
-                                table.insert(party, memberGuid)
-                            end
-                        end
-                    end
-                elseif type(row) == "string" and row ~= hostGuid then
-                    local found = false
-                    for _, p in pairs(party) do
-                        if p == row then found = true; break end
-                    end
-                    if not found then
-                        table.insert(party, row)
-                    end
-                end
-            end
-        end
+      end
     end
+  end)
 
-    -- Strategy 2: Osi.DB_Available
-    if #party == 0 then
-        local available = tryCall(function()
-            return Osi.DB_Available:Get(nil)
-        end)
-        if available and type(available) == "table" then
-            for _, row in pairs(available) do
-                if type(row) == "table" then
-                    for _, guid in pairs(row) do
-                        if type(guid) == "string" and guid ~= hostGuid then
-                            table.insert(party, guid)
-                        end
-                    end
-                elseif type(row) == "string" and row ~= hostGuid then
-                    table.insert(party, row)
-                end
-            end
+  -- Method 2: If DB_Players failed, try iterating character list
+  if #members == 0 then
+    tryCall(function()
+      local hostGuid = Osi.GetHostCharacter()
+      if hostGuid then
+        table.insert(members, hostGuid)
+        seen[hostGuid] = true
+      end
+      -- Try Osi.DB_AvailableCharacters or similar fallbacks
+      local _, availRows = Osi.DB_AvailableCharacters:Get(nil, nil)
+      if availRows then
+        for _, row in ipairs(availRows) do
+          if row[1] and not seen[row[1]] then
+            table.insert(members, row[1])
+            seen[row[1]] = true
+          end
         end
-    end
+      end
+    end)
+  end
 
-    -- Strategy 3: Try Osi.GetPartyMembers
-    if #party == 0 then
-        local members = tryCall(function()
-            return Osi.GetPartyMembers()
-        end)
-        if members and type(members) == "table" then
-            for _, guid in pairs(members) do
-                if type(guid) == "string" and guid ~= hostGuid then
-                    table.insert(party, guid)
-                end
-            end
-        elseif members and type(members) == "string" then
-            if members ~= hostGuid then
-                table.insert(party, members)
-            end
-        end
-    end
+  -- Method 3: Last resort, just use host
+  if #members == 0 then
+    tryCall(function()
+      local hostGuid = Osi.GetHostCharacter()
+      if hostGuid then
+        table.insert(members, hostGuid)
+      end
+    end)
+  end
 
-    return party
+  return members
 end
 
--- ============================================================
--- Build character data
--- ============================================================
-local function buildCharacterData(guid)
-    if not guid then return nil end
+-- Helper: check if guid is host or party member
+local function isHostOrParty(guid)
+  if not guid or guid == "" then return false end
+  local hostGuid = tryCall(function() return Osi.GetHostCharacter() end)
+  if hostGuid and guid == hostGuid then return true end
+  local members = getPartyMembers()
+  for _, m in ipairs(members) do
+    if m == guid then return true end
+  end
+  return false
+end
 
-    local hpData = getHP(guid)
-    local pos = getPosition(guid)
-    local actionRes = getActionResources(guid)
+---------------------------------------------------------------------------
+-- Get character name (multiple fallback strategies)
+---------------------------------------------------------------------------
+local function getName(entity)
+  -- Strategy 1: CustomName (player-chosen name)
+  local name = tryCall(function()
+    if entity.CustomName and entity.CustomName.Name then
+      local n = entity.CustomName.Name
+      local s = tostring(n)
+      if s ~= "" and s ~= "nil" then return s end
+    end
+    return nil
+  end)
+  if name then return name end
 
-    return {
-        guid = guid,
-        name = getEntityName(guid),
-        hp = hpData.hp,
-        maxHp = hpData.maxHp,
-        tempHp = hpData.tempHp,
-        level = getLevel(guid),
-        armorClass = getArmorClass(guid),
-        position = pos,
-        isInvulnerable = getIsInvulnerable(guid),
-        isDead = getIsDead(guid),
-        isSneaking = getIsSneaking(guid),
-        spellSlots = next(actionRes.spellSlots) and actionRes.spellSlots or nil,
-        actionResources = next(actionRes.resources) and actionRes.resources or nil,
-        initiative = getInitiative(guid),
-        experienceDetail = getExperienceDetail(guid),
-        encumbrance = getEncumbrance(guid),
-        stealthState = getStealthState(guid),
-        vision = getVision(guid),
-        movementSpeed = getMovementSpeed(guid),
-        combatDetail = getCombatDetail(guid),
-        characterFlags = getCharacterFlags(guid),
-        tadpoleState = getTadpoleState(guid),
-        raceAndBackground = getRaceAndBackground(guid),
-        passives = getPassives(guid),
-        tags = getTags(guid)
+  -- Strategy 2: DisplayName.Name as TranslatedString with :Get()
+  name = tryCall(function()
+    if entity.DisplayName and entity.DisplayName.Name then
+      local n = entity.DisplayName.Name
+      if type(n) == "table" and type(n.Get) == "function" then
+        local s = tostring(n:Get())
+        if s ~= "" and s ~= "nil" then return s end
+      end
+      local s = tostring(n)
+      if s ~= "" and s ~= "nil" then return s end
+    end
+    return nil
+  end)
+  if name then return name end
+
+  -- Strategy 3: DisplayName.Name.Key
+  name = tryCall(function()
+    if entity.DisplayName and entity.DisplayName.Name and entity.DisplayName.Name.Key then
+      local s = tostring(entity.DisplayName.Name.Key)
+      if s ~= "" and s ~= "nil" then return s end
+    end
+    return nil
+  end)
+  if name then return name end
+
+  return "Unknown"
+end
+
+---------------------------------------------------------------------------
+-- Get position via entity.Transform.Transform.Translate[1/2/3]
+-- Osi.GetTransform is NIL in BG3SE v30
+---------------------------------------------------------------------------
+local function getPosition(entity)
+  local x, y, z = 0, 0, 0
+  tryCall(function()
+    local translate = entity.Transform.Transform.Translate
+    x = tonumber(translate[1]) or 0
+    y = tonumber(translate[2]) or 0
+    z = tonumber(translate[3]) or 0
+  end)
+  return { x = x, y = y, z = z }
+end
+
+---------------------------------------------------------------------------
+-- Get character level (try EocLevel first, then Stats)
+---------------------------------------------------------------------------
+local function getLevel(entity)
+  local level = 0
+  -- EocLevel.Level = effective character level
+  tryCall(function()
+    if entity.EocLevel then
+      level = tonumber(entity.EocLevel.Level) or 0
+    end
+  end)
+  if level > 0 then return level end
+  -- Fallback: Stats.Level
+  tryCall(function()
+    if entity.Stats then
+      level = tonumber(entity.Stats.Level) or 0
+    end
+  end)
+  if level > 0 then return level end
+  return 1
+end
+
+---------------------------------------------------------------------------
+-- Build full character data
+---------------------------------------------------------------------------
+local function getPartyMemberData(guid, hostGuid)
+  local entity = safeGetEntity(guid)
+  if not entity then return nil end
+
+  local name = getName(entity)
+  local position = getPosition(entity)
+  local level = getLevel(entity)
+
+  -- HP
+  local hp, maxHp, tempHp = 0, 1, 0
+  tryCall(function()
+    if entity.Health then
+      hp = tonumber(entity.Health.Hp) or 0
+      maxHp = tonumber(entity.Health.MaxHp) or 1
+      tempHp = tonumber(entity.Health.TemporaryHp) or 0
+    end
+  end)
+
+  -- Is invulnerable
+  local isInvulnerable = false
+  tryCall(function()
+    if entity.Health then
+      isInvulnerable = entity.Health.IsInvulnerable or false
+    end
+  end)
+
+  -- Initiative (ServerBaseStats.Initiative, NOT Stats._InitiativeBonus)
+  local initiative = 0
+  tryCall(function()
+    if entity.ServerBaseStats then
+      initiative = tonumber(entity.ServerBaseStats.Initiative) or 0
+    end
+  end)
+  if initiative == 0 then
+    tryCall(function()
+      if entity.Stats then
+        initiative = tonumber(entity.Stats.InitiativeBonus) or 0
+      end
+    end)
+  end
+
+  -- Armor class
+  local armorClass = 10
+  tryCall(function()
+    if entity.Resistances then
+      armorClass = tonumber(entity.Resistances.AC) or 10
+    end
+  end)
+
+  -- Proficiency bonus
+  local proficiencyBonus = 0
+  tryCall(function()
+    if entity.Stats then
+      proficiencyBonus = tonumber(entity.Stats.ProficiencyBonus) or 0
+    end
+  end)
+
+  -- Action resources (spell slots + all class resources)
+  -- LegacyMap<Guid, Array<ActionResourceEntry>> — use pairs(), NOT ipairs()
+  local spellSlots = {}
+  local actionResources = {}
+  tryCall(function()
+    if entity.ActionResources and entity.ActionResources.Resources then
+      for uuid, entries in pairs(entity.ActionResources.Resources) do
+        local resName = RESOURCE_NAMES[tostring(uuid)] or tostring(uuid):sub(1, 8)
+        local resData = { name = resName, slots = {} }
+        for i = 1, #entries do
+          local entry = entries[i]
+          local slotInfo = {
+            amount = tonumber(entry.Amount) or 0,
+            maxAmount = tonumber(entry.MaxAmount) or 0,
+            level = tonumber(entry.Level) or 0,
+          }
+          table.insert(resData.slots, slotInfo)
+          if resName == "SpellSlot" then
+            local slotLevel = "level" .. tostring(entry.Level or 1)
+            spellSlots[slotLevel] = {
+              current = tonumber(entry.Amount) or 0,
+              max = tonumber(entry.MaxAmount) or 0,
+            }
+          end
+        end
+        table.insert(actionResources, resData)
+      end
+    end
+  end)
+
+  -- Active conditions (statuses)
+  -- StatusContainer.Statuses = LegacyMap — use pairs(), value IS the name string
+  local conditions = {}
+  tryCall(function()
+    if entity.StatusContainer and entity.StatusContainer.Statuses then
+      for _, statusName in pairs(entity.StatusContainer.Statuses) do
+        if type(statusName) == "string" and statusName ~= "" then
+          table.insert(conditions, statusName)
+        end
+      end
+    end
+  end)
+
+  -- Concentration with spell name resolver
+  local concentration = nil
+  tryCall(function()
+    if entity.Concentration then
+      concentration = {}
+      if entity.Concentration.SpellId then
+        concentration.spellId = tostring(entity.Concentration.SpellId)
+        local sName = resolveSpellName(concentration.spellId)
+        if sName then
+          concentration.spellName = sName
+        end
+      end
+      if entity.Concentration.Caster then
+        concentration.caster = tostring(entity.Concentration.Caster)
+      end
+    end
+  end)
+
+  -- Spellbook capture (SpellBook.Spells + SpellBookPrepares.PreparedSpells)
+  local spellbook = nil
+  tryCall(function()
+    local known = {}
+    local prepared = {}
+
+    -- Known spells from SpellBook.Spells
+    tryCall(function()
+      if entity.SpellBook and entity.SpellBook.Spells then
+        for _, spellEntry in pairs(entity.SpellBook.Spells) do
+          local spellId = nil
+          tryCall(function()
+            if type(spellEntry) == "table" then
+              spellId = tostring(spellEntry.SpellId or spellEntry.Spell or "")
+            elseif type(spellEntry) == "string" then
+              spellId = spellEntry
+            else
+              spellId = tostring(spellEntry)
+            end
+          end)
+          if spellId and spellId ~= "" and spellId ~= "nil" then
+            table.insert(known, spellId)
+          end
+        end
+      end
+    end)
+
+    -- Prepared spells from SpellBookPrepares.PreparedSpells
+    tryCall(function()
+      if entity.SpellBookPrepares and entity.SpellBookPrepares.PreparedSpells then
+        for _, spellEntry in pairs(entity.SpellBookPrepares.PreparedSpells) do
+          local spellId = nil
+          tryCall(function()
+            if type(spellEntry) == "table" then
+              spellId = tostring(spellEntry.SpellId or spellEntry.Spell or "")
+            elseif type(spellEntry) == "string" then
+              spellId = spellEntry
+            else
+              spellId = tostring(spellEntry)
+            end
+          end)
+          if spellId and spellId ~= "" and spellId ~= "nil" then
+            table.insert(prepared, spellId)
+          end
+        end
+      end
+    end)
+
+    if #known > 0 or #prepared > 0 then
+      spellbook = { known = known, prepared = prepared }
+    end
+  end)
+
+  -- Equipment capture
+  local equipment = nil
+  tryCall(function()
+    if entity.Equipment then
+      equipment = {}
+      -- Try iterating with pairs() (LegacyMap or similar)
+      tryCall(function()
+        for slotName, itemHandle in pairs(entity.Equipment) do
+          tryCall(function()
+            local slotStr = tostring(slotName)
+            local itemId = ""
+            local itemName = ""
+
+            -- Try getting item entity
+            tryCall(function()
+              local itemEntity = Ext.Entity.Get(itemHandle)
+              if itemEntity then
+                -- Try template/stable UUID
+                tryCall(function()
+                  if itemEntity.ServerItem and itemEntity.ServerItem.Template then
+                    itemId = tostring(itemEntity.ServerItem.Template)
+                  end
+                end)
+                if itemId == "" then
+                  tryCall(function()
+                    if itemEntity.Template then
+                      itemId = tostring(itemEntity.Template)
+                    end
+                  end)
+                end
+                -- Try name
+                itemName = getName(itemEntity)
+              end
+            end)
+
+            -- Fallback: try itemHandle as direct string
+            if itemId == "" then
+              tryCall(function() itemId = tostring(itemHandle) end)
+            end
+
+            if slotStr ~= "" then
+              equipment[slotStr] = {
+                id = itemId,
+                name = itemName ~= "Unknown" and itemName or "",
+              }
+            end
+          end)
+        end
+      end)
+
+      -- If pairs() returned nothing, try slot-based access
+      if equipment and next(equipment) == nil then
+        local EQUIPMENT_SLOTS = {
+          "Helmet", "Armor", "Gloves", "Boots", "Amulet",
+          "Ring1", "Ring2", "Weapon", "Offhand", "Cloak",
+          "Underwear", "MusicalInstrument", "Helmet2",
+        }
+        for _, slotName in ipairs(EQUIPMENT_SLOTS) do
+          tryCall(function()
+            local itemHandle = entity.Equipment[slotName]
+            if itemHandle then
+              local itemId = ""
+              local itemName = ""
+              tryCall(function()
+                local itemEntity = Ext.Entity.Get(itemHandle)
+                if itemEntity then
+                  tryCall(function()
+                    if itemEntity.ServerItem and itemEntity.ServerItem.Template then
+                      itemId = tostring(itemEntity.ServerItem.Template)
+                    end
+                  end)
+                  if itemId == "" then
+                    tryCall(function()
+                      if itemEntity.Template then
+                        itemId = tostring(itemEntity.Template)
+                      end
+                    end)
+                  end
+                  itemName = getName(itemEntity)
+                end
+              end)
+              if itemId == "" then
+                tryCall(function() itemId = tostring(itemHandle) end)
+              end
+              equipment[slotName] = {
+                id = itemId,
+                name = itemName ~= "Unknown" and itemName or "",
+              }
+            end
+          end)
+        end
+      end
+
+      -- If still empty, nil it out
+      if equipment and next(equipment) == nil then
+        equipment = nil
+      end
+    end
+  end)
+
+  -- Party member approval detection
+  local approval = nil
+  if hostGuid and guid ~= hostGuid then
+    tryCall(function()
+      local approvalVal = Osi.GetApproval(guid, hostGuid)
+      if approvalVal then
+        approval = tonumber(approvalVal)
+      end
+    end)
+    -- Fallback: try entity relationship components
+    if approval == nil then
+      tryCall(function()
+        if entity.RelationshipFactory then
+          tryCall(function()
+            local rel = entity.RelationshipFactory
+            if type(rel) == "table" or type(rel) == "userdata" then
+              -- Try common field names
+              tryCall(function() approval = tonumber(rel.Approval or rel.approval or rel.Score or rel.score) end)
+            end
+          end)
+        end
+      end)
+      if approval == nil then
+        tryCall(function()
+          if entity.Relationship then
+            tryCall(function()
+              local rel = entity.Relationship
+              if type(rel) == "table" or type(rel) == "userdata" then
+                tryCall(function() approval = tonumber(rel.Approval or rel.approval or rel.Score or rel.score) end)
+              end
+            end)
+          end
+        end)
+      end
+    end
+  end
+
+  -- Experience detail (NO underscores on property names!)
+  local experience = nil
+  tryCall(function()
+    if entity.Experience then
+      experience = {
+        currentLevelXp = tonumber(entity.Experience.CurrentLevelExperience) or 0,
+        nextLevelXp = tonumber(entity.Experience.NextLevelExperience) or 0,
+        totalXp = tonumber(entity.Experience.TotalExperience) or 0,
+      }
+    end
+  end)
+
+  -- Encumbrance (divide internal units by 10000 for display)
+  local encumbrance = nil
+  tryCall(function()
+    local weight = 0
+    tryCall(function() weight = tonumber(entity.InventoryWeight.Weight) or 0 end)
+    local state = 0
+    tryCall(function() state = tonumber(entity.EncumbranceState.State) or 0 end)
+    local maxNormal, maxEnc, maxHeavy = 0, 0, 0
+    tryCall(function()
+      maxNormal = tonumber(entity.EncumbranceStats.UnencumberedWeight) or 0
+      maxEnc = tonumber(entity.EncumbranceStats.EncumberedWeight) or 0
+      maxHeavy = tonumber(entity.EncumbranceStats.HeavilyEncumberedWeight) or 0
+    end)
+    encumbrance = {
+      weight = math.floor(weight / 10000),
+      state = state,
+      maxWeight = math.floor(maxNormal / 10000),
+      encumberedWeight = math.floor(maxEnc / 10000),
+      heavilyEncumberedWeight = math.floor(maxHeavy / 10000),
     }
+  end)
+
+  -- Vision (NO underscores!)
+  local vision = nil
+  tryCall(function()
+    if entity.Sight then
+      vision = {
+        darkvisionRange = tonumber(entity.Sight.DarkvisionRange) or 0,
+        sightRange = tonumber(entity.Sight.Sight) or 0,
+        fov = tonumber(entity.Sight.FOV) or 0,
+      }
+    end
+  end)
+
+  -- Movement speed
+  local movementSpeed = 0
+  tryCall(function()
+    if entity.Movement then
+      movementSpeed = tonumber(entity.Movement.Speed) or 0
+    end
+  end)
+
+  -- Death saves
+  local deathSaves = nil
+  tryCall(function()
+    if entity.DeathState then
+      deathSaves = {
+        successes = tonumber(entity.DeathState.Successes) or 0,
+        failures = tonumber(entity.DeathState.Failures) or 0,
+        isDead = entity.DeathState.IsDead or false,
+      }
+    end
+  end)
+
+  -- Combat detail (NO underscores!)
+  local combatDetail = nil
+  tryCall(function()
+    if entity.CombatParticipant then
+      combatDetail = {
+        initiativeRoll = tonumber(entity.CombatParticipant.InitiativeRoll) or 0,
+        combatGroupId = tostring(entity.CombatParticipant.CombatGroupId or ""),
+      }
+    end
+  end)
+
+  -- Character flags from ServerCharacter
+  local characterFlags = {}
+  tryCall(function()
+    if entity.ServerCharacter then
+      local sc = entity.ServerCharacter
+      if sc.FightMode then characterFlags.fightMode = true end
+      if sc.Floating then characterFlags.floating = true end
+      if sc.Invisible then characterFlags.invisible = true end
+      if sc.OffStage then characterFlags.offStage = true end
+      if sc.StoryNPC then characterFlags.storyNPC = true end
+      if sc.IsPet then characterFlags.isPet = true end
+      if sc.CannotDie then characterFlags.cannotDie = true end
+      if sc.Dead then characterFlags.dead = true end
+      if sc.Invulnerable then characterFlags.invulnerable = true end
+      if sc.CannotMove then characterFlags.cannotMove = true end
+      if sc.CannotRun then characterFlags.cannotRun = true end
+      if sc.IsPlayer then characterFlags.isPlayer = true end
+      if sc.SpotSneakers then characterFlags.spotSneakers = true end
+    end
+  end)
+
+  -- Tadpole state
+  local hasTadpole = false
+  local tadpoleState = nil
+  tryCall(function() if entity.Tadpoled then hasTadpole = true end end)
+  tryCall(function()
+    if entity.TadpoleTreeState then
+      tadpoleState = { state = tonumber(entity.TadpoleTreeState.State) or 0 }
+    end
+  end)
+
+  -- Race/Background/Origin (UUIDs)
+  local race = ""
+  local background = ""
+  local origin = ""
+  tryCall(function() if entity.Race then race = tostring(entity.Race.Race or "") end end)
+  tryCall(function() if entity.Background then background = tostring(entity.Background.Background or "") end end)
+  tryCall(function() if entity.Origin then origin = tostring(entity.Origin.Origin or "") end end)
+  local raceAndBackground = {
+    raceId = race,
+    backgroundId = background,
+    origin = origin,
+  }
+
+  -- Is player/avatar (component existence check)
+  local isPlayer = false
+  local isAvatar = false
+  tryCall(function() if entity.Player then isPlayer = true end end)
+  tryCall(function() if entity.Avatar then isAvatar = true end end)
+
+  -- Tags
+  local tags = {}
+  tryCall(function()
+    if entity.Tag and entity.Tag.Tags then
+      for _, tag in pairs(entity.Tag.Tags) do
+        if type(tag) == "string" and tag ~= "" then
+          table.insert(tags, tag)
+        end
+      end
+    end
+  end)
+
+  -- Passives (check known passives via Osi.HasPassive)
+  local passives = {}
+  for _, pname in ipairs(KNOWN_PASSIVES) do
+    local hasIt = tryCall(function() return Osi.HasPassive(guid, pname) end)
+    if hasIt == 1 or hasIt == true then
+      table.insert(passives, pname)
+    end
+  end
+
+  -- Ability scores from Stats.Abilities (Array<int32> userdata, indices 2-7!)
+  -- 0=invalid, 1=invalid, 2=STR, 3=DEX, 4=CON, 5=INT, 6=WIS, 7=CHA
+  local abilityScores = nil
+  tryCall(function()
+    if entity.Stats and entity.Stats.Abilities then
+      local ab = entity.Stats.Abilities
+      abilityScores = {
+        str = tonumber(ab[2]) or 10,
+        dex = tonumber(ab[3]) or 10,
+        con = tonumber(ab[4]) or 10,
+        int = tonumber(ab[5]) or 10,
+        wis = tonumber(ab[6]) or 10,
+        cha = tonumber(ab[7]) or 10,
+      }
+    end
+  end)
+
+  -- Ability modifiers (same 2-7 index structure)
+  local abilityModifiers = nil
+  tryCall(function()
+    if entity.Stats and entity.Stats.AbilityModifiers then
+      local am = entity.Stats.AbilityModifiers
+      abilityModifiers = {
+        str = tonumber(am[2]) or 0,
+        dex = tonumber(am[3]) or 0,
+        con = tonumber(am[4]) or 0,
+        int = tonumber(am[5]) or 0,
+        wis = tonumber(am[6]) or 0,
+        cha = tonumber(am[7]) or 0,
+      }
+    end
+  end)
+
+  -- In dialog (entity.ServerCharacter.InDialog, NOT Osi.IsInDialog which is nil)
+  local inDialog = false
+  tryCall(function()
+    if entity.ServerCharacter then
+      inDialog = entity.ServerCharacter.InDialog or false
+    end
+  end)
+
+  -- Sneaking & stealth (from Darkness component)
+  local isSneaking = false
+  local stealthState = nil
+  tryCall(function()
+    if entity.Darkness then
+      isSneaking = entity.Darkness.Sneaking or false
+      stealthState = {
+        sneaking = isSneaking == true,
+        obscurity = tonumber(entity.Darkness.Obscurity) or 0,
+      }
+    end
+  end)
+
+  -- Area from ServerCharacter.Level (NOT Template.CurrentLevel which errors)
+  local area = ""
+  tryCall(function()
+    if entity.ServerCharacter then
+      area = tostring(entity.ServerCharacter.Level or "")
+    end
+  end)
+
+  -- God/deity
+  local god = ""
+  tryCall(function()
+    if entity.God then
+      god = tostring(entity.God.God or "")
+    end
+  end)
+
+  -- Build result table
+  local result = {
+    guid = guid,
+    name = name,
+    hp = hp,
+    maxHp = maxHp,
+    tempHp = tempHp,
+    level = level,
+    armorClass = armorClass,
+    initiative = initiative,
+    proficiencyBonus = proficiencyBonus,
+    spellSlots = spellSlots,
+    actionResources = actionResources,
+    conditions = conditions,
+    concentration = concentration,
+    position = position,
+    experience = experience,
+    encumbrance = encumbrance,
+    vision = vision,
+    movementSpeed = movementSpeed,
+    deathSaves = deathSaves,
+    combatDetail = combatDetail,
+    characterFlags = characterFlags,
+    hasTadpole = hasTadpole,
+    tadpoleState = tadpoleState,
+    race = race,
+    background = background,
+    origin = origin,
+    raceAndBackground = { raceId = race, backgroundId = background, origin = origin },
+    isPlayer = isPlayer,
+    isAvatar = isAvatar,
+    tags = tags,
+    passives = passives,
+    abilityScores = abilityScores,
+    abilityModifiers = abilityModifiers,
+    inDialog = inDialog,
+    isSneaking = isSneaking == true,
+    isInvulnerable = isInvulnerable,
+    stealthState = stealthState,
+    area = area,
+    god = god,
+    spellbook = spellbook,
+    equipment = equipment,
+  }
+
+  -- Add approval if found
+  if approval ~= nil then
+    result.approval = approval
+  end
+
+  return result
 end
 
--- ============================================================
--- Build full game state
--- ============================================================
-local function buildGameState()
-    local hostGuid = getHostGuid()
+---------------------------------------------------------------------------
+-- Event helper
+---------------------------------------------------------------------------
+local function addEvent(evt)
+  table.insert(Tadpole.recentEvents, evt)
+  while #Tadpole.recentEvents > MAX_EVENTS do
+    table.remove(Tadpole.recentEvents, 1)
+  end
+end
+
+---------------------------------------------------------------------------
+-- Main state capture
+---------------------------------------------------------------------------
+function Tadpole:CaptureState()
+  local ok, result = pcall(function()
+    local hostGuid = Osi.GetHostCharacter()
+    if not hostGuid then return nil end
+
+    -- Party detection via getPartyMembers (multi-method fallback)
+    local party = {}
+    tryCall(function()
+      local members = getPartyMembers()
+      for _, guid in ipairs(members) do
+        if guid ~= hostGuid then
+          local data = getPartyMemberData(guid, hostGuid)
+          if data then table.insert(party, data) end
+        end
+      end
+      end
+    end)
+
+    local hostData = getPartyMemberData(hostGuid, hostGuid)
+
+    -- Session-level area (from Ext.Utils.GetCurrentLevel)
+    local area = ""
+    pcall(function() area = Ext.Utils.GetCurrentLevel() or "" end)
+
+    local gold = 0
+    pcall(function() gold = Osi.GetGold(hostGuid) or 0 end)
+
+    local inCombat = false
+    pcall(function() inCombat = Osi.IsInCombat(hostGuid) == 1 end)
+
+    -- Camp supplies (entity components are userdata, wrap in pcall + tonumber)
+    local campSupplies = { canRest = true, current = 0, max = 0 }
+    tryCall(function()
+      local hostEntity = safeGetEntity(hostGuid)
+      if hostEntity then
+        tryCall(function() campSupplies.current = tonumber(hostEntity.CampSupply) or 0 end)
+        tryCall(function() campSupplies.max = tonumber(hostEntity.CampTotalSupplies) or 0 end)
+        tryCall(function()
+          local rest = hostEntity.CanDoRest
+          if type(rest) == "boolean" then campSupplies.canRest = rest end
+        end)
+      end
+    end)
 
     local state = {
-        version = TADPOLE_VERSION,
-        timestamp = _tickCount,
-        area = getCurrentArea(),
-        inCombat = getInCombat(),
-        host = nil,
-        party = {},
-        gold = getGold(),
-        experience = getExperience(),
-        events = _eventLog,
-        deathSaves = nil,
-        conditions = {},
-        concentration = nil,
-        proficiencyBonus = 0,
-        abilityScores = { str = 10, dex = 10, con = 10, int = 10, wis = 10, cha = 10 },
-        inDialog = getInDialog(),
-        weather = getWeather(),
-        campSupplies = nil
+      version = self.version,
+      timestamp = getTime(),
+      area = area,
+      inCombat = inCombat,
+      host = hostData,
+      party = party,
+      gold = gold,
+      campSupplies = campSupplies,
+      events = self.recentEvents,
+      sessionStats = self.sessionStats,
     }
 
-    -- Host data
-    if hostGuid then
-        state.host = buildCharacterData(hostGuid)
-        state.deathSaves = getDeathSaves(hostGuid)
-        state.conditions = getConditions(hostGuid)
-        state.concentration = getConcentration(hostGuid)
-        state.proficiencyBonus = getProficiencyBonus(hostGuid)
-        state.abilityScores = getAbilityScores(hostGuid)
-    end
-
-    -- Party data
-    local partyMembers = getPartyMembers()
-    for _, memberGuid in pairs(partyMembers) do
-        local charData = buildCharacterData(memberGuid)
-        if charData then
-            table.insert(state.party, charData)
-        end
-    end
-
-    -- Camp supplies
-    state.campSupplies = getCampSupplies()
-
     return state
+  end)
+  if ok then return result end
+  return nil
 end
 
--- ============================================================
--- Command Handlers
--- ============================================================
-local CommandHandlers = {}
+---------------------------------------------------------------------------
+-- State change detection (with pcall safety for userdata)
+---------------------------------------------------------------------------
+function Tadpole:StateChanged(newState)
+  local ok, newJson = pcall(Ext.Json.Stringify, newState)
+  if not ok then return true end  -- stringify failed, assume changed
+  if newJson ~= self.lastStateJson then
+    self.lastStateJson = newJson
+    return true
+  end
+  return false
+end
 
-CommandHandlers["add_gold"] = function(cmd)
-    local value = tonumber(cmd.value) or 0
-    local hostGuid = getHostGuid()
-    if hostGuid and value ~= 0 then
-        if value > 0 then
-            tryCall(function() Osi.AddGold(hostGuid, value) end)
-        else
-            tryCall(function() Osi.RemoveGold(hostGuid, math.abs(value)) end)
-        end
-        pushEvent("add_gold", { value = value })
-        Ext.Utils.PrintWarning("[Tadpole] add_gold: " .. tostring(value))
+---------------------------------------------------------------------------
+-- Write state file
+---------------------------------------------------------------------------
+function Tadpole:WriteState(state)
+  local ok, json = pcall(Ext.Json.Stringify, state)
+  if not ok then return false end
+  Ext.IO.SaveFile("TadpoleState.json", json)
+  return true
+end
+
+---------------------------------------------------------------------------
+-- Read commands from phone app
+---------------------------------------------------------------------------
+function Tadpole:ReadCommands()
+  local content = Ext.IO.LoadFile("TadpoleCommands.json")
+  if not content or content == "" then return nil end
+
+  local success, parsed = pcall(Ext.Json.Parse, content)
+  if not success or not parsed then return nil end
+
+  -- Delete after parse
+  Ext.IO.SaveFile("TadpoleCommands.json", "")
+
+  if type(parsed) == "table" and parsed[1] ~= nil then
+    return parsed
+  end
+  return { parsed }
+end
+
+---------------------------------------------------------------------------
+-- Execute a command from the phone app
+---------------------------------------------------------------------------
+function Tadpole:ExecuteCommand(cmd)
+  if not cmd or not cmd.action then return end
+  local hostGuid = Osi.GetHostCharacter()
+  if not hostGuid then return end
+
+  if cmd.action == "heal" then
+    pcall(Osi.CharacterHeal, hostGuid, cmd.amount or 100)
+  elseif cmd.action == "full_restore" then
+    pcall(Osi.Proc_CharacterFullRestore, hostGuid)
+  elseif cmd.action == "set_hp" then
+    local hp = tonumber(cmd.value) or 100
+    pcall(Osi.SetHitpoints, hostGuid, hp, 0)
+  elseif cmd.action == "add_gold" then
+    pcall(Osi.AddGold, hostGuid, cmd.value or 0)
+  elseif cmd.action == "short_rest" then
+    pcall(Osi.ShortRest, hostGuid)
+  elseif cmd.action == "long_rest" then
+    pcall(Osi.RequestLongRest, hostGuid, 1)
+  elseif cmd.action == "trigger_rest" then
+    pcall(Osi.RequestLongRest, hostGuid, 1)
+  elseif cmd.action == "resurrect" then
+    pcall(Osi.Resurrect, hostGuid, "", 1)
+  elseif cmd.action == "reset_cooldowns" then
+    pcall(Osi.ResetCooldowns, hostGuid)
+  elseif cmd.action == "god_mode" then
+    local enabled = cmd.enabled or false
+    -- Try SetInvulnerable first, fall back to status-based approach
+    local ok = pcall(Osi.SetInvulnerable, hostGuid, enabled and 1 or 0)
+    if not ok then
+      if enabled then
+        pcall(Osi.ApplyStatus, hostGuid, "INVULNERABLE", 0, 1, hostGuid)
+      else
+        pcall(Osi.RemoveStatus, hostGuid, "INVULNERABLE", hostGuid)
+      end
     end
-end
-
-CommandHandlers["give_item"] = function(cmd)
-    local itemId = cmd.itemId
-    local count = tonumber(cmd.count) or 1
-    local hostGuid = getHostGuid()
-    if hostGuid and itemId then
-        tryCall(function() Osi.CreateAt(itemId, hostGuid, count, 0) end)
-        pushEvent("give_item", { itemId = itemId, count = count })
-        Ext.Utils.PrintWarning("[Tadpole] give_item: " .. itemId .. " x" .. tostring(count))
-    end
-end
-
-CommandHandlers["trigger_rest"] = function(cmd)
-    tryCall(function() Osi.ScheduleLongRest() end)
-    pushEvent("trigger_rest", {})
-    Ext.Utils.PrintWarning("[Tadpole] trigger_rest")
-end
-
-CommandHandlers["short_rest"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        tryCall(function() Osi.RequestShortRest(hostGuid) end)
-        pushEvent("short_rest", {})
-        Ext.Utils.PrintWarning("[Tadpole] short_rest")
-    end
-end
-
-CommandHandlers["heal_party"] = function(cmd)
-    local amount = cmd.amount  -- nil means full heal
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        -- Heal host
-        if amount then
-            tryCall(function() Osi.SetHp(hostGuid, (getHP(hostGuid).hp + tonumber(amount))) end)
-        else
-            tryCall(function() Osi.SetHp(hostGuid, getHP(hostGuid).maxHp) end)
-        end
-
-        -- Heal party members
-        local partyMembers = getPartyMembers()
-        for _, memberGuid in pairs(partyMembers) do
-            if amount then
-                tryCall(function() Osi.SetHp(memberGuid, (getHP(memberGuid).hp + tonumber(amount))) end)
-            else
-                tryCall(function() Osi.SetHp(memberGuid, getHP(memberGuid).maxHp) end)
-            end
-        end
-
-        pushEvent("heal_party", { amount = amount })
-        Ext.Utils.PrintWarning("[Tadpole] heal_party: " .. tostring(amount or "full"))
-    end
-end
-
-CommandHandlers["revive"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        -- Try multiple revival approaches
-        tryCall(function() Osi.Resurrect(hostGuid) end)
-        tryCall(function() Osi.SetHp(hostGuid, getHP(hostGuid).maxHp) end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "DYING") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "DEAD") end)
-
-        -- Also revive party
-        local partyMembers = getPartyMembers()
-        for _, memberGuid in pairs(partyMembers) do
-            tryCall(function() Osi.Resurrect(memberGuid) end)
-            tryCall(function() Osi.SetHp(memberGuid, getHP(memberGuid).maxHp) end)
-            tryCall(function() Osi.RemoveStatus(memberGuid, "DYING") end)
-            tryCall(function() Osi.RemoveStatus(memberGuid, "DEAD") end)
-        end
-
-        pushEvent("revive", {})
-        Ext.Utils.PrintWarning("[Tadpole] revive")
-    end
-end
-
-CommandHandlers["god_mode"] = function(cmd)
-    local enabled = cmd.enabled
-    if enabled == nil then enabled = true end
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        if enabled then
-            tryCall(function() Osi.SetInvulnerable(hostGuid, 1) end)
-            tryCall(function() Osi.ApplyStatus(hostGuid, "INVULNERABLE", -1, 1) end)
-        else
-            tryCall(function() Osi.SetInvulnerable(hostGuid, 0) end)
-            tryCall(function() Osi.RemoveStatus(hostGuid, "INVULNERABLE") end)
-        end
-
-        pushEvent("god_mode", { enabled = enabled })
-        Ext.Utils.PrintWarning("[Tadpole] god_mode: " .. tostring(enabled))
-    end
-end
-
-CommandHandlers["teleport_to"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        local x = tonumber(cmd.x) or 0
-        local y = tonumber(cmd.y) or 0
-        local z = tonumber(cmd.z) or 0
-        tryCall(function() Osi.TeleportToPosition(hostGuid, x, y, z, "TadpoleTeleport", 1, 1) end)
-        pushEvent("teleport_to", { x = x, y = y, z = z })
-        Ext.Utils.PrintWarning("[Tadpole] teleport_to: " .. x .. "," .. y .. "," .. z)
-    end
-end
-
-CommandHandlers["set_level"] = function(cmd)
-    local level = tonumber(cmd.level)
-    local hostGuid = getHostGuid()
-    if hostGuid and level and level > 0 then
-        tryCall(function() Osi.SetLevel(hostGuid, level) end)
-        pushEvent("set_level", { level = level })
-        Ext.Utils.PrintWarning("[Tadpole] set_level: " .. tostring(level))
-    end
-end
-
-CommandHandlers["add_experience"] = function(cmd)
-    local amount = tonumber(cmd.amount) or 0
-    local hostGuid = getHostGuid()
-    if hostGuid and amount ~= 0 then
-        tryCall(function() Osi.AddExperience(hostGuid, amount) end)
-        pushEvent("add_experience", { amount = amount })
-        Ext.Utils.PrintWarning("[Tadpole] add_experience: " .. tostring(amount))
-    end
-end
-
-CommandHandlers["set_hp"] = function(cmd)
-    local hp = tonumber(cmd.hp) or 0
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        tryCall(function() Osi.SetHp(hostGuid, hp) end)
-        pushEvent("set_hp", { hp = hp })
-        Ext.Utils.PrintWarning("[Tadpole] set_hp: " .. tostring(hp))
-    end
-end
-
-CommandHandlers["reset_cooldowns"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        -- Reset all cooldowns for host
-        tryCall(function() Osi.ResetAllCooldowns(hostGuid) end)
-        -- Also for party
-        local partyMembers = getPartyMembers()
-        for _, memberGuid in pairs(partyMembers) do
-            tryCall(function() Osi.ResetAllCooldowns(memberGuid) end)
-        end
-        pushEvent("reset_cooldowns", {})
-        Ext.Utils.PrintWarning("[Tadpole] reset_cooldowns")
-    end
-end
-
-CommandHandlers["kill_target"] = function(cmd)
-    local targetGuid = cmd.targetGuid
-    if not targetGuid then
-        -- Kill current selection or context target
-        targetGuid = getHostGuid()  -- fallback to host context
-    end
-    if targetGuid then
-        tryCall(function() Osi.Kill(targetGuid) end)
-        pushEvent("kill_target", { targetGuid = targetGuid })
-        Ext.Utils.PrintWarning("[Tadpole] kill_target: " .. tostring(targetGuid))
-    end
-end
-
-CommandHandlers["toggle_combat"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        local inCombat = getInCombat()
-        if inCombat then
-            tryCall(function() Osi.ExitCombat(hostGuid) end)
-        else
-            tryCall(function() Osi.EnterCombat(hostGuid) end)
-        end
-        pushEvent("toggle_combat", { wasInCombat = inCombat })
-        Ext.Utils.PrintWarning("[Tadpole] toggle_combat: was " .. tostring(inCombat))
-    end
-end
-
-CommandHandlers["set_invulnerable"] = function(cmd)
-    local enabled = cmd.enabled
-    if enabled == nil then enabled = true end
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        if enabled then
-            tryCall(function() Osi.SetInvulnerable(hostGuid, 1) end)
-        else
-            tryCall(function() Osi.SetInvulnerable(hostGuid, 0) end)
-        end
-        pushEvent("set_invulnerable", { enabled = enabled })
-        Ext.Utils.PrintWarning("[Tadpole] set_invulnerable: " .. tostring(enabled))
-    end
-end
-
-CommandHandlers["set_ability_score"] = function(cmd)
-    local ability = cmd.ability
-    local value = tonumber(cmd.value)
-    local hostGuid = getHostGuid()
-    if hostGuid and ability and value then
-        -- Map ability names to stat property names
-        local abilityMap = {
-            str = "Strength",
-            strength = "Strength",
-            dex = "Dexterity",
-            dexterity = "Dexterity",
-            con = "Constitution",
-            constitution = "Constitution",
-            int = "Intelligence",
-            intelligence = "Intelligence",
-            wis = "Wisdom",
-            wisdom = "Wisdom",
-            cha = "Charisma",
-            charisma = "Charisma"
-        }
-        local statName = abilityMap[string.lower(ability)]
-        if statName then
-            tryCall(function()
-                local entity = Ext.Entity.Get(hostGuid)
-                if entity and entity.Stats then
-                    -- Try setting through Osi first
-                    Osi.SetStatString(hostGuid, statName, tostring(value))
-                end
-            end)
-            -- Also try character stat manipulation
-            tryCall(function()
-                Osi.ChangeAbility(hostGuid, statName, value)
-            end)
-            pushEvent("set_ability_score", { ability = ability, value = value })
-            Ext.Utils.PrintWarning("[Tadpole] set_ability_score: " .. ability .. " = " .. tostring(value))
-        end
-    end
-end
-
-CommandHandlers["spawn_enemy"] = function(cmd)
-    local templateId = cmd.templateId
-    local x = tonumber(cmd.x) or 0
-    local y = tonumber(cmd.y) or 0
-    local z = tonumber(cmd.z) or 0
-    if templateId then
-        tryCall(function()
-            Osi.CreateAtObject(templateId, x, y, z, 0, 0)
-        end)
-        -- Alternative spawn approach
-        tryCall(function()
-            local hostGuid = getHostGuid()
-            if hostGuid then
-                Osi.CreateAt(templateId, hostGuid, 1, 0)
-            end
-        end)
-        pushEvent("spawn_enemy", { templateId = templateId, x = x, y = y, z = z })
-        Ext.Utils.PrintWarning("[Tadpole] spawn_enemy: " .. tostring(templateId))
-    end
-end
-
-CommandHandlers["long_rest"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        tryCall(function() Osi.RequestLongRest(hostGuid) end)
-        -- Alternative
-        tryCall(function() Osi.ScheduleLongRest() end)
-        pushEvent("long_rest", {})
-        Ext.Utils.PrintWarning("[Tadpole] long_rest")
-    end
-end
-
-CommandHandlers["change_weather"] = function(cmd)
-    local weather = cmd.weather
-    if weather and type(weather) == "string" then
-        tryCall(function() Osi.SetWeather(weather, 1) end)
-        tryCall(function() Osi.ChangeWeather(weather) end)
-        pushEvent("change_weather", { weather = weather })
-        Ext.Utils.PrintWarning("[Tadpole] change_weather: " .. weather)
-    end
-end
-
-CommandHandlers["full_restore"] = function(cmd)
-    local hostGuid = getHostGuid()
-    if hostGuid then
-        -- Full HP restore
-        local hpData = getHP(hostGuid)
-        tryCall(function() Osi.SetHp(hostGuid, hpData.maxHp) end)
-        tryCall(function() Osi.SetTempHp(hostGuid, 0) end)
-
-        -- Remove negative statuses
-        tryCall(function() Osi.RemoveStatus(hostGuid, "DYING") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "DEAD") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "POISONED") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "DISEASED") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "BLINDED") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "DEAFENED") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "PARALYZED") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "STUNNED") end)
-        tryCall(function() Osi.RemoveStatus(hostGuid, "INCAPACITATED") end)
-
-        -- Reset cooldowns
-        tryCall(function() Osi.ResetAllCooldowns(hostGuid) end)
-
-        -- Restore spell slots
-        tryCall(function()
-            local entity = Ext.Entity.Get(hostGuid)
-            if entity and entity.ActionResources then
-                local resources = entity.ActionResources.Resources
-                if resources and type(resources) == "table" then
-                    for k, v in pairs(resources) do
-                        if type(k) == "string" and k:find("SpellSlot") then
-                            if type(v) == "table" and v.MaxAmount then
-                                v.CurrentAmount = v.MaxAmount
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-
-        -- Also restore party
-        local partyMembers = getPartyMembers()
-        for _, memberGuid in pairs(partyMembers) do
-            local mHpData = getHP(memberGuid)
-            tryCall(function() Osi.SetHp(memberGuid, mHpData.maxHp) end)
-            tryCall(function() Osi.ResetAllCooldowns(memberGuid) end)
-            tryCall(function() Osi.RemoveStatus(memberGuid, "DYING") end)
-            tryCall(function() Osi.RemoveStatus(memberGuid, "DEAD") end)
-        end
-
-        pushEvent("full_restore", {})
-        Ext.Utils.PrintWarning("[Tadpole] full_restore")
-    end
-end
-
--- ============================================================
--- Command Processing
--- ============================================================
-local function processCommands()
-    local raw = tryCall(function()
-        return Ext.IO.LoadFile(COMMANDS_FILE)
-    end)
-
-    -- Clear commands file immediately to prevent re-processing
+  elseif cmd.action == "give_item" then
+    -- Spawn item directly into inventory
+    -- Try as template UUID first, fall back to stat name → UUID resolution
     tryCall(function()
-        Ext.IO.SaveFile(COMMANDS_FILE, "")
-    end)
-
-    if not raw or type(raw) ~= "string" or raw == "" then
-        return
-    end
-
-    local commands = tryCall(function()
-        return Ext.Json.Parse(raw)
-    end)
-
-    if not commands then
-        Ext.Utils.PrintWarning("[Tadpole] Failed to parse commands JSON")
-        return
-    end
-
-    -- Handle array or single object
-    if commands.type and type(commands.type) == "string" then
-        -- Single command object
-        commands = { commands }
-    elseif type(commands) ~= "table" then
-        Ext.Utils.PrintWarning("[Tadpole] Invalid commands format")
-        return
-    end
-
-    for _, cmd in pairs(commands) do
-        if type(cmd) == "table" and cmd.type and type(cmd.type) == "string" then
-            local handler = CommandHandlers[cmd.type]
-            if handler then
-                tryCall(function() handler(cmd) end)
-            else
-                Ext.Utils.PrintWarning("[Tadpole] Unknown command: " .. tostring(cmd.type))
-            end
+      local templateId = cmd.itemId
+      -- If it looks like a stat name (no dashes, not a UUID), try to resolve it
+      if templateId and not templateId:match("%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x") then
+        local stat = Ext.Stats.Get(templateId)
+        if stat and stat.RootTemplate then
+          templateId = stat.RootTemplate
         end
-    end
-end
-
--- ============================================================
--- Write state to file
--- ============================================================
-local function writeState(state)
-    local json = tryCall(function()
-        return Ext.Json.Stringify(state)
+      end
+      pcall(Osi.TemplateAddTo, templateId, hostGuid, cmd.count or 1, 1)
     end)
-    if json and type(json) == "string" then
-        tryCall(function()
-            Ext.IO.SaveFile(STATE_FILE, json)
-        end)
-    else
-        Ext.Utils.PrintWarning("[Tadpole] Failed to stringify state")
+  elseif cmd.action == "spawn_item" then
+    -- Spawn item on ground at player location
+    tryCall(function()
+      local templateId = cmd.itemId
+      -- Resolve stat name to template UUID if needed
+      if templateId and not templateId:match("%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x") then
+        local stat = Ext.Stats.Get(templateId)
+        if stat and stat.RootTemplate then
+          templateId = stat.RootTemplate
+        end
+      end
+      local x, y, z = 0, 0, 0
+      local entity = safeGetEntity(hostGuid)
+      if entity then local pos = getPosition(entity); x, y, z = pos.x, pos.y, pos.z end
+      pcall(Osi.CreateAt, templateId, x, y, z, 0, 1, "")
+    end)
+  elseif cmd.action == "teleport_to" then
+    if cmd.targetGuid then
+      pcall(Osi.TeleportTo, hostGuid, cmd.targetGuid, "")
     end
+  elseif cmd.action == "heal_party" then
+    tryCall(function()
+      local members = getPartyMembers()
+      for _, guid in ipairs(members) do
+        pcall(Osi.Proc_CharacterFullRestore, guid)
+      end
+    end)
+  elseif cmd.action == "revive" then
+    tryCall(function()
+      local members = getPartyMembers()
+      for _, guid in ipairs(members) do
+        if Osi.IsDead(guid) == 1 then
+          pcall(Osi.Resurrect, guid, "", 1)
+        end
+      end
+    end)
+  elseif cmd.action == "add_xp" then
+    pcall(Osi.AddExplorationExperience, hostGuid, cmd.value or 100)
+  elseif cmd.action == "set_level" then
+    local lvl = tonumber(cmd.value) or 1
+    if lvl >= 1 and lvl <= 12 then
+      pcall(Osi.SetLevel, hostGuid, lvl)
+    end
+  elseif cmd.action == "apply_status" then
+    if cmd.statusId then
+      local duration = tonumber(cmd.duration) or 0  -- 0 = infinite
+      pcall(Osi.ApplyStatus, hostGuid, cmd.statusId, duration, 1, hostGuid)
+    end
+  elseif cmd.action == "remove_status" then
+    if cmd.statusId then
+      pcall(Osi.RemoveStatus, hostGuid, cmd.statusId, hostGuid)
+    end
+  elseif cmd.action == "kill_target" then
+    if cmd.targetGuid then
+      pcall(Osi.CombatKillFor, cmd.targetGuid)
+    end
+  elseif cmd.action == "deal_damage" then
+    if cmd.targetGuid then
+      pcall(Osi.ApplyDamage, cmd.targetGuid, cmd.value or 100, cmd.damageType or "Slashing", hostGuid)
+    end
+  elseif cmd.action == "toggle_combat" then
+    local inCombat = false
+    pcall(function() inCombat = Osi.IsInCombat(hostGuid) == 1 end)
+    if inCombat then
+      pcall(Osi.LeaveCombat, hostGuid)
+    else
+      -- Find a nearby hostile to enter combat with
+      tryCall(function()
+        local x, y, z = 0, 0, 0
+        local entity = safeGetEntity(hostGuid)
+        if entity then local pos = getPosition(entity); x, y, z = pos.x, pos.y, pos.z end
+        -- Get characters near the host and find an enemy
+        local nearby = Osi.GetCharactersAroundPosition(x, y, z, 30)
+        if nearby then
+          for _, charGuid in ipairs(nearby) do
+            if Osi.IsEnemyOf(hostGuid, charGuid) == 1 then
+              pcall(Osi.EnterCombat, hostGuid, charGuid)
+              return
+            end
+          end
+        end
+        -- Fallback: just force combat mode
+        pcall(Osi.SetInCombat, hostGuid, 1)
+      end)
+    end
+  elseif cmd.action == "teleport_to_waypoint" then
+    if cmd.waypoint then
+      pcall(Osi.TeleportTo, hostGuid, cmd.waypoint, "")
+    end
+  end
 end
 
--- ============================================================
--- Tick Handler - Main Loop
--- ============================================================
-Ext.Osiris.RegisterListener("Tick", 1, "before", function()
-    _tickCount = _tickCount + 1
+---------------------------------------------------------------------------
+-- Tick — runs every frame, captures state every 60 frames (~2 sec)
+---------------------------------------------------------------------------
+Ext.Events.Tick:Subscribe(function(e)
+  Tadpole.elapsed = Tadpole.elapsed + 1
+  if Tadpole.elapsed < 60 then return end
+  Tadpole.elapsed = 0
 
-    if not _ready then
-        return
+  -- Crash-proof: wrap entire tick body in pcall
+  local ok, err = pcall(function()
+    local state = Tadpole:CaptureState()
+    if state and Tadpole:StateChanged(state) then
+      local written = Tadpole:WriteState(state)
+      if written then
+        Tadpole.recentEvents = {}
+      end
     end
 
-    -- Process incoming commands every tick for responsiveness
-    processCommands()
-
-    -- Write state every 10 ticks (~10 seconds at 1 tick/sec) to reduce I/O
-    if _tickCount % 10 == 0 then
-        local state = buildGameState()
-        writeState(state)
-        _stateCache = state
+    local cmds = Tadpole:ReadCommands()
+    if cmds then
+      for _, cmd in ipairs(cmds) do
+        Tadpole:ExecuteCommand(cmd)
+      end
     end
+  end)
+  if not ok then
+    suppressError("Tick error: " .. tostring(err))
+  end
 end)
 
--- ============================================================
--- SessionLoaded Handler
--- ============================================================
-Ext.Events.SessionLoaded:Subscribe(function()
-    Ext.Utils.PrintWarning("[Tadpole] SessionLoaded - initializing v" .. TADPOLE_VERSION)
-    _ready = true
-    _tickCount = 0
-    _eventLog = {}
-
-    -- Build and write initial state
-    local state = buildGameState()
-    writeState(state)
-    _stateCache = state
-
-    pushEvent("session_loaded", { version = TADPOLE_VERSION })
-    Ext.Utils.PrintWarning("[Tadpole] Initialization complete - state written to " .. STATE_FILE)
+---------------------------------------------------------------------------
+-- Osiris event listeners
+---------------------------------------------------------------------------
+Ext.Osiris.RegisterListener("CombatStarted", 1, "after", function(combat)
+  addEvent({ type = "combat_started", timestamp = getTime() })
 end)
 
--- ============================================================
--- Game Event Listeners
--- ============================================================
-
--- Combat enter/exit
-Ext.Osiris.RegisterListener("EnteredCombat", 1, "after", function(guid)
-    pushEvent("entered_combat", { guid = guid })
+Ext.Osiris.RegisterListener("CombatEnded", 1, "after", function(combat)
+  addEvent({ type = "combat_ended", timestamp = getTime() })
 end)
 
-Ext.Osiris.RegisterListener("LeftCombat", 1, "after", function(guid)
-    pushEvent("left_combat", { guid = guid })
+Ext.Osiris.RegisterListener("LevelGameplayStarted", 2, "after", function(level, isEditor)
+  addEvent({ type = "area_changed", area = level, timestamp = getTime() })
 end)
 
--- Character died
-Ext.Osiris.RegisterListener("CharacterDied", 1, "after", function(guid)
-    pushEvent("character_died", { guid = guid })
+Ext.Osiris.RegisterListener("LongRestFinished", 0, "after", function()
+  addEvent({ type = "long_rest", timestamp = getTime() })
 end)
 
--- Character revived / resurrected
-Ext.Osiris.RegisterListener("Resurrected", 1, "after", function(guid)
-    pushEvent("character_resurrected", { guid = guid })
+-- Status events
+Ext.Osiris.RegisterListener("StatusApplied", 4, "after", function(target, status, cause, storyAction)
+  addEvent({ type = "status_applied", target = target, status = status, cause = cause, timestamp = getTime() })
+end)
+
+-- Combat character events
+Ext.Osiris.RegisterListener("EnteredCombat", 2, "after", function(entity, combat)
+  addEvent({ type = "entered_combat", entity = entity, timestamp = getTime() })
+end)
+
+Ext.Osiris.RegisterListener("LeftCombat", 2, "after", function(entity, combat)
+  addEvent({ type = "left_combat", entity = entity, timestamp = getTime() })
 end)
 
 -- Level up
-Ext.Osiris.RegisterListener("LevelUp", 1, "after", function(guid)
-    pushEvent("level_up", { guid = guid })
-end)
-
--- Long rest completed
-Ext.Osiris.RegisterListener("LongRestFinished", 0, "after", function()
-    pushEvent("long_rest_finished", {})
-end)
-
--- Short rest completed
-Ext.Osiris.RegisterListener("ShortRestFinished", 0, "after", function()
-    pushEvent("short_rest_finished", {})
-end)
-
--- Status applied
-Ext.Osiris.RegisterListener("StatusApplied", 4, "after", function(target, statusId, source, duration)
-    pushEvent("status_applied", {
-        target = target,
-        statusId = statusId,
-        source = source,
-        duration = tonumber(duration) or 0
-    })
-end)
-
--- Dialog started
-Ext.Osiris.RegisterListener("DialogStarted", 2, "after", function(dialog, instance)
-    pushEvent("dialog_started", { dialog = dialog, instance = instance })
-end)
-
--- Dialog ended
-Ext.Osiris.RegisterListener("DialogEnded", 1, "after", function(instance)
-    pushEvent("dialog_ended", { instance = instance })
-end)
-
--- Item added to inventory
-Ext.Osiris.RegisterListener("InventoryChanged", 2, "after", function(guid, item)
-    pushEvent("inventory_changed", { guid = guid, item = item })
+Ext.Osiris.RegisterListener("LevelUp", 1, "after", function(entity)
+  addEvent({ type = "level_up", entity = entity, timestamp = getTime() })
 end)
 
 -- Gold changed
-Ext.Osiris.RegisterListener("GoldChanged", 2, "after", function(guid, amount)
-    pushEvent("gold_changed", { guid = guid, amount = tonumber(amount) or 0 })
+Ext.Osiris.RegisterListener("GoldChanged", 2, "after", function(entity, amount)
+  addEvent({ type = "gold_changed", entity = entity, amount = amount, timestamp = getTime() })
 end)
 
--- Attacked
-Ext.Osiris.RegisterListener("Attacked", 4, "after", function(target, source, damageType, damage)
-    pushEvent("attacked", {
-        target = target,
-        source = source,
+-- Character died
+Ext.Osiris.RegisterListener("CharacterDied", 1, "after", function(entity)
+  addEvent({ type = "character_died", entity = entity, timestamp = getTime() })
+end)
+
+-- Resurrected
+Ext.Osiris.RegisterListener("Resurrected", 1, "after", function(entity)
+  addEvent({ type = "resurrected", entity = entity, timestamp = getTime() })
+end)
+
+---------------------------------------------------------------------------
+-- Ext.Events subscriptions (v0.20.0 — rich game event tracking)
+---------------------------------------------------------------------------
+
+-- SpellCast
+tryCall(function()
+  Ext.Events.SpellCast:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local spellId = ""
+      tryCall(function() spellId = tostring(e.SpellId or e.Spell or "") end)
+      Tadpole.sessionStats.spellsCast = Tadpole.sessionStats.spellsCast + 1
+      addEvent({
+        type = "spell_cast",
+        entity = guid,
+        spellId = spellId,
+        timestamp = getTime(),
+      })
+    end)
+  end)
+end)
+
+-- DamageTaken
+tryCall(function()
+  Ext.Events.DamageTaken:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local amount = 0
+      tryCall(function() amount = tonumber(e.Amount) or 0 end)
+      local damageType = ""
+      tryCall(function() damageType = tostring(e.DamageType or "") end)
+      if isHostOrParty(guid) then
+        Tadpole.sessionStats.damageTaken = Tadpole.sessionStats.damageTaken + amount
+      end
+      addEvent({
+        type = "damage_taken",
+        entity = guid,
+        amount = amount,
         damageType = damageType,
-        damage = tonumber(damage) or 0
-    })
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- PropertyChanged for level/area changes
-Ext.Osiris.RegisterListener("LevelGameplayStarted", 2, "after", function(level, isEditorMode)
-    pushEvent("level_gameplay_started", { level = level })
-    -- Force immediate state write on level load
-    if _ready then
-        local state = buildGameState()
-        writeState(state)
-    end
+-- HealingReceived
+tryCall(function()
+  Ext.Events.HealingReceived:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local amount = 0
+      tryCall(function() amount = tonumber(e.Amount) or 0 end)
+      if isHostOrParty(guid) then
+        Tadpole.sessionStats.healingDone = Tadpole.sessionStats.healingDone + amount
+      end
+      addEvent({
+        type = "healing_received",
+        entity = guid,
+        amount = amount,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- ============================================================
--- Ext.Events — Real-time game event subscriptions
--- ============================================================
-
--- Spell cast events
-Ext.Events.SpellCast:Subscribe(function(e)
-    pushEvent("spell_cast", {
-        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
-        spellId = e.SpellId or "",
-        spellName = e.SpellName or ""
-    })
+-- StatusApplied (Ext.Events version — richer than Osiris)
+tryCall(function()
+  Ext.Events.StatusApplied:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local statusId = ""
+      tryCall(function() statusId = tostring(e.StatusId or "") end)
+      local source = ""
+      tryCall(function()
+        if e.Source then source = tostring(e.Source) end
+      end)
+      addEvent({
+        type = "status_applied_ext",
+        entity = guid,
+        statusId = statusId,
+        source = source,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.SpellCastHit:Subscribe(function(e)
-    pushEvent("spell_cast_hit", {
-        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
-        spellId = e.SpellId or ""
-    })
+-- StatusRemoved
+tryCall(function()
+  Ext.Events.StatusRemoved:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local statusId = ""
+      tryCall(function() statusId = tostring(e.StatusId or "") end)
+      local source = ""
+      tryCall(function()
+        if e.Source then source = tostring(e.Source) end
+      end)
+      addEvent({
+        type = "status_removed",
+        entity = guid,
+        statusId = statusId,
+        source = source,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.SpellCastFinished:Subscribe(function(e)
-    pushEvent("spell_cast_finished", {
-        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
-        spellId = e.SpellId or ""
-    })
+-- ConcentrationGain
+tryCall(function()
+  Ext.Events.ConcentrationGain:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local spellId = ""
+      tryCall(function() spellId = tostring(e.SpellId or e.Spell or "") end)
+      local spellName = resolveSpellName(spellId)
+      addEvent({
+        type = "concentration_gain",
+        entity = guid,
+        spellId = spellId,
+        spellName = spellName or "",
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- Damage and healing
-Ext.Events.DamageTaken:Subscribe(function(e)
-    pushEvent("damage_taken", {
-        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
-        source = e.Source and e.Source.Uuid and e.Source.Uuid._EntityUuid or "",
-        damage = tonumber(e.Damage) or 0,
-        damageType = e.DamageType or ""
-    })
+-- ConcentrationLost
+tryCall(function()
+  Ext.Events.ConcentrationLost:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      addEvent({
+        type = "concentration_lost",
+        entity = guid,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.HealingReceived:Subscribe(function(e)
-    pushEvent("healing_received", {
-        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
-        source = e.Source and e.Source.Uuid and e.Source.Uuid._EntityUuid or "",
-        amount = tonumber(e.Amount) or 0
-    })
+-- ExperienceGained
+tryCall(function()
+  Ext.Events.ExperienceGained:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local amount = 0
+      tryCall(function() amount = tonumber(e.Amount or e.Experience or 0) end)
+      addEvent({
+        type = "experience_gained",
+        entity = guid,
+        amount = amount,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- Status changes
-Ext.Events.StatusApplied:Subscribe(function(e)
-    pushEvent("status_applied_ext", {
-        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
-        source = e.Source and e.Source.Uuid and e.Source.Uuid._EntityUuid or "",
-        statusId = e.StatusId or ""
-    })
+-- LevelUp (Ext.Events version)
+tryCall(function()
+  Ext.Events.LevelUp:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      addEvent({
+        type = "level_up_ext",
+        entity = guid,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.StatusRemoved:Subscribe(function(e)
-    pushEvent("status_removed", {
-        target = e.Target and e.Target.Uuid and e.Target.Uuid._EntityUuid or "",
-        statusId = e.StatusId or ""
-    })
+-- PassiveAdded
+tryCall(function()
+  Ext.Events.PassiveAdded:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local passiveId = ""
+      tryCall(function() passiveId = tostring(e.PassiveId or e.Passive or "") end)
+      addEvent({
+        type = "passive_added",
+        entity = guid,
+        passiveId = passiveId,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- Concentration
-Ext.Events.ConcentrationGain:Subscribe(function(e)
-    pushEvent("concentration_gain", {
-        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
-        spellId = e.SpellId or ""
-    })
+-- PassiveRemoved
+tryCall(function()
+  Ext.Events.PassiveRemoved:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local passiveId = ""
+      tryCall(function() passiveId = tostring(e.PassiveId or e.Passive or "") end)
+      addEvent({
+        type = "passive_removed",
+        entity = guid,
+        passiveId = passiveId,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.ConcentrationLost:Subscribe(function(e)
-    pushEvent("concentration_lost", {
-        caster = e.Caster and e.Caster.Uuid and e.Caster.Uuid._EntityUuid or "",
-        spellId = e.SpellId or ""
-    })
+-- SavingThrowRolled
+tryCall(function()
+  Ext.Events.SavingThrowRolled:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local ability = ""
+      tryCall(function() ability = tostring(e.Ability or e.AbilityId or e.Skill or "") end)
+      local result = ""
+      tryCall(function() result = tostring(e.Result or e.Succeeded or "") end)
+      -- Try to interpret result as success/fail
+      local success = false
+      tryCall(function()
+        if type(e.Result) == "boolean" then
+          success = e.Result
+        elseif type(e.Succeeded) == "boolean" then
+          success = e.Succeeded
+        elseif result == "1" or result:lower() == "success" or result:lower() == "true" then
+          success = true
+        end
+      end)
+      Tadpole.sessionStats.savingThrows = Tadpole.sessionStats.savingThrows + 1
+      addEvent({
+        type = "saving_throw",
+        entity = guid,
+        ability = ability,
+        result = success and "success" or "fail",
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- XP and leveling
-Ext.Events.ExperienceGained:Subscribe(function(e)
-    pushEvent("experience_gained", {
-        amount = tonumber(e.Amount) or 0
-    })
+-- TurnStarted
+tryCall(function()
+  Ext.Events.TurnStarted:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      if isHostOrParty(guid) then
+        Tadpole.sessionStats.turnsTaken = Tadpole.sessionStats.turnsTaken + 1
+      end
+      addEvent({
+        type = "turn_started",
+        entity = guid,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.LevelUp:Subscribe(function(e)
-    pushEvent("level_up_ext", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
+-- CombatRoundStarted
+tryCall(function()
+  Ext.Events.CombatRoundStarted:Subscribe(function(e)
+    tryCall(function()
+      local round = 0
+      tryCall(function() round = tonumber(e.Round or e.RoundNumber or 0) end)
+      addEvent({
+        type = "combat_round_started",
+        round = round,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.LevelChanged:Subscribe(function(e)
-    pushEvent("level_changed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        newLevel = tonumber(e.NewLevel) or 0
-    })
+-- ItemAddedToInventory
+tryCall(function()
+  Ext.Events.ItemAddedToInventory:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local itemId = ""
+      tryCall(function() itemId = tostring(e.Item or e.ItemId or e.Template or "") end)
+      addEvent({
+        type = "item_added",
+        entity = guid,
+        itemId = itemId,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
--- Equipment changes
-Ext.Events.ItemEquipped:Subscribe(function(e)
-    pushEvent("item_equipped", {
-        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
-        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
-    })
+-- ItemRemovedFromInventory
+tryCall(function()
+  Ext.Events.ItemRemovedFromInventory:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local itemId = ""
+      tryCall(function() itemId = tostring(e.Item or e.ItemId or e.Template or "") end)
+      addEvent({
+        type = "item_removed",
+        entity = guid,
+        itemId = itemId,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.ItemUnequipped:Subscribe(function(e)
-    pushEvent("item_unequipped", {
-        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
-        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
-    })
+-- TagAdded
+tryCall(function()
+  Ext.Events.TagAdded:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      local tag = ""
+      tryCall(function() tag = tostring(e.Tag or "") end)
+      addEvent({
+        type = "tag_added",
+        entity = guid,
+        tag = tag,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.ItemAddedToInventory:Subscribe(function(e)
-    pushEvent("item_added", {
-        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
-        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
-    })
+-- ShapeshiftChanged
+tryCall(function()
+  Ext.Events.ShapeshiftChanged:Subscribe(function(e)
+    tryCall(function()
+      local guid = ""
+      tryCall(function() guid = e.Entity.Uuid._EntityUuid or "" end)
+      addEvent({
+        type = "shapeshift_changed",
+        entity = guid,
+        timestamp = getTime(),
+      })
+    end)
+  end)
 end)
 
-Ext.Events.ItemRemovedFromInventory:Subscribe(function(e)
-    pushEvent("item_removed", {
-        character = e.Character and e.Character.Uuid and e.Character.Uuid._EntityUuid or "",
-        item = e.Item and e.Item.Uuid and e.Item.Uuid._EntityUuid or ""
-    })
+---------------------------------------------------------------------------
+-- Initialization
+---------------------------------------------------------------------------
+Ext.Events.SessionLoaded:Subscribe(function()
+  Tadpole.lastStateJson = ""
+  Tadpole.recentEvents = {}
+  _suppressedErrors = {}
+  -- Reset session stats on new session
+  Tadpole.sessionStats = {
+    damageDealt = 0,
+    damageTaken = 0,
+    healingDone = 0,
+    spellsCast = 0,
+    kills = 0,
+    criticalHits = 0,
+    savingThrows = 0,
+    turnsTaken = 0,
+  }
+  pcall(function() Ext.Utils.PrintWarning("[Tadpole] Companion v" .. Tadpole.version .. " loaded!") end)
 end)
-
--- Combat detail
-Ext.Events.CombatStarted:Subscribe(function(e)
-    pushEvent("combat_started_ext", {})
-end)
-
-Ext.Events.CombatEnded:Subscribe(function(e)
-    pushEvent("combat_ended_ext", {})
-end)
-
-Ext.Events.CombatRoundStarted:Subscribe(function(e)
-    pushEvent("combat_round_started", { round = tonumber(e.Round) or 0 })
-end)
-
-Ext.Events.CombatRoundEnded:Subscribe(function(e)
-    pushEvent("combat_round_ended", { round = tonumber(e.Round) or 0 })
-end)
-
-Ext.Events.TurnStarted:Subscribe(function(e)
-    pushEvent("turn_started", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
-end)
-
-Ext.Events.TurnEnded:Subscribe(function(e)
-    pushEvent("turn_ended", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
-end)
-
--- Death
-Ext.Events.DeathDied:Subscribe(function(e)
-    pushEvent("death_died", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
-end)
-
-Ext.Events.DeathResurrected:Subscribe(function(e)
-    pushEvent("death_resurrected", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
-end)
-
--- Passives and boosts
-Ext.Events.PassiveAdded:Subscribe(function(e)
-    pushEvent("passive_added", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        passive = e.PassiveId or ""
-    })
-end)
-
-Ext.Events.PassiveRemoved:Subscribe(function(e)
-    pushEvent("passive_removed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        passive = e.PassiveId or ""
-    })
-end)
-
-Ext.Events.BoostAdded:Subscribe(function(e)
-    pushEvent("boost_added", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        boost = e.BoostId or ""
-    })
-end)
-
-Ext.Events.BoostRemoved:Subscribe(function(e)
-    pushEvent("boost_removed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        boost = e.BoostId or ""
-    })
-end)
-
--- Tags
-Ext.Events.TagAdded:Subscribe(function(e)
-    pushEvent("tag_added", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        tag = e.Tag or ""
-    })
-end)
-
-Ext.Events.TagRemoved:Subscribe(function(e)
-    pushEvent("tag_removed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        tag = e.Tag or ""
-    })
-end)
-
--- Saving throws
-Ext.Events.SavingThrowRolled:Subscribe(function(e)
-    pushEvent("saving_throw_rolled", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        ability = e.Ability or "",
-        roll = tonumber(e.Roll) or 0,
-        dc = tonumber(e.DC) or 0,
-        success = e.Success == true
-    })
-end)
-
--- Skill checks
-Ext.Events.SkillCheck:Subscribe(function(e)
-    pushEvent("skill_check", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        skill = e.Skill or "",
-        roll = tonumber(e.Roll) or 0,
-        dc = tonumber(e.DC) or 0,
-        success = e.Success == true
-    })
-end)
-
--- Proficiency and attribute changes
-Ext.Events.ProficiencyChanged:Subscribe(function(e)
-    pushEvent("proficiency_changed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
-end)
-
-Ext.Events.AttributeChanged:Subscribe(function(e)
-    pushEvent("attribute_changed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or "",
-        attribute = e.Attribute or "",
-        newValue = tonumber(e.NewValue) or 0
-    })
-end)
-
--- Shapeshift
-Ext.Events.ShapeshiftChanged:Subscribe(function(e)
-    pushEvent("shapeshift_changed", {
-        guid = e.Entity and e.Entity.Uuid and e.Entity.Uuid._EntityUuid or ""
-    })
-end)
-
--- Long/short rest (Ext.Events versions — more reliable than Osiris)
-Ext.Events.LongRestStarted:Subscribe(function(e)
-    pushEvent("long_rest_started_ext", {})
-end)
-
-Ext.Events.LongRestFinished:Subscribe(function(e)
-    pushEvent("long_rest_finished_ext", {})
-    -- Force immediate state write after rest
-    if _ready then
-        local state = buildGameState()
-        writeState(state)
-    end
-end)
-
-Ext.Events.ShortRestStarted:Subscribe(function(e)
-    pushEvent("short_rest_started_ext", {})
-end)
-
-Ext.Events.ShortRestFinished:Subscribe(function(e)
-    pushEvent("short_rest_finished_ext", {})
-    if _ready then
-        local state = buildGameState()
-        writeState(state)
-    end
-end)
-
--- ============================================================
--- Startup Log
--- ============================================================
-Ext.Utils.PrintWarning("[Tadpole] BootstrapServer.lua v" .. TADPOLE_VERSION .. " loaded")
-Ext.Utils.PrintWarning("[Tadpole] Awaiting session...")

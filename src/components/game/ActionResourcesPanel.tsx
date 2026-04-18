@@ -32,9 +32,16 @@ export default function ActionResourcesPanel({ character }: ActionResourcesPanel
   const resources = character.actionResources;
   if (!resources || resources.length === 0) return null;
 
-  // Filter out resources with 0 max (not meaningful)
-  const activeResources = resources.filter((r) => r.max > 0);
-  if (activeResources.length === 0) return null;
+  // Flatten nested resources into display items
+  const items = resources.flatMap((r) =>
+    r.slots.map((slot, i) => ({
+      key: `${r.name}-${i}`,
+      name: r.slots.length > 1 ? `${r.name} Lvl ${slot.level}` : r.name,
+      current: slot.amount,
+      max: slot.maxAmount,
+    }))
+  ).filter((item) => item.max > 0);
+  if (items.length === 0) return null;
 
   return (
     <div
@@ -49,9 +56,9 @@ export default function ActionResourcesPanel({ character }: ActionResourcesPanel
       <span style={{ fontSize: 11, fontWeight: 600, color: '#48bfe3', marginBottom: 8, display: 'block' }}>
         {character.name} — Class Resources
       </span>
-      {activeResources.map((r) => (
+      {items.map((r) => (
         <ResourceRow
-          key={r.id}
+          key={r.key}
           name={r.name}
           current={r.current}
           max={r.max}

@@ -191,13 +191,11 @@ export class GameConnection {
         this.connectionQuality = 'poor';
       }
 
-      // If no messages for 15s and we're connected, try to detect if connection is dead
+      // If no messages for 15s and we're connected, connection may be stale
+      // Don't send JSON pings — they were causing bridge MASK errors.
+      // The bridge polls state every 5s, so data will flow when available.
       if (timeSinceLastMessage > 15000 && this.connected) {
-        console.warn('[GameConnection] No messages received for 15s, connection may be stale');
-        // Send a lightweight ping as JSON
-        try {
-          this.ws?.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
-        } catch {}
+        // Mark as poor quality but don't send anything
       }
     }, 5000); // Check every 5s
   }

@@ -11,12 +11,19 @@ import {
   WifiOff,
   Zap,
   Eye,
+  EyeOff,
   Clock,
   ChevronDown,
   ChevronUp,
   Flame,
   Sparkles,
   Ghost,
+  Footprints,
+  Weight,
+  MapPin,
+  Bug,
+  Star,
+  Gauge,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Badge } from '@/components/ui/Badge';
@@ -281,6 +288,27 @@ function SummaryCard({ label, value, color, icon }: { label: string; value: stri
   );
 }
 
+// Small stat pill for compact inline display
+function StatPill({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '4px 8px',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
+        fontSize: 11,
+      }}
+    >
+      <span style={{ color }}>{icon}</span>
+      <span style={{ color: '#6b7280' }}>{label}</span>
+      <span style={{ color, fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
 // Character HP card with all details
 const CharacterHpCard = memo(function CharacterHpCard({
   character,
@@ -528,9 +556,183 @@ const CharacterHpCard = memo(function CharacterHpCard({
           <ActionResourceDisplay resources={character.actionResources} />
         </div>
       )}
+
+      {/* Expanded: XP Progress Bar */}
+      {expanded && character.experienceDetail && (
+        <div className="animate-fade-in" style={{ marginTop: 8 }}>
+          <XpProgressBar detail={character.experienceDetail} level={character.level} />
+        </div>
+      )}
+
+      {/* Expanded: Encumbrance */}
+      {expanded && character.encumbrance && character.encumbrance.maxWeight > 0 && (
+        <div className="animate-fade-in" style={{ marginTop: 8 }}>
+          <EncumbranceBar enc={character.encumbrance} />
+        </div>
+      )}
+
+      {/* Expanded: Stealth, Vision, Speed row */}
+      {expanded && (character.stealthState || character.vision || character.movementSpeed != null) && (
+        <div className="animate-fade-in" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {character.stealthState && (
+            <StatPill
+              icon={character.stealthState.sneaking ? <EyeOff size={11} /> : <Eye size={11} />}
+              label="Stealth"
+              value={character.stealthState.sneaking ? `Hidden (${character.stealthState.obscurity}%)` : 'Visible'}
+              color={character.stealthState.sneaking ? '#52b788' : '#9ca3af'}
+            />
+          )}
+          {character.vision && (
+            <StatPill
+              icon={<MapPin size={11} />}
+              label="Sight"
+              value={character.vision.darkvisionRange > 0 ? `DV ${character.vision.darkvisionRange}m` : `${character.vision.sightRange}m`}
+              color='#48bfe3'
+            />
+          )}
+          {character.movementSpeed != null && (
+            <StatPill
+              icon={<Footprints size={11} />}
+              label="Speed"
+              value={character.movementSpeed}
+              color='#c6a255'
+            />
+          )}
+        </div>
+      )}
+
+      {/* Expanded: Combat Detail */}
+      {expanded && character.combatDetail && (
+        <div className="animate-fade-in" style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {character.combatDetail.initiativeRoll !== 0 && (
+            <StatPill icon={<Gauge size={11} />} label="Init" value={character.combatDetail.initiativeRoll} color='#e76f51' />
+          )}
+        </div>
+      )}
+
+      {/* Expanded: Character Flags */}
+      {expanded && character.characterFlags && (
+        <div className="animate-fade-in" style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {character.characterFlags.invisible && <Badge label="INVISIBLE" color="#48bfe3" />}
+          {character.characterFlags.floating && <Badge label="FLOATING" color="#c6a255" />}
+          {character.characterFlags.cannotDie && <Badge label="IMMORTAL" color="#52b788" />}
+          {character.characterFlags.storyNPC && <Badge label="STORY NPC" color="#f4a261" />}
+          {character.characterFlags.isPet && <Badge label="PET" color="#9ca3af" />}
+        </div>
+      )}
+
+      {/* Expanded: Tadpole State */}
+      {expanded && character.tadpoleState && character.tadpoleState.state !== 0 && (
+        <div className="animate-fade-in" style={{ marginTop: 8 }}>
+          <StatPill icon={<Bug size={11} />} label="Tadpole" value={`State ${character.tadpoleState.state}`} color="#c6a255" />
+        </div>
+      )}
     </div>
   );
 });
+
+// XP progress bar
+function XpProgressBar({ detail, level }: { detail: { currentLevelXp: number; nextLevelXp: number; totalXp: number }; level: number }) {
+  const xpNeeded = detail.nextLevelXp - detail.currentLevelXp;
+  const progress = xpNeeded > 0 ? Math.min(detail.currentLevelXp / detail.nextLevelXp, 1) : 0;
+
+  return (
+    <div
+      style={{
+        padding: '8px 12px',
+        borderRadius: 10,
+        background: 'rgba(72,191,227,0.06)',
+        border: '1px solid rgba(72,191,227,0.12)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+        <Star size={12} style={{ color: '#48bfe3' }} />
+        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#48bfe3' }}>XP Progress</span>
+        <span style={{ fontSize: '0.6rem', color: '#9ca3af', marginLeft: 'auto' }}>
+          {detail.totalXp.toLocaleString()} total
+        </span>
+      </div>
+      <div style={{ position: 'relative', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div
+          style={{
+            position: 'absolute',
+            height: '100%',
+            width: `${progress * 100}%`,
+            borderRadius: 4,
+            background: 'linear-gradient(90deg, #48bfe3, #72d4ed)',
+            transition: 'width 0.4s ease',
+            boxShadow: '0 0 6px rgba(72,191,227,0.3)',
+          }}
+        />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>
+          {detail.currentLevelXp.toLocaleString()} / {detail.nextLevelXp.toLocaleString()}
+        </span>
+        <span style={{ fontSize: '0.6rem', color: '#48bfe3' }}>
+          Lv {level} → {level + 1}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Encumbrance bar
+function EncumbranceBar({ enc }: { enc: { weight: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number } }) {
+  const pct = enc.maxWeight > 0 ? Math.min(enc.weight / enc.maxWeight, 1) : 0;
+  let barColor = '#52b788';
+  let stateLabel = 'Normal';
+  if (enc.state === 2 || pct > (enc.heavilyEncumberedWeight / enc.maxWeight)) {
+    barColor = '#e76f51';
+    stateLabel = 'Heavily Encumbered';
+  } else if (enc.state === 1 || pct > (enc.encumberedWeight / enc.maxWeight)) {
+    barColor = '#f4a261';
+    stateLabel = 'Encumbered';
+  }
+
+  return (
+    <div
+      style={{
+        padding: '8px 12px',
+        borderRadius: 10,
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+        <Weight size={12} style={{ color: barColor }} />
+        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: barColor }}>Carry Weight</span>
+        <span style={{ fontSize: '0.6rem', color: '#9ca3af', marginLeft: 'auto' }}>
+          {stateLabel}
+        </span>
+      </div>
+      <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        {/* Encumbered threshold marker */}
+        {enc.maxWeight > 0 && (
+          <div style={{ position: 'absolute', left: `${(enc.encumberedWeight / enc.maxWeight) * 100}%`, top: 0, bottom: 0, width: 1, background: '#f4a26160' }} />
+        )}
+        {enc.maxWeight > 0 && (
+          <div style={{ position: 'absolute', left: `${(enc.heavilyEncumberedWeight / enc.maxWeight) * 100}%`, top: 0, bottom: 0, width: 1, background: '#e76f5160' }} />
+        )}
+        <div
+          style={{
+            position: 'absolute',
+            height: '100%',
+            width: `${pct * 100}%`,
+            borderRadius: 3,
+            background: barColor,
+            transition: 'width 0.3s ease, background 0.3s ease',
+          }}
+        />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>
+          {enc.weight.toFixed(1)} / {enc.maxWeight.toFixed(1)} kg
+        </span>
+      </div>
+    </div>
+  );
+}
 
 // Death saves tracker
 function DeathSaveDisplay({ saves }: { saves: { successes: number; failures: number; isDead: boolean } }) {
@@ -654,9 +856,17 @@ function SpellSlotDisplay({ slots }: { slots: Record<string, { current: number; 
 }
 
 // Action Resources display (Bardic, Ki, Sorcery, Rages, etc)
-function ActionResourceDisplay({ resources }: { resources: { id: string; name: string; current: number; max: number }[] }) {
-  const active = resources.filter((r) => r.max > 0);
-  if (active.length === 0) return null;
+function ActionResourceDisplay({ resources }: { resources: { name: string; slots: { amount: number; maxAmount: number; level: number }[] }[] }) {
+  // Flatten nested resources into display items
+  const items = resources.flatMap((r) =>
+    r.slots.map((slot, i) => ({
+      key: `${r.name}-${i}`,
+      name: r.slots.length > 1 ? `${r.name} Lvl ${slot.level}` : r.name,
+      current: slot.amount,
+      max: slot.maxAmount,
+    }))
+  ).filter((item) => item.max > 0);
+  if (items.length === 0) return null;
 
   return (
     <div
@@ -671,11 +881,11 @@ function ActionResourceDisplay({ resources }: { resources: { id: string; name: s
         <Zap size={12} style={{ color: '#48bfe3' }} />
         <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#48bfe3' }}>Class Resources</span>
       </div>
-      {active.map((r) => {
+      {items.map((r) => {
         const pct = r.max > 0 ? r.current / r.max : 0;
         const barColor = pct > 0.5 ? '#48bfe3' : pct > 0.25 ? '#f4a261' : '#e76f51';
         return (
-          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <span style={{ fontSize: '0.65rem', color: '#9ca3af', width: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {r.name}
             </span>

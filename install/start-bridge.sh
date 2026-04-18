@@ -61,7 +61,7 @@ echo "  ╠═══════════════════════
 echo -e "  ${DIM}   Bridge:    ${RESET}${CYAN}http://${LAN_IP}:3456${RESET}"
 echo -e "  ${DIM}   WebSocket: ${RESET}${CYAN}ws://${LAN_IP}:3456/ws${RESET}"
 echo "  ╠══════════════════════════════════════════════════════════════╣"
-echo -e "  ${BOLD}   Phone App: https://tadpole-omega.vercel.app${RESET}"
+echo -e "  ${BOLD}   Phone App: http://localhost:3456${RESET}"
 echo -e "  ${BOLD}   Enter IP:  ${LAN_IP}:3456${RESET}"
 echo "  ╠══════════════════════════════════════════════════════════════╣"
 echo ""

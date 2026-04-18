@@ -132,7 +132,7 @@ const TadpolePanel: FunctionComponent = () => {
   // Launch
   const [launchCurrent, setLaunchCurrent] = useState("");
   const LAUNCH_CMD_DWRITE = 'WINEDLLOVERRIDES="DWrite.dll=n,b" %command%';
-  const LAUNCH_CMD_LSFG = 'WINEDLLOVERRIDES="DWrite.dll=n,b;lsfg.vk.dll=n,b" %command%';
+  const LAUNCH_CMD_LSFG = 'WINEDLLOVERRIDES="DWrite.dll=n,b" ~/lsfg %command%';
   const [launchHasDwrite, setLaunchHasDwrite] = useState(false);
   const [launchLoading, setLaunchLoading] = useState(false);
   const [launchCopied, setLaunchCopied] = useState("");
@@ -610,8 +610,7 @@ const TadpolePanel: FunctionComponent = () => {
           {LAUNCH_CMD_DWRITE}
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <PanelSectionRow>
-            <ButtonItem layout="below" smol onClick={async () => {
+          <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} onClick={async () => {
               try {
                 const r = await callCopyToClipboard(LAUNCH_CMD_DWRITE);
                 if (r.success) {
@@ -623,9 +622,7 @@ const TadpolePanel: FunctionComponent = () => {
             }}>
               {launchCopied === "dwrite" ? "✓ Copied" : "📋 Copy"}
             </ButtonItem>
-          </PanelSectionRow>
-          <PanelSectionRow>
-            <ButtonItem layout="below" smol disabled={launchLoading} onClick={async () => {
+            <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} disabled={launchLoading} onClick={async () => {
               setLaunchLoading(true);
               try {
                 const r = await callSetLaunchOptions(LAUNCH_CMD_DWRITE);
@@ -639,7 +636,6 @@ const TadpolePanel: FunctionComponent = () => {
             }}>
               Auto-Set
             </ButtonItem>
-          </PanelSectionRow>
         </div>
       </div>
 
@@ -655,8 +651,7 @@ const TadpolePanel: FunctionComponent = () => {
           Use this if you have Lossless Scaling installed with LSFG frame generation.
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <PanelSectionRow>
-            <ButtonItem layout="below" smol onClick={async () => {
+          <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} onClick={async () => {
               try {
                 const r = await callCopyToClipboard(LAUNCH_CMD_LSFG);
                 if (r.success) {
@@ -668,9 +663,7 @@ const TadpolePanel: FunctionComponent = () => {
             }}>
               {launchCopied === "lsfg" ? "✓ Copied" : "📋 Copy"}
             </ButtonItem>
-          </PanelSectionRow>
-          <PanelSectionRow>
-            <ButtonItem layout="below" smol disabled={launchLoading} onClick={async () => {
+            <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} disabled={launchLoading} onClick={async () => {
               setLaunchLoading(true);
               try {
                 const r = await callSetLaunchOptions(LAUNCH_CMD_LSFG);
@@ -684,7 +677,6 @@ const TadpolePanel: FunctionComponent = () => {
             }}>
               Auto-Set
             </ButtonItem>
-          </PanelSectionRow>
         </div>
       </div>
 

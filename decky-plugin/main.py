@@ -777,15 +777,29 @@ def _get_steam_launch_options(appid):
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
-            # Find the appid block using brace counting
+            # Find the appid block inside a proper VDF section (skip metadata/hex occurrences)
+            # The real app block has "1086940"\n\t...\t{ very close together
             app_search = f'"{appid}"'
-            app_start = content.find(app_search)
-            if app_start == -1:
-                continue
-
-            # Find the opening brace after appid
-            brace_start = content.find("{", app_start)
-            if brace_start == -1:
+            search_pos = 0
+            app_start = -1
+            brace_start = -1
+            while True:
+                app_start = content.find(app_search, search_pos)
+                if app_start == -1:
+                    break
+                # Find the opening brace after appid
+                brace_start = content.find("{", app_start)
+                if brace_start == -1 or brace_start - app_start > 20:
+                    search_pos = app_start + 1
+                    continue
+                # Verify this is a proper VDF block (whitespace-only between appid and brace)
+                between = content[app_start + len(app_search):brace_start].strip()
+                if between:
+                    search_pos = app_start + 1
+                    continue
+                # Found a valid block
+                break
+            if app_start == -1 or brace_start == -1:
                 continue
 
             # Count braces to find the matching closing brace (skip braces inside quoted strings)
@@ -846,15 +860,25 @@ def _set_steam_launch_options(appid, launch_options):
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
-            # Find the appid block using brace counting
+            # Find the appid block inside a proper VDF section (skip metadata/hex occurrences)
             app_search = f'"{appid}"'
-            app_start = content.find(app_search)
-            if app_start == -1:
-                continue
-
-            # Find the opening brace after appid
-            brace_start = content.find("{", app_start)
-            if brace_start == -1:
+            search_pos = 0
+            app_start = -1
+            brace_start = -1
+            while True:
+                app_start = content.find(app_search, search_pos)
+                if app_start == -1:
+                    break
+                brace_start = content.find("{", app_start)
+                if brace_start == -1 or brace_start - app_start > 20:
+                    search_pos = app_start + 1
+                    continue
+                between = content[app_start + len(app_search):brace_start].strip()
+                if between:
+                    search_pos = app_start + 1
+                    continue
+                break
+            if app_start == -1 or brace_start == -1:
                 continue
 
             # Count braces to find the matching closing brace (skip braces inside quoted strings)

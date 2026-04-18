@@ -32,6 +32,9 @@ const ALLOWED_COMMANDS = new Set([
   'god_mode',
   'reset_cooldowns',
   'teleport_to', 'teleport_to_waypoint',
+  'toggle_combat', 'add_xp',
+  'set_level', 'set_hp', 'apply_status', 'remove_status',
+  'kill_target', 'deal_damage', 'spawn_item',
 ]);
 
 const PB_ERROR_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/records';
@@ -244,8 +247,8 @@ const PHONE_APP_DIR = path.join(__dirname, 'phone-app');
 
 app.use('/phone', safeWrap((req, res, next) => {
   // Try to serve the static phone app from bridge/phone-app/
-  const subpath = req.path === '/' ? '/index.html' : req.path;
-  const filePath = path.join(PHONE_APP_DIR, subpath);
+  let subpath = req.path === '/' ? '/index.html' : req.path;
+  let filePath = path.join(PHONE_APP_DIR, subpath);
 
   // Security: prevent directory traversal
   if (!filePath.startsWith(PHONE_APP_DIR)) {
@@ -254,6 +257,18 @@ app.use('/phone', safeWrap((req, res, next) => {
 
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     return res.sendFile(filePath);
+  }
+
+  // Static export: try .html extension (e.g. /live/combat -> live/combat.html)
+  const htmlPath = filePath + '.html';
+  if (fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+    return res.sendFile(htmlPath);
+  }
+
+  // Static export: try directory/index.html
+  const dirIndex = path.join(filePath, 'index.html');
+  if (fs.existsSync(dirIndex) && fs.statSync(dirIndex).isFile()) {
+    return res.sendFile(dirIndex);
   }
 
   // For SPA: fall back to index.html for client-side routing
@@ -601,10 +616,40 @@ function processStateUpdate() {
   if (currentState && newState.timestamp === currentState.timestamp) return;
 
   previousState = currentState;
-  currentState = newState;
+
+  // Normalize: BootstrapServer.lua puts some host fields at top level.
+  // Move them into the host GameCharacter object so the phone app finds them.
+  const normalized = { ...newState };
+  if (normalized.host && typeof normalized.host === 'object') {
+    const hostFields = ['conditions', 'concentration', 'deathSaves',
+      'proficiencyBonus', 'abilityScores', 'experience',
+      'abilityModifiers', 'encumbrance', 'vision', 'movementSpeed',
+      'combatDetail', 'characterFlags', 'hasTadpole', 'tadpoleState',
+      'raceAndBackground', 'passives', 'tags', 'isSneaking',
+      'stealthState', 'isInvulnerable', 'isPlayer', 'isAvatar',
+      'area', 'god', 'experienceDetail'];
+    for (const field of hostFields) {
+      if (normalized[field] !== undefined && normalized.host[field] === undefined) {
+        normalized.host = { ...normalized.host, [field]: normalized[field] };
+      }
+    }
+
+    // Normalize experience: Lua mod sends {currentLevelXp, nextLevelXp, totalXp}
+    // but phone app expects a number. Extract totalXp for backward compat,
+    // and keep the full breakdown in experienceDetail.
+    if (normalized.host.experience && typeof normalized.host.experience === 'object') {
+      const xpObj = normalized.host.experience;
+      if (!normalized.host.experienceDetail) {
+        normalized.host.experienceDetail = xpObj;
+      }
+      normalized.host.experience = xpObj.totalXp;
+    }
+  }
+
+  currentState = normalized;
 
   // Rolling buffer
-  stateHistory.push({ ...newState, _receivedAt: Date.now() });
+  stateHistory.push({ ...normalized, _receivedAt: Date.now() });
   if (stateHistory.length > 100) stateHistory.shift();
 
   // Detect events

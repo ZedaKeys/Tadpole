@@ -37,7 +37,7 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
     const host = gameState.host;
     if (!host?.experience) return;
 
-    const currentXp = host.experience;
+    const currentXp = typeof host.experience === 'object' ? host.experience.totalXp : host.experience;
     const prevXp = prevXpRef.current;
 
     if (prevXp !== 0 && currentXp !== prevXp) {
@@ -54,7 +54,8 @@ export default function GoldXpTracker({ gameState }: GoldXpTrackerProps) {
   }, [gameState.host?.experience]);
 
   const host = gameState.host;
-  const xp = host?.experience;
+  const xpRaw = host?.experience;
+  const xp = typeof xpRaw === 'object' ? xpRaw.totalXp : xpRaw;
   const level = host?.level;
 
   return (

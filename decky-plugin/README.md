@@ -46,7 +46,7 @@ curl -s http://127.0.0.1:3456/status
 
 ## Phone App
 
-Open https://tadpole-omega.vercel.app on your phone and enter the IP shown in the plugin.
+Open http://YOUR_DECK_IP:3456 on your phone and enter the IP shown in the plugin.
 
 ## Version
 

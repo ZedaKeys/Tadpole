@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Live Baldur's Gate 3 companion for Steam Deck + Phone</strong><br>
-  Real-time HP bars, combat tracking, party management, and more.
+  Real-time HP bars, combat tracking, action resources, cheats, and more.
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <em>Connection Screen &nbsp;&bull;&nbsp; Live Dashboard &nbsp;&bull;&nbsp; Game Commands &nbsp;&bull;&nbsp; Settings</em>
+  <em>Connection Screen &bull; Live Dashboard &bull; Game Commands &bull; Settings</em>
 </p>
 
 ---
@@ -41,16 +41,40 @@ Tadpole is a companion app for Baldur's Gate 3 that shows live game data on your
 
 ### Features
 
-- **Live HP Bars** -- See every party member's HP on your phone, updating in real-time
-- **Combat Tracker** -- Get notified when combat starts/ends, when someone goes down
-- **Party Management** -- See your full party composition at a glance
-- **Level Up Alerts** -- Toast notifications when you level up
-- **Area Tracking** -- Know which zone you're in
-- **Gold Counter** -- Track your gold without opening the inventory
-- **Game Commands** -- Add gold, trigger rests, spawn items directly from your phone
-- **Zero-Config Connection** -- Auto-connects when you visit the bridge URL
-- **WebSocket Bridge** -- Low-latency connection between Steam Deck and phone
-- **DeckyLoader Plugin** -- Native integration into the Steam Deck UI
+**Live Game Data**
+- HP Bars with temp HP for every party member
+- Spell slots and action resources (Bardic Inspiration, Sorcery Points, Ki, Rages, etc.)
+- Ability scores with modifiers (STR/DEX/CON/INT/WIS/CHA)
+- AC, initiative, proficiency bonus, level
+- Gold counter and experience tracking
+- Encumbrance state and vision mode
+- Active conditions and concentration with spell names
+- Equipment across 13 slots with item names
+- Full spellbook (known/prepared spells)
+- Character flags (dead, in combat, sneaking, invulnerable, etc.)
+- Tadpole infection state
+
+**Combat & Events**
+- Real-time combat tracking with turn indicators
+- Live event feed: damage, healing, status effects, spell casts, kills, saving throws, level ups, and more
+- Session stats: damage dealt/taken, healing done, spells cast, kills, critical hits, turns taken
+
+**Game Commands (23 cheats)**
+- Character: Heal, Full Restore, Set HP, Set Level, Add XP, God Mode, Reset Cooldowns
+- Party: Heal Party, Revive All
+- Items & Gold: Add Gold, Spawn Items (potions, scrolls, custom)
+- Status: Apply/Remove Status, Resurrect
+- Combat: Toggle Combat, Kill Target, Deal Damage
+- Movement: Teleport to Waypoint
+- Rest: Long Rest, Short Rest
+
+**Integration**
+- Zero-config connection -- auto-connects when you open the bridge URL
+- WebSocket bridge with sub-2s state updates
+- DeckyLoader plugin with native Steam Deck UI
+- Lossless Scaling (LSFG) launch option support
+- Auto-installs BG3 Script Extender and Node.js
+- Works offline -- no internet needed on the Deck
 
 ---
 
@@ -78,32 +102,38 @@ Before installing the plugin, you need one thing:
 
 - **DeckyLoader** -- The Steam Deck plugin loader. Install it from [decky.xyz](https://decky.xyz)
 
-That's it. Everything else (BG3 Script Extender, Node.js, bridge server, Lua mod) is installed automatically.
+### Step 1: Install Plugin
 
-### Step 1: Install the Plugin
+1. Open DeckyLoader settings (the plug icon in the quick access menu)
+2. Search for **Tadpole BG3 Companion** in the store, or install manually from [GitHub Releases](https://github.com/ZedaKeys/Tadpole/releases)
 
-1. Open the Decky menu on your Steam Deck (frog icon in Quick Settings)
-2. Go to the gear icon (Plugin Installer)
-3. Switch to the **gear tab** at the bottom
-4. Select **"Install Plugin From Zip"**
-5. Download the latest zip from [Releases](https://github.com/ZedaKeys/Tadpole/releases)
-6. Transfer it to your Deck (USB, SD card, or download directly)
-7. Select the zip file and confirm
+### Step 2: One-Click Setup
 
-### Step 2: Run Setup
+Open the Tadpole plugin from the quick access menu and hit **Install Everything**. This handles:
 
-1. Open the Decky menu and find **Tadpole BG3 Companion**
-2. Tap **"One-Click Setup"**
-3. The plugin will install:
-   - **BG3 Script Extender** -- Downloads DWrite.dll and configures Steam launch options
-   - **Node.js** -- Downloads and installs locally (no sudo needed)
-   - **Bridge Server** -- Copied from bundled files (works offline)
-   - **BG3 Lua Mod** -- Copied from bundled files (needs BG3 launched once after Script Extender)
+- **BG3 Script Extender** -- Downloads DWrite.dll and configures Steam launch options
+- **Node.js** -- Downloads and installs locally (no sudo needed)
+- **Bridge Server** -- Copied from bundled files (works offline)
+- **BG3 Lua Mod** -- Copied from bundled files (needs BG3 launched once after Script Extender)
 4. If the Lua mod couldn't install, the plugin will show instructions:
    - Close BG3 completely
    - Launch BG3 again -- Script Extender will create its folders on first run
    - Come back to Tadpole and hit Install Everything again
 5. Done! The bridge starts automatically when BG3 launches
+
+### Launch Options
+
+The plugin can automatically set your Steam launch options. Choose the right one:
+
+**Standard (BG3SE only):**
+```
+WINEDLLOVERRIDES="DWrite.dll=n,b" %command%
+```
+
+**With Lossless Scaling (LSFG):**
+```
+WINEDLLOVERRIDES="DWrite.dll=n,b" ~/lsfg %command%
+```
 
 ### Step 3: Connect Your Phone
 
@@ -155,13 +185,16 @@ curl -s http://127.0.0.1:3456/status
 tadpole/
 ├── src/                    # Next.js web app (phone companion)
 │   ├── app/page.tsx        # Home page with connection panel
-│   └── ...
+│   ├── app/cheats/         # Game commands (23 cheats)
+│   ├── app/feed/           # Live event feed
+│   ├── app/live/combat/    # Combat tracker
+│   └── components/         # Reusable widgets
 ├── bridge/                 # Node.js WebSocket bridge server
 │   ├── server.js           # Express + WebSocket server
 │   └── package.json
-├── mod/                    # BG3 ScriptExtender Lua mod (v30 format)
+├── mod/                    # BG3 ScriptExtender Lua mod (v31 format)
 │   ├── Config.json
-│   └── Lua/TadpoleCompanion.lua
+│   └── Lua/BootstrapServer.lua
 ├── decky-plugin/           # DeckyLoader plugin (Steam Deck)
 │   ├── main.py             # Python backend
 │   ├── src/index.tsx       # React frontend
@@ -181,7 +214,7 @@ tadpole/
 | Web App | Next.js 16, React 19, TypeScript, Tailwind v4 |
 | Bridge Server | Node.js, Express, WebSocket (ws) |
 | Decky Plugin | Python 3 (backend), React/TypeScript (frontend) |
-| BG3 Mod | Lua (ScriptExtender v30) |
+| BG3 Mod | Lua (ScriptExtender v31) |
 | Deployment | GitHub Releases (plugin), Static export (phone app) |
 
 ---

@@ -225,9 +225,19 @@ export interface UserPreferences {
 }
 
 // === Live Game State (Phase 2+) ===
-// Shape matches the actual Lua mod (TadpoleCompanion.lua v0.17.0) output.
+// Shape matches the actual Lua mod (TadpoleCompanion.lua v0.20.0) output.
 
 export interface AbilityScores {
+  str: number;
+  dex: number;
+  con: number;
+  int: number;
+  wis: number;
+  cha: number;
+}
+
+/** Ability score modifiers (same shape as AbilityScores) */
+export interface AbilityModifiers {
   str: number;
   dex: number;
   con: number;
@@ -241,22 +251,37 @@ export interface SpellSlots {
 }
 
 /** A class resource (Bardic Inspiration, Sorcery Points, Ki, Rages, etc) */
+export interface ActionResourceSlot {
+  amount: number;
+  maxAmount: number;
+  level: number;
+}
+
 export interface ActionResource {
-  id: string;
   name: string;
-  current: number;
-  max: number;
+  slots: ActionResourceSlot[];
 }
 
 export interface ConcentrationInfo {
   spellId: string;
   caster: string;
+  spellName?: string;
 }
 
 export interface DeathSaves {
   successes: number;
   failures: number;
   isDead: boolean;
+}
+
+export interface Spellbook {
+  known?: string[];
+  prepared?: string[];
+}
+
+export interface EquipmentSlot {
+  id: string;
+  name?: string;
 }
 
 export interface GameCharacter {
@@ -269,11 +294,12 @@ export interface GameCharacter {
   armorClass?: number;
   isInvulnerable?: boolean;
   isDead?: boolean;
-  isSneaking?: boolean;
+  isSneaking?: number | boolean;
   position: { x: number; y: number; z: number };
-  experience?: number;
+  experience?: number | { currentLevelXp: number; nextLevelXp: number; totalXp: number };
   proficiencyBonus?: number;
   abilityScores?: AbilityScores;
+  abilityModifiers?: AbilityModifiers;
   spellSlots?: SpellSlots;
   actionResources?: ActionResource[];
   conditions?: string[];
@@ -281,12 +307,22 @@ export interface GameCharacter {
   deathSaves?: DeathSaves;
   approval?: number;
   approvalLevel?: ApprovalLevel;
+  /** Whether character has an illithid tadpole */
+  hasTadpole?: boolean;
+  /** Whether this entity is a player character */
+  isPlayer?: boolean;
+  /** Whether this is the avatar (main player character) */
+  isAvatar?: boolean;
+  /** Deity worshipped by this character */
+  god?: string;
+  /** Current area/zone name */
+  area?: string;
   /** Initiative bonus from Stats component */
   initiative?: number;
   /** Detailed XP breakdown from Experience component */
   experienceDetail?: { currentLevelXp: number; nextLevelXp: number; totalXp: number };
   /** Carry weight and encumbrance state */
-  encumbrance?: { weight: number; weightDisplay: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number };
+  encumbrance?: { weight: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number };
   /** Stealth state and obscurity level */
   stealthState?: { sneaking: boolean; obscurity: number };
   /** Vision ranges */
@@ -296,15 +332,19 @@ export interface GameCharacter {
   /** Combat-specific data */
   combatDetail?: { initiativeRoll: number; combatGroupId: string };
   /** Character state flags */
-  characterFlags?: { fightMode: boolean; floating: boolean; invisible: boolean; offStage: boolean; storyNPC: boolean; isCompanion: boolean; isPet: boolean; cannotDie: boolean };
+  characterFlags?: { fightMode: boolean; floating: boolean; invisible: boolean; offStage: boolean; storyNPC: boolean; isPet: boolean; cannotDie: boolean; cannotMove: boolean; cannotRun: boolean; isPlayer: boolean; spotSneakers: boolean };
   /** Illithid tadpole tree state */
   tadpoleState?: { state: number };
-  /** Race/Background/Origin IDs */
+  /** Race/Background/Origin — Lua sends race, background, origin as separate fields */
   raceAndBackground?: { raceId?: string; backgroundId?: string; origin?: string };
   /** Passive ability IDs */
   passives?: string[];
   /** Entity tags */
   tags?: string[];
+  /** Known and prepared spells */
+  spellbook?: Spellbook;
+  /** Equipped items by slot */
+  equipment?: Record<string, EquipmentSlot>;
 }
 
 export interface GameEvent {
@@ -312,6 +352,16 @@ export interface GameEvent {
   timestamp: number;
   area?: string;
   detail?: string;
+  amount?: number;
+  damageType?: string;
+  statusId?: string;
+  source?: string;
+  spellId?: string;
+  entity?: string;
+  target?: string;
+  ability?: string;
+  result?: string;
+  cause?: string;
 }
 
 /** Event detected by the bridge server (comparing state snapshots) */
@@ -346,6 +396,17 @@ export interface CampSupplies {
   canRest: boolean;
 }
 
+export interface SessionStats {
+  damageDealt: number;
+  damageTaken: number;
+  healingDone: number;
+  spellsCast: number;
+  kills: number;
+  criticalHits: number;
+  savingThrows: number;
+  turnsTaken: number;
+}
+
 export interface GameState {
   timestamp: number;
   area: string;
@@ -357,6 +418,8 @@ export interface GameState {
   gold: number;
   events: GameEvent[];
   campSupplies?: CampSupplies;
+  version?: string;
+  sessionStats?: SessionStats;
 }
 
 // === Build Planner ===

@@ -9,13 +9,12 @@ Tadpole is a companion app for Baldur's Gate 3 that shows real-time game state o
 │  Phone App   │ ◄───────────────► │ Bridge Server │ ◄──────────────► │  BG3 Mod     │
 │  (web/phone) │    port 3456      │   (Node.js)   │   temp files     │  (Lua/SE)    │
 └──────────────┘                    └───────────────┘                  └──────────────┘
-   tadpole-omega                      Your PC                          BG3 game dir
-   .vercel.app
+   Phone browser                      Your PC                          BG3 game dir
 ```
 
 - **BG3 Lua Mod** — runs inside BG3 via ScriptExtender, writes game state to a temp file every 2 seconds
 - **Bridge Server** — Node.js WebSocket/HTTP server that reads the state file and broadcasts to connected phones
-- **Phone App** — web app at [tadpole-omega.vercel.app](https://tadpole-omega.vercel.app) that connects to the bridge
+- **Phone App** — served by the bridge at `http://YOUR_IP:3456`, connects via WebSocket
 
 ---
 
@@ -102,7 +101,7 @@ Or launch **"Tadpole Bridge"** from your application menu.
 2. Open **Konsole** (the terminal app)
 3. Follow the Linux installation steps above
 4. Start the bridge server
-5. Open `https://tadpole-omega.vercel.app` on your phone
+5. Open `http://YOUR_DECK_IP:3456` on your phone
 6. Enter the Steam Deck's IP address
 
 ### Gaming Mode
@@ -167,7 +166,7 @@ The IP will look something like `192.168.1.100` or `10.0.0.50`.
 
 1. Make sure your **phone and PC are on the same WiFi network**
 2. Start the bridge server on your PC
-3. Open **https://tadpole-omega.vercel.app** on your phone
+3. Open **http://YOUR_PC_IP:3456** on your phone
 4. Enter your PC's IP address (shown by the bridge server) and port `3456`
 5. The full address will be something like: `192.168.1.100:3456`
 

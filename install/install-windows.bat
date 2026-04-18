@@ -434,7 +434,7 @@ echo       cd /d "!BRIDGE_DIR!"
 echo       node server.js
 echo.
 echo  5. On your phone, open:!CYAN!
-echo     https://tadpole-omega.vercel.app!RESET!
+echo     http://%LAN_IP%:3456!RESET!
 echo.
 echo  6. Enter this IP address in the app:!BOLD!
 echo     !LAN_IP!:3456!RESET!
