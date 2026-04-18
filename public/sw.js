@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const CACHE_VERSION = '2.0.5';
+const CACHE_VERSION = '2.2.1';
 const CACHE_NAME = `tadpole-v${CACHE_VERSION}`;
 
 // Critical assets to pre-cache on install

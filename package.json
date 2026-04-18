@@ -1,29 +1,28 @@
-     1|{
-     2|  "name": "tadpole",
-     3|  "version": "2.2.1",
-     4|  "private": true,
-     5|  "scripts": {
-     6|    "dev": "next dev",
-     7|    "build": "next build",
-     8|    "start": "next start",
-     9|    "lint": "eslint"
-    10|  },
-    11|  "dependencies": {
-    12|    "idb-keyval": "^6.2.2",
-    13|    "lucide-react": "^1.8.0",
-    14|    "next": "16.2.3",
-    15|    "react": "^19.2.5",
-    16|    "react-dom": "^19.2.5"
-    17|  },
-    18|  "devDependencies": {
-    19|    "@tailwindcss/postcss": "^4",
-    20|    "@types/node": "^25.6.0",
-    21|    "@types/react": "^19",
-    22|    "@types/react-dom": "^19",
-    23|    "eslint": "^9.39.4",
-    24|    "eslint-config-next": "16.2.3",
-    25|    "tailwindcss": "^4",
-    26|    "typescript": "^6.0.2"
-    27|  }
-    28|}
-    29|
+{
+  "name": "tadpole",
+  "version": "2.2.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "idb-keyval": "^6.2.2",
+    "lucide-react": "^1.8.0",
+    "next": "16.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "16.2.3",
+    "tailwindcss": "^4",
+    "typescript": "^6.0.2"
+  }
+}
