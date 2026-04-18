@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ZedaKeys/Tadpole/releases"><strong>Download Plugin</strong></a>
+  <a href="https://github.com/ZedaKeys/Tadpole/releases/tag/v2.2.1"><strong>Download</strong></a>
   &nbsp;&bull;&nbsp;
   <a href="#install"><strong>Install Guide</strong></a>
   &nbsp;&bull;&nbsp;
@@ -131,7 +131,7 @@ For Windows devices, there's a standalone executable that auto-deploys everythin
 
 ### Quick Setup
 
-1. Download **[TadpoleBridge-v0.20.0-Windows.zip](https://github.com/ZedaKeys/Tadpole/releases/tag/v0.20.0)** from GitHub Releases
+1. Download **[TadpoleBridge-v2.2.1-Windows.zip](https://github.com/ZedaKeys/Tadpole/releases/tag/v2.2.1)** from GitHub Releases
 2. Extract the ZIP to any folder (e.g. `C:\Tadpole`)
 3. Double-click **TadpoleBridge.exe**
 4. It will auto-detect your BG3 install, deploy the Lua mod, and start the bridge server
