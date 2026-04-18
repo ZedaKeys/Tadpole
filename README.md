@@ -17,24 +17,6 @@
 
 ---
 
-## Phone App Screenshots
-
-<p align="center">
-  <img src="screenshots/phone_home.png" alt="Home - Connection Screen" width="220">
-  &nbsp;&nbsp;
-  <img src="screenshots/phone_home-connected.png" alt="Connected - Live Dashboard" width="220">
-  &nbsp;&nbsp;
-  <img src="screenshots/phone_cheats.png" alt="Cheats Panel" width="220">
-  &nbsp;&nbsp;
-  <img src="screenshots/phone_settings.png" alt="Settings" width="220">
-</p>
-
-<p align="center">
-  <em>Connection Screen &bull; Live Dashboard &bull; Game Commands &bull; Settings</em>
-</p>
-
----
-
 ## What is Tadpole?
 
 Tadpole is a companion app for Baldur's Gate 3 that shows live game data on your phone while you play on Steam Deck. It reads your game state in real-time and displays HP bars, combat status, party info, gold, and more.
