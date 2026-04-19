@@ -1,0 +1,1783 @@
+[
+  {
+    "title": "Astral Plane",
+    "prefix": "The",
+    "act": "",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "Requisitioned Barn",
+    "prefix": "The",
+    "act": "",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Gur Camp",
+      "west": "Arfur's Mansion"
+    }
+  },
+  {
+    "title": "Abandoned Refuge",
+    "prefix": "The",
+    "act": "one",
+    "region": "Grymforge",
+    "alt_name": "Ancient Forge",
+    "connections": {
+      "north": "Grymforge",
+      "south": "Adamantine Forge (location)"
+    }
+  },
+  {
+    "title": "Adamantine Forge (location)",
+    "prefix": "The",
+    "act": "one",
+    "region": "Grymforge",
+    "alt_name": "",
+    "connections": {
+      "north": "Abandoned Refuge"
+    }
+  },
+  {
+    "title": "Ancient Temple",
+    "prefix": "The",
+    "act": "one",
+    "region": "Grymforge",
+    "alt_name": ""
+  },
+  {
+    "title": "Apothecary's Cellar",
+    "prefix": "The",
+    "act": "one",
+    "region": "Blighted Village",
+    "alt_name": ""
+  },
+  {
+    "title": "Arcane Tower",
+    "prefix": "The",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": "",
+    "connections": {
+      "north": "Decrepit Village",
+      "east": "Sel\u00fbnite Outpost"
+    }
+  },
+  {
+    "title": "Blighted Village",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "Moonhaven",
+    "connections": {
+      "north": "Risen Road",
+      "south": "Sunlit Wetlands",
+      "east": "Forest",
+      "west": "Goblin Camp"
+    }
+  },
+  {
+    "title": "Bloodied Shrine",
+    "prefix": "The",
+    "act": "one",
+    "region": "Shattered Sanctum",
+    "alt_name": ""
+  },
+  {
+    "title": "Campsite",
+    "prefix": "The",
+    "act": "one",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "Cr\u00e8che Y'llek",
+    "prefix": "the",
+    "act": "one",
+    "region": "Rosymorn Monastery Trail",
+    "alt_name": ""
+  },
+  {
+    "title": "Decrepit Village",
+    "prefix": "The",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": "",
+    "connections": {
+      "north": "Ebonlake Grotto",
+      "south": "Arcane Tower",
+      "east": "Sel\u00fbnite Outpost",
+      "west": "Dread Hollow"
+    }
+  },
+  {
+    "title": "Defiled Temple",
+    "prefix": "The",
+    "act": "one",
+    "region": "Shattered Sanctum",
+    "alt_name": "",
+    "connections": {
+      "north": "Sel\u00fbnite Outpost",
+      "east": "Shattered Sanctum"
+    }
+  },
+  {
+    "title": "Dread Hollow",
+    "prefix": "the",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": "",
+    "connections": {
+      "south": "Decrepit Village",
+      "east": "Ebonlake Grotto"
+    }
+  },
+  {
+    "title": "Ebonlake Grotto",
+    "prefix": "the",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": "Myconid Colony",
+    "connections": {
+      "south": "Decrepit Village",
+      "east": "Storehouse",
+      "west": "Dread Hollow"
+    }
+  },
+  {
+    "title": "Emerald Grove",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "Druid's Grove",
+    "connections": {
+      "south": "Roadside Cliffs",
+      "east": "Secluded Cove",
+      "west": "Forest"
+    }
+  },
+  {
+    "title": "Forest",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "north": "Risen Road",
+      "south": "Sunlit Wetlands",
+      "east": "Emerald Grove",
+      "west": "Blighted Village"
+    }
+  },
+  {
+    "title": "Goblin Camp",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "north": "Shattered Sanctum",
+      "south": "Sunlit Wetlands",
+      "east": "Blighted Village",
+      "west": "Rosymorn Monastery Trail"
+    }
+  },
+  {
+    "title": "Grymforge",
+    "prefix": "",
+    "act": "one",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Decrepit Village",
+      "south": "Abandoned Refuge",
+      "east": "Shadow-Cursed Lands"
+    }
+  },
+  {
+    "title": "Inner Sanctum",
+    "prefix": "The",
+    "act": "one",
+    "region": "Emerald Grove",
+    "alt_name": ""
+  },
+  {
+    "title": "Mountain Pass",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "south": "Goblin Camp",
+      "east": "Waukeen's Rest",
+      "west": "Rosymorn Monastery Trail"
+    }
+  },
+  {
+    "title": "Nautiloid Wreck",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "north": "Roadside Cliffs",
+      "south": "Ravaged Beach",
+      "east": "Ravaged Beach",
+      "west": "River Chionthar"
+    }
+  },
+  {
+    "title": "Overgrown Ruins",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "north": "Emerald Grove",
+      "south": "Ravaged Beach",
+      "east": "River Chionthar",
+      "west": "Roadside Cliffs"
+    }
+  },
+  {
+    "title": "Overgrown Tunnel",
+    "prefix": "The",
+    "act": "one",
+    "region": "Sunlit Wetlands",
+    "alt_name": ""
+  },
+  {
+    "title": "Owlbear Nest",
+    "prefix": "The",
+    "act": "one",
+    "region": "Forest",
+    "alt_name": "Owlbear Cave"
+  },
+  {
+    "title": "Ravaged Beach",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "north": "Emerald Grove",
+      "east": "Dank Crypt"
+    }
+  },
+  {
+    "title": "Rosymorn Monastery",
+    "prefix": "The",
+    "act": "one",
+    "region": "Rosymorn Monastery Trail",
+    "alt_name": "",
+    "connections": {
+      "north": "Cr\u00e8che Y'llek",
+      "south": "Mountain Pass"
+    }
+  },
+  {
+    "title": "Rosymorn Monastery Trail",
+    "prefix": "The",
+    "act": "one",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Rosymorn Monastery",
+      "south": "Mountain Pass",
+      "west": "Ruined Battlefield"
+    }
+  },
+  {
+    "title": "Sacred Pool",
+    "prefix": "The",
+    "act": "one",
+    "region": "Emerald Grove",
+    "alt_name": ""
+  },
+  {
+    "title": "Secluded Cove",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "west": "Sacred Pool"
+    }
+  },
+  {
+    "title": "Secret Chamber",
+    "prefix": "The",
+    "act": "one",
+    "region": "Cr\u00e8che Y'llek",
+    "alt_name": ""
+  },
+  {
+    "title": "Sel\u00fbnite Outpost",
+    "prefix": "The",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": "",
+    "connections": {
+      "north": "Storehouse",
+      "south": "Defiled Temple",
+      "west": "Arcane Tower"
+    }
+  },
+  {
+    "title": "Shattered Sanctum",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "north": "Worg Pens",
+      "south": "Goblin Camp",
+      "west": "Defiled Temple"
+    }
+  },
+  {
+    "title": "Storehouse",
+    "prefix": "The",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": "",
+    "connections": {
+      "south": "Sel\u00fbnite Outpost",
+      "west": "Ebonlake Grotto"
+    }
+  },
+  {
+    "title": "Sunlit Wetlands",
+    "prefix": "The",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "Putrid Bog",
+    "connections": {
+      "north": "Blighted Village",
+      "south": "River Chionthar",
+      "east": "Nautiloid Wreck",
+      "west": "Riverside Teahouse"
+    }
+  },
+  {
+    "title": "The Festering Cove",
+    "prefix": "the",
+    "act": "one",
+    "region": "Underdark",
+    "alt_name": ""
+  },
+  {
+    "title": "The Hollow",
+    "prefix": "the",
+    "act": "one",
+    "region": "Emerald Grove",
+    "alt_name": "",
+    "connections": {
+      "north": "Makeshift Prison",
+      "south": "Ravaged Beach",
+      "east": "Sacred Pool",
+      "west": "Secluded Chamber"
+    }
+  },
+  {
+    "title": "The Risen Road",
+    "prefix": "the",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "south": "Blighted Village",
+      "east": "Emerald Grove",
+      "west": "Waukeen's Rest"
+    }
+  },
+  {
+    "title": "Tiefling Hideout",
+    "prefix": "The",
+    "act": "one",
+    "region": "Emerald Grove",
+    "alt_name": "",
+    "connections": {
+      "north": "The Hollow"
+    }
+  },
+  {
+    "title": "Underdark",
+    "prefix": "The",
+    "act": "one",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "Underground Passage",
+    "prefix": "The",
+    "act": "one",
+    "region": "Emerald Grove",
+    "alt_name": "",
+    "connections": {
+      "north": "The Hollow",
+      "south": "Forest",
+      "east": "Enclave Library"
+    }
+  },
+  {
+    "title": "Waukeen's Rest",
+    "prefix": "the",
+    "act": "one",
+    "region": "Wilderness",
+    "alt_name": "",
+    "connections": {
+      "south": "Goblin Camp",
+      "east": "Risen Road",
+      "west": "Mountain Pass"
+    }
+  },
+  {
+    "title": "Whispering Depths",
+    "prefix": "The",
+    "act": "one",
+    "region": "Blighted Village",
+    "alt_name": ""
+  },
+  {
+    "title": "Wilderness",
+    "prefix": "The",
+    "act": "one",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "Worg Pens",
+    "prefix": "The",
+    "act": "one",
+    "region": "Shattered Sanctum",
+    "alt_name": "",
+    "connections": {
+      "south": "Shattered Sanctum"
+    }
+  },
+  {
+    "title": "Zhentarim Basement",
+    "prefix": "The",
+    "act": "one",
+    "region": "Waukeen's Rest",
+    "alt_name": "Zhentarim Hideout"
+  },
+  {
+    "title": "Nautiloid",
+    "prefix": "The",
+    "act": "prologue",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "Abandoned Cistern",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "east": "Lower City Sewers"
+    }
+  },
+  {
+    "title": "Abandoned Windmill",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Sword Coast Couriers",
+      "south": "Arfur's Mansion",
+      "east": "Gur Camp",
+      "west": "Rivington General"
+    }
+  },
+  {
+    "title": "Ancient Lair",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "east": "Undercity Ruins"
+    }
+  },
+  {
+    "title": "Ancient Mausoleum",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": ""
+  },
+  {
+    "title": "Arfur's Mansion",
+    "prefix": "",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Abandoned Windmill",
+      "east": "Requisitioned Barn",
+      "west": "Circus of the Last Days"
+    }
+  },
+  {
+    "title": "Armbrust's Home",
+    "prefix": "",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Graveyard (Lower City)",
+      "south": "Highberry's Home",
+      "east": "Elfsong Tavern",
+      "west": "Forge of the Nine"
+    }
+  },
+  {
+    "title": "Baldur's Mouth",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Elfsong Tavern",
+      "south": "Old Jol's",
+      "east": "Nortale's Hostel",
+      "west": "Highberry's Home"
+    }
+  },
+  {
+    "title": "Barren's Coop",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Peartree House",
+      "south": "Vonayn's Home",
+      "east": "Guildhall Entrance",
+      "west": "Felogyr's Fireworks"
+    }
+  },
+  {
+    "title": "Basilisk Gate Barracks",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Candulhallow's Tombstones",
+      "east": "Wyrm's Rock Fortress",
+      "west": "Stormshore Tabernacle"
+    }
+  },
+  {
+    "title": "Beehive General Goods",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Lora's House",
+      "south": "Old Garlow's Place",
+      "east": "Flymm's Cobblers"
+    }
+  },
+  {
+    "title": "Bhaal Temple",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "west": "Undercity Ruins"
+    }
+  },
+  {
+    "title": "Bloomridge Park",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "south": "The Blushing Mermaid",
+      "east": "Lavernica's Home",
+      "west": "Facemaker's Boutique"
+    }
+  },
+  {
+    "title": "Bonecloak's Apothecary",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Devil's Fee",
+      "south": "Stormshore Armoury",
+      "east": "Highberry's Home",
+      "west": "Bloomridge Park"
+    }
+  },
+  {
+    "title": "Bruc and Pishe's Emporium",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Guildhall Entrance",
+      "south": "Vonayn's Home",
+      "west": "Barren's Coop"
+    }
+  },
+  {
+    "title": "Candulhallow's Tombstones",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "south": "Elfsong Tavern",
+      "west": "Graveyard (Lower City)"
+    }
+  },
+  {
+    "title": "Carm's Garms",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Rock Fortress",
+      "south": "Sharess' Caress",
+      "west": "Danthelon's Dancing Axe"
+    }
+  },
+  {
+    "title": "Cazador's Dungeon",
+    "prefix": "the",
+    "act": "three",
+    "region": "Szarr Palace",
+    "alt_name": "",
+    "connections": {
+      "south": "Szarr Palace",
+      "west": "Lower City Sewers"
+    }
+  },
+  {
+    "title": "Central Watch Tower",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Szarr Palace",
+      "south": "Stormshore Armoury",
+      "east": "Sorcerous Sundries",
+      "west": "Bloomridge Park"
+    }
+  },
+  {
+    "title": "Chromatic Scale",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Facemaker's Boutique",
+      "south": "The Lodge",
+      "east": "The Blushing Mermaid",
+      "west": "Elerrathin's Home"
+    }
+  },
+  {
+    "title": "Circus of the Last Days",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Open Hand Temple",
+      "east": "Rivington General"
+    }
+  },
+  {
+    "title": "Cloister of Sombre Embrace",
+    "prefix": "The",
+    "act": "three",
+    "region": "House of Grief",
+    "alt_name": ""
+  },
+  {
+    "title": "Crimson Draughts",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Lavernica's Home",
+      "south": "Rainforest's Home",
+      "east": "Lora's Home",
+      "west": "The Blushing Mermaid"
+    }
+  },
+  {
+    "title": "Danthelon's Dancing Axe",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Rock Fortress",
+      "south": "Sharess' Caress",
+      "east": "Carm's Garms"
+    }
+  },
+  {
+    "title": "Devil's Den",
+    "prefix": "The",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": ""
+  },
+  {
+    "title": "Devil's Fee",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "south": "Bonecloak's Apothecary",
+      "east": "Forge of the Nine",
+      "west": "Szarr Palace"
+    }
+  },
+  {
+    "title": "Durinbold Mausoleum",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": ""
+  },
+  {
+    "title": "Elerrathin's Home",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Upper City Gate Checkpoint",
+      "south": "The Lodge",
+      "east": "Facemaker's Boutique",
+      "west": "Lady Jannath's Estate"
+    }
+  },
+  {
+    "title": "Elfsong Tavern",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Candulhallow's Tombstones",
+      "south": "Baldur's Mouth",
+      "east": "Stormshore Tabernacle",
+      "west": "Armbrust's Home"
+    }
+  },
+  {
+    "title": "Elminster's Library",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": ""
+  },
+  {
+    "title": "Facemaker's Boutique",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Upper City Gate Checkpoint",
+      "south": "The Glitter Gala",
+      "east": "Bloomridge Park",
+      "west": "Elerrathin's Home"
+    }
+  },
+  {
+    "title": "Felogyr's Fireworks",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Sorcerous Sundries",
+      "south": "Philgrave's Mansion",
+      "east": "Barren's Coop",
+      "west": "Flymm's Cobblers"
+    }
+  },
+  {
+    "title": "Flymm Cargo",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "The Blushing Mermaid",
+      "east": "The Counting House",
+      "west": "Grey Harbour Docks"
+    }
+  },
+  {
+    "title": "Flymm's Cobblers",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Lora's House",
+      "south": "Old Garlow's Place",
+      "east": "Felogyr's Fireworks",
+      "west": "Beehive General Goods"
+    }
+  },
+  {
+    "title": "Forge of the Nine",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Graveyard (Lower City)",
+      "south": "Highberry's Home",
+      "east": "Armbrust's Home",
+      "west": "Devil's Fee"
+    }
+  },
+  {
+    "title": "Fraygo's Flophouse",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": "",
+    "connections": {
+      "north": "Sharess' Caress",
+      "south": "South Span Checkpoint",
+      "east": "Sharess' Caress"
+    }
+  },
+  {
+    "title": "Golbraith's Cellar",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Bloomridge Park",
+      "south": "The Blushing Mermaid",
+      "east": "Bloomridge Park",
+      "west": "The Glitter Gala"
+    }
+  },
+  {
+    "title": "Gorion Mausoleum",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": ""
+  },
+  {
+    "title": "Graveyard (Lower City)",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "south": "Forge of the Nine",
+      "east": "Candulhallow's Tombstones",
+      "west": "Devil's Fee"
+    }
+  },
+  {
+    "title": "Grey Harbour Docks",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "The Lodge",
+      "south": "Water Queen's House",
+      "east": "The Counting House",
+      "west": "Steel Watch Foundry"
+    }
+  },
+  {
+    "title": "Guildhall",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "north": "Lower City Sewers"
+    }
+  },
+  {
+    "title": "Gur Camp",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "south": "Requisitioned Barn",
+      "west": "Abandoned Windmill"
+    }
+  },
+  {
+    "title": "Hhune Mausoleum",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": ""
+  },
+  {
+    "title": "High Hall",
+    "prefix": "the",
+    "act": "three",
+    "region": "Upper City",
+    "alt_name": ""
+  },
+  {
+    "title": "Highberry's Home",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Forge of the Nine",
+      "south": "Sorcerous Sundries",
+      "east": "Baldur's Mouth",
+      "west": "Bonecloak's Apothecary"
+    }
+  },
+  {
+    "title": "House of Grief",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "south": "Lady Jannath's Estate",
+      "east": "Upper City Gate Checkpoint"
+    }
+  },
+  {
+    "title": "House of Hope",
+    "prefix": "The",
+    "act": "three",
+    "region": "Avernus",
+    "alt_name": ""
+  },
+  {
+    "title": "Iron Throne",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": ""
+  },
+  {
+    "title": "Jungle",
+    "prefix": "The",
+    "act": "three",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "Knights of the Shield Hideout",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "south": "Elfsong Tavern",
+      "west": "Lower City Sewers"
+    }
+  },
+  {
+    "title": "Lady Jannath's Estate",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "House of Grief",
+      "south": "Grey Harbour Docks",
+      "east": "Elerrathin's Home"
+    }
+  },
+  {
+    "title": "Lavernica's Home",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Bloomridge Park",
+      "south": "Crimson Draughts",
+      "east": "Lora's House",
+      "west": "The Blushing Mermaid"
+    }
+  },
+  {
+    "title": "Lora's House",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Stormshore Armoury",
+      "south": "Tefoco's Home",
+      "east": "Sorcerous Sundries",
+      "west": "Crimson Draughts"
+    }
+  },
+  {
+    "title": "Lower City",
+    "prefix": "The",
+    "act": "three",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Upper City",
+      "south": "Undercity",
+      "east": "Wyrm's Rock"
+    }
+  },
+  {
+    "title": "Lower City Sewers",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "north": "Undercity Ruins",
+      "south": "Guildhall",
+      "east": "Cazador's Dungeon",
+      "west": "Abandoned Cistern"
+    }
+  },
+  {
+    "title": "Lustrous Lass",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Grey Harbour Docks",
+      "west": "Water Queen's House"
+    }
+  },
+  {
+    "title": "Morphic Pool",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "south": "Undercity Ruins"
+    }
+  },
+  {
+    "title": "Murder Tribunal",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "Bhaalist Crypt"
+  },
+  {
+    "title": "Nortale's Hostel",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Basilisk Gate Barracks",
+      "east": "Wyrm's Rock Fortress",
+      "west": "Baldur's Mouth"
+    }
+  },
+  {
+    "title": "Nymph's Grotto",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": ""
+  },
+  {
+    "title": "Old Garlow's Place",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Flymm's Cobblers",
+      "east": "Felogyr's Fireworks",
+      "west": "Beehive General Goods"
+    }
+  },
+  {
+    "title": "Old Jol's",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Baldur's Mouth",
+      "south": "Guildhall Entrance",
+      "west": "Sorcerous Sundries"
+    }
+  },
+  {
+    "title": "Open Hand Temple",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "South Span Checkpoint",
+      "south": "Circus of the Last Days",
+      "east": "Sword Coast Couriers"
+    }
+  },
+  {
+    "title": "Open Hand Temple Underground Area",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Western Beach",
+      "west": "Open Hand Temple"
+    }
+  },
+  {
+    "title": "Peartree House",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Baldur's Mouth",
+      "south": "Barren's Coop",
+      "east": "Guildhall Entrance",
+      "west": "Sorcerous Sundries"
+    }
+  },
+  {
+    "title": "Philgrave's Mansion",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Felogyr's Fireworks",
+      "east": "Vonayn's Home"
+    }
+  },
+  {
+    "title": "Rainforest's Home",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Crimson Draughts",
+      "south": "The Counting House",
+      "east": "Beehive General Goods",
+      "west": "The Bibliophile"
+    }
+  },
+  {
+    "title": "Ramazith's Tower",
+    "prefix": "the",
+    "act": "three",
+    "region": "Upper City",
+    "alt_name": ""
+  },
+  {
+    "title": "Rivington",
+    "prefix": "",
+    "act": "three",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Crossing",
+      "south": "Reithwin Town"
+    }
+  },
+  {
+    "title": "Rivington General",
+    "prefix": "",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Sword Coast Couriers",
+      "south": "Arfur's Mansion",
+      "east": "Abandoned Windmill",
+      "west": "Circus of the Last Days"
+    }
+  },
+  {
+    "title": "Sharess' Caress",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Rock Fortress",
+      "south": "South Span Checkpoint",
+      "west": "Fraygo's Flophouse"
+    }
+  },
+  {
+    "title": "Sorcerous Sundries",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Highberry's Home",
+      "south": "Felogyr's Fireworks",
+      "east": "Peartree House",
+      "west": "Stormshore Armoury"
+    }
+  },
+  {
+    "title": "Sorcerous Vault",
+    "prefix": "The",
+    "act": "three",
+    "region": "Sorcerous Sundries",
+    "alt_name": ""
+  },
+  {
+    "title": "South Span Checkpoint",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Crossing",
+      "south": "Sword Coast Couriers",
+      "west": "Western Beach"
+    }
+  },
+  {
+    "title": "Steel Watch Foundry",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Lady Jannath's Estate",
+      "south": "Water Queen's House",
+      "east": "Grey Harbour Docks"
+    }
+  },
+  {
+    "title": "Stormshore Armoury",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Central Watch Tower",
+      "south": "Flymm's Cobblers",
+      "east": "Sorcerous Sundries",
+      "west": "Lora's House"
+    }
+  },
+  {
+    "title": "Stormshore Tabernacle",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Candulhallow's Tombstones",
+      "south": "Nortale's Hostel",
+      "east": "Basilisk Gate Barracks",
+      "west": "Elfsong Tavern"
+    }
+  },
+  {
+    "title": "Submersible",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": ""
+  },
+  {
+    "title": "Sword Coast Couriers",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "north": "South Span Checkpoint",
+      "south": "Rivington General",
+      "east": "Gur Camp",
+      "west": "Open Hand Temple"
+    }
+  },
+  {
+    "title": "Szarr Palace",
+    "prefix": "The",
+    "act": "three",
+    "region": "Upper City",
+    "alt_name": "",
+    "connections": {
+      "south": "Central Watch Tower",
+      "east": "Devil's Fee",
+      "west": "Bloomridge Park"
+    }
+  },
+  {
+    "title": "The Bibliophile",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "The Blushing Mermaid",
+      "south": "The Counting House",
+      "east": "Beehive General Goods",
+      "west": "The Singing Lute"
+    }
+  },
+  {
+    "title": "The Blushing Mermaid",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Bloomridge Park",
+      "south": "Flymm Cargo",
+      "east": "Crimson Draughts",
+      "west": "The Lodge"
+    }
+  },
+  {
+    "title": "The Counting House",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Rainforest's Home",
+      "east": "Old Garlow's Place",
+      "west": "Flymm Cargo"
+    }
+  },
+  {
+    "title": "The Dragon's Sanctum",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Rock Fortress",
+    "alt_name": "",
+    "connections": {
+      "south": "The Wyrmway",
+      "east": "Wyrm's Rock Prison"
+    }
+  },
+  {
+    "title": "The Glitter Gala",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Facemaker's Boutique",
+      "south": "The Lodge",
+      "east": "Bloomridge Park",
+      "west": "Elerrathin's Home"
+    }
+  },
+  {
+    "title": "The Lodge",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Elerrathin's Home",
+      "south": "Grey Harbour Docks",
+      "east": "The Blushing Mermaid",
+      "west": "Lady Jannath's Estate"
+    }
+  },
+  {
+    "title": "The Singing Lute",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "The Blushing Mermaid",
+      "south": "The Counting House",
+      "east": "The Bibliophile",
+      "west": "Flymm Cargo"
+    }
+  },
+  {
+    "title": "The Velveteen Elixir",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Rock Fortress",
+      "south": "Sharess' Caress",
+      "east": "Carm's Garms"
+    }
+  },
+  {
+    "title": "The Wyrmway",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Rock Fortress",
+    "alt_name": "",
+    "connections": {
+      "north": "The Dragon's Sanctum",
+      "east": "Wyrm's Rock Prison"
+    }
+  },
+  {
+    "title": "Undercity",
+    "prefix": "The",
+    "act": "three",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Lower City"
+    }
+  },
+  {
+    "title": "Undercity Ruins",
+    "prefix": "The",
+    "act": "three",
+    "region": "Undercity",
+    "alt_name": "",
+    "connections": {
+      "north": "Morphic Pool",
+      "south": "Lower City Sewers",
+      "east": "Bhaal Temple",
+      "west": "Ancient Lair"
+    }
+  },
+  {
+    "title": "Underdark Pleasures",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Crossing",
+    "alt_name": ""
+  },
+  {
+    "title": "Upper City",
+    "prefix": "The",
+    "act": "three",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "south": "Lower City"
+    }
+  },
+  {
+    "title": "Upper City Gate Checkpoint",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Upper City",
+      "south": "The Lodge",
+      "east": "Facemaker's Boutique"
+    }
+  },
+  {
+    "title": "Vonayn's Home",
+    "prefix": "the",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Barren's Coop",
+      "west": "Philgrave's Mansion"
+    }
+  },
+  {
+    "title": "Water Queen's House",
+    "prefix": "The",
+    "act": "three",
+    "region": "Lower City",
+    "alt_name": "",
+    "connections": {
+      "north": "Grey Harbour Docks",
+      "east": "Lustrous Lass"
+    }
+  },
+  {
+    "title": "Western Beach",
+    "prefix": "The",
+    "act": "three",
+    "region": "Rivington",
+    "alt_name": "",
+    "connections": {
+      "east": "South Span Checkpoint"
+    }
+  },
+  {
+    "title": "Wyrm's Crossing",
+    "prefix": "",
+    "act": "three",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Wyrm's Rock Fortress",
+      "south": "Rivington"
+    }
+  },
+  {
+    "title": "Wyrm's Rock Fortress",
+    "prefix": "",
+    "act": "three",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Lower City",
+      "south": "Wyrm's Crossing"
+    }
+  },
+  {
+    "title": "Wyrm's Rock Prison",
+    "prefix": "",
+    "act": "three",
+    "region": "Wyrm's Rock Fortress",
+    "alt_name": "",
+    "connections": {
+      "west": "The Wyrmway"
+    }
+  },
+  {
+    "title": "Gauntlet of Shar",
+    "prefix": "The",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": "",
+    "connections": {
+      "south": "Grand Mausoleum",
+      "east": "Shadowfell"
+    }
+  },
+  {
+    "title": "Grand Mausoleum",
+    "prefix": "The",
+    "act": "two",
+    "region": "Reithwin Town",
+    "alt_name": "",
+    "connections": {
+      "north": "Gauntlet of Shar",
+      "south": "Reithwin Town"
+    }
+  },
+  {
+    "title": "House in Deep Shadows",
+    "prefix": "The",
+    "act": "two",
+    "region": "Ruined Battlefield",
+    "alt_name": ""
+  },
+  {
+    "title": "House of Healing",
+    "prefix": "The",
+    "act": "two",
+    "region": "Reithwin Town",
+    "alt_name": "",
+    "connections": {
+      "north": "Grand Mausoleum",
+      "south": "The Waning Moon",
+      "east": "Mason's Guild",
+      "west": "Baldur's Gate"
+    }
+  },
+  {
+    "title": "Last Light Inn",
+    "prefix": "The",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": "",
+    "connections": {
+      "east": "Ruined Battlefield"
+    }
+  },
+  {
+    "title": "Mason's Guild",
+    "prefix": "The",
+    "act": "two",
+    "region": "Reithwin Town",
+    "alt_name": "",
+    "connections": {
+      "north": "Grand Mausoleum",
+      "south": "Reithwin Tollhouse",
+      "west": "House of Healing"
+    }
+  },
+  {
+    "title": "Mind Flayer Colony",
+    "prefix": "The",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": ""
+  },
+  {
+    "title": "Moonrise Towers",
+    "prefix": "the",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": "",
+    "connections": {
+      "north": "Reithwin Town"
+    }
+  },
+  {
+    "title": "Moonrise Towers Prison",
+    "prefix": "",
+    "act": "two",
+    "region": "Moonrise Towers",
+    "alt_name": "",
+    "connections": {
+      "west": "Oubliette"
+    }
+  },
+  {
+    "title": "Moonrise Towers Rooftop",
+    "prefix": "",
+    "act": "two",
+    "region": "Moonrise Towers",
+    "alt_name": ""
+  },
+  {
+    "title": "Necrotic Laboratory",
+    "prefix": "The",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": ""
+  },
+  {
+    "title": "Oubliette",
+    "prefix": "",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": "",
+    "connections": {
+      "north": "Moonrise Towers Prison"
+    }
+  },
+  {
+    "title": "Reithwin Tollhouse",
+    "prefix": "",
+    "act": "two",
+    "region": "Reithwin Town",
+    "alt_name": "",
+    "connections": {
+      "north": "Mason's Guild",
+      "south": "Moonrise Towers",
+      "east": "Ruined Battlefield",
+      "west": "The Waning Moon"
+    }
+  },
+  {
+    "title": "Reithwin Town",
+    "prefix": "the",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": "",
+    "connections": {
+      "north": "Grand Mausoleum",
+      "south": "Moonrise Towers",
+      "east": "Ruined Battlefield",
+      "west": "Rivington"
+    }
+  },
+  {
+    "title": "Ruined Battlefield",
+    "prefix": "the",
+    "act": "two",
+    "region": "Shadow-Cursed Lands",
+    "alt_name": "",
+    "connections": {
+      "north": "Grymforge",
+      "south": "Reithwin Town",
+      "east": "Rosymorn Monastery Trail",
+      "west": "Last Light Inn"
+    }
+  },
+  {
+    "title": "Shadow-Cursed Lands",
+    "prefix": "The",
+    "act": "two",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "north": "Grymforge",
+      "east": "Rosymorn Monastery Trail"
+    }
+  },
+  {
+    "title": "Shadowfell",
+    "prefix": "The",
+    "act": "two",
+    "region": "",
+    "alt_name": "",
+    "connections": {
+      "west": "Gauntlet of Shar"
+    }
+  },
+  {
+    "title": "Sharran Sanctuary",
+    "prefix": "The",
+    "act": "two",
+    "region": "Reithwin Town",
+    "alt_name": "",
+    "connections": {
+      "north": "House of Healing",
+      "south": "Moonrise Towers",
+      "east": "Reithwin Tollhouse",
+      "west": "The Waning Moon"
+    }
+  },
+  {
+    "title": "Tadpoling Centre",
+    "prefix": "The",
+    "act": "two",
+    "region": "",
+    "alt_name": ""
+  },
+  {
+    "title": "The Waning Moon",
+    "prefix": "",
+    "act": "two",
+    "region": "Reithwin Town",
+    "alt_name": "",
+    "connections": {
+      "north": "House of Healing",
+      "south": "Moonrise Towers",
+      "east": "Reithwin Tollhouse",
+      "west": "Baldur's Gate"
+    }
+  }
+]

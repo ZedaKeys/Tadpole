@@ -1,0 +1,373 @@
+[
+  {
+    "name": "Abandoned Cistern",
+    "x": 184,
+    "y": 867,
+    "page": "Abandoned Cistern",
+    "type": "location"
+  },
+  {
+    "name": "Apothecary's Cellar",
+    "x": 32,
+    "y": 379,
+    "page": "Apothecary's Cellar",
+    "type": "location"
+  },
+  {
+    "name": "Astral Plane",
+    "x": 1734,
+    "y": 328,
+    "page": "Astral Plane",
+    "type": "location"
+  },
+  {
+    "name": "Basilisk Gate Barracks",
+    "x": 123,
+    "y": 4,
+    "page": "Basilisk Gate Barracks",
+    "type": "location"
+  },
+  {
+    "name": "Blighted Village",
+    "x": 34,
+    "y": 394,
+    "page": "Blighted Village",
+    "type": "location"
+  },
+  {
+    "name": "Bonecloak's Apothecary",
+    "x": 1453,
+    "y": 843,
+    "page": "Bonecloak's Apothecary",
+    "type": "location"
+  },
+  {
+    "name": "Campsite",
+    "x": 363,
+    "y": 51,
+    "page": "Campsite",
+    "type": "location"
+  },
+  {
+    "name": "Candulhallow's Tombstones",
+    "x": 87,
+    "y": 15,
+    "page": "Candulhallow's Tombstones",
+    "type": "location"
+  },
+  {
+    "name": "Defiled Temple",
+    "x": 389,
+    "y": 44,
+    "page": "Defiled Temple",
+    "type": "location"
+  },
+  {
+    "name": "Devil's Fee",
+    "x": 391,
+    "y": 770,
+    "page": "Devil's Fee",
+    "type": "location"
+  },
+  {
+    "name": "Durinbold Mausoleum",
+    "x": 32,
+    "y": 18,
+    "page": "Durinbold Mausoleum",
+    "type": "location"
+  },
+  {
+    "name": "Elfsong Tavern",
+    "x": 76,
+    "y": 1,
+    "page": "Elfsong Tavern",
+    "type": "location"
+  },
+  {
+    "name": "Forest",
+    "x": 86,
+    "y": 448,
+    "page": "Forest",
+    "type": "location"
+  },
+  {
+    "name": "Forge of the Nine",
+    "x": 391,
+    "y": 370,
+    "page": "Forge of the Nine",
+    "type": "location"
+  },
+  {
+    "name": "Gorion Mausoleum",
+    "x": 10,
+    "y": 33,
+    "page": "Gorion Mausoleum",
+    "type": "location"
+  },
+  {
+    "name": "Graveyard (Lower City)",
+    "x": 21,
+    "y": 13,
+    "page": "Graveyard (Lower City)",
+    "type": "location"
+  },
+  {
+    "name": "Guildhall",
+    "x": 38,
+    "y": 784,
+    "page": "Guildhall",
+    "type": "location"
+  },
+  {
+    "name": "Hhune Mausoleum",
+    "x": 17,
+    "y": 41,
+    "page": "Hhune Mausoleum",
+    "type": "location"
+  },
+  {
+    "name": "High Hall",
+    "x": 258,
+    "y": 33,
+    "page": "High Hall",
+    "type": "location"
+  },
+  {
+    "name": "Inner Sanctum",
+    "x": 223,
+    "y": 525,
+    "page": "Inner Sanctum",
+    "type": "location"
+  },
+  {
+    "name": "Knights of the Shield Hideout",
+    "x": 52,
+    "y": 793,
+    "page": "Knights of the Shield Hideout",
+    "type": "location"
+  },
+  {
+    "name": "Murder Tribunal",
+    "x": 74,
+    "y": 25,
+    "page": "Murder Tribunal",
+    "type": "location"
+  },
+  {
+    "name": "Nautiloid Wreck",
+    "x": 260,
+    "y": 285,
+    "page": "Nautiloid Wreck",
+    "type": "location"
+  },
+  {
+    "name": "Open Hand Temple",
+    "x": 5,
+    "y": 74,
+    "page": "Open Hand Temple",
+    "type": "location"
+  },
+  {
+    "name": "Owlbear Nest",
+    "x": 82,
+    "y": 450,
+    "page": "Owlbear Nest",
+    "type": "location"
+  },
+  {
+    "name": "Ramazith's Tower",
+    "x": 4988,
+    "y": 705,
+    "page": "Ramazith's Tower",
+    "type": "location"
+  },
+  {
+    "name": "Rivington",
+    "x": 30,
+    "y": 29,
+    "page": "Rivington",
+    "type": "location"
+  },
+  {
+    "name": "Rivington General",
+    "x": 30,
+    "y": 29,
+    "page": "Rivington General",
+    "type": "location"
+  },
+  {
+    "name": "Ruined Battlefield",
+    "x": 121,
+    "y": 229,
+    "page": "Ruined Battlefield",
+    "type": "location"
+  },
+  {
+    "name": "Sacred Pool",
+    "x": 210,
+    "y": 490,
+    "page": "Sacred Pool",
+    "type": "location"
+  },
+  {
+    "name": "Secluded Cove",
+    "x": 275,
+    "y": 523,
+    "page": "Secluded Cove",
+    "type": "location"
+  },
+  {
+    "name": "Secret Chamber",
+    "x": 102,
+    "y": 27,
+    "page": "Secret Chamber",
+    "type": "location"
+  },
+  {
+    "name": "Shattered Sanctum",
+    "x": 338,
+    "y": 14,
+    "page": "Shattered Sanctum",
+    "type": "location"
+  },
+  {
+    "name": "Sorcerous Vault",
+    "x": 4980,
+    "y": 706,
+    "page": "Sorcerous Vault",
+    "type": "location"
+  },
+  {
+    "name": "South Span Checkpoint",
+    "x": 34,
+    "y": 47,
+    "page": "South Span Checkpoint",
+    "type": "location"
+  },
+  {
+    "name": "Sunlit Wetlands",
+    "x": 47,
+    "y": 315,
+    "page": "Sunlit Wetlands",
+    "type": "location"
+  },
+  {
+    "name": "Sword Coast Couriers",
+    "x": 29,
+    "y": 1,
+    "page": "Sword Coast Couriers",
+    "type": "location"
+  },
+  {
+    "name": "The Counting House",
+    "x": 5,
+    "y": 46,
+    "page": "The Counting House",
+    "type": "location"
+  },
+  {
+    "name": "The Dragon's Sanctum",
+    "x": 636,
+    "y": 964,
+    "page": "The Dragon's Sanctum",
+    "type": "location"
+  },
+  {
+    "name": "The Hollow",
+    "x": 204,
+    "y": 501,
+    "page": "The Hollow",
+    "type": "location"
+  },
+  {
+    "name": "The Risen Road",
+    "x": 78,
+    "y": 489,
+    "page": "The Risen Road",
+    "type": "location"
+  },
+  {
+    "name": "Tiefling Hideout",
+    "x": 94,
+    "y": 74,
+    "page": "Tiefling Hideout",
+    "type": "location"
+  },
+  {
+    "name": "Underground Passage",
+    "x": 167,
+    "y": 418,
+    "page": "Underground Passage",
+    "type": "location"
+  },
+  {
+    "name": "User:Bronner/Sandbox",
+    "x": 33,
+    "y": 145,
+    "page": "User:Bronner/Sandbox",
+    "type": "location"
+  },
+  {
+    "name": "Western Beach",
+    "x": 58,
+    "y": 48,
+    "page": "Western Beach",
+    "type": "location"
+  },
+  {
+    "name": "Whispering Depths",
+    "x": 24,
+    "y": 401,
+    "page": "Whispering Depths",
+    "type": "location"
+  },
+  {
+    "name": "Wyrm's Crossing",
+    "x": 34,
+    "y": 47,
+    "page": "Wyrm's Crossing",
+    "type": "location"
+  },
+  {
+    "name": "Wyrm's Rock Fortress",
+    "x": 27,
+    "y": 158,
+    "page": "Wyrm's Rock Fortress",
+    "type": "location"
+  },
+  {
+    "name": "Emerald Grove Environs",
+    "x": 246,
+    "y": 423,
+    "page": "Emerald Grove",
+    "type": "waypoint"
+  },
+  {
+    "name": "Overgrown Ruins",
+    "x": 276,
+    "y": 298,
+    "page": "Ravaged Beach",
+    "type": "waypoint"
+  },
+  {
+    "name": "Roadside Cliffs",
+    "x": 222,
+    "y": 326,
+    "page": "Ravaged Beach",
+    "type": "waypoint"
+  },
+  {
+    "name": "Rosymorn Monastery",
+    "x": 17,
+    "y": 23,
+    "page": "Rosymorn Monastery",
+    "type": "waypoint"
+  },
+  {
+    "name": "Shadowed Battlefield",
+    "x": 276,
+    "y": 297,
+    "page": "House in Deep Shadows",
+    "type": "waypoint"
+  }
+]

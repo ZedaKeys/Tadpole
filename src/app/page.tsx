@@ -452,7 +452,7 @@ export default function HomePage() {
         flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 18, fontWeight: 600, color: '#e8e8ef' }}>
-          {gameState.area || 'Unknown'}
+          {gameState.areaName || gameState.area || 'Unknown'}
         </span>
         {gameState.inCombat && (
           <span style={{

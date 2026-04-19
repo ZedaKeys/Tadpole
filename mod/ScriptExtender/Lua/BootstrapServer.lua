@@ -1,4 +1,4 @@
--- TadpoleCompanion v0.20.0
+-- TadpoleCompanion v0.21.0
 -- BG3 ScriptExtender mod for Tadpole companion app
 -- BG3SE v30/v31 — comprehensive state capture with error suppression
 
@@ -7,7 +7,7 @@ local Tadpole = {
   elapsed = 0,
   recentEvents = {},
   prevState = nil,
-  version = "0.20.0",
+  version = "0.21.0",
   sessionStats = {
     damageDealt = 0,
     damageTaken = 0,
@@ -105,6 +105,221 @@ local function resolveSpellName(spellId)
   if name then
     _spellNameCache[spellId] = name
     return name
+  end
+  return nil
+end
+
+-- ============================================================
+-- Area Level Name → Friendly Name Mapping
+-- Maps internal BG3 level names (from ServerCharacter.Level)
+-- to human-readable area names, slugs, and act numbers.
+-- ============================================================
+local AREA_MAP = {
+  -- Prologue
+  ["TUT_Nautiloid"]          = { name = "The Nautiloid",      slug = "nautiloid",          act = 0 },
+  ["TUT_MindFlayerShip"]     = { name = "The Nautiloid",      slug = "nautiloid",          act = 0 },
+  ["WLD_Prologue"]           = { name = "Prologue",           slug = "nautiloid",          act = 0 },
+
+  -- Act 1 — Wilderness overworld
+  ["WLD_Main_A"]             = { name = "Wilderness",         slug = "wilderness",         act = 1 },
+  ["FOR_Wilderness"]         = { name = "Wilderness",         slug = "wilderness",         act = 1 },
+  ["FOR_Main_A"]             = { name = "Wilderness",         slug = "wilderness",         act = 1 },
+
+  -- Act 1 — Ravaged Beach
+  ["FOR_Beach"]              = { name = "Ravaged Beach",      slug = "ravaged-beach",      act = 1 },
+  ["FOR_RavagedBeach"]       = { name = "Ravaged Beach",      slug = "ravaged-beach",      act = 1 },
+
+  -- Act 1 — Emerald Grove
+  ["FOR_Grove"]              = { name = "Emerald Grove",      slug = "emerald-grove",      act = 1 },
+  ["FOR_EmeraldGrove"]       = { name = "Emerald Grove",      slug = "emerald-grove",      act = 1 },
+  ["FOR_DruidGrove"]         = { name = "Emerald Grove",      slug = "emerald-grove",      act = 1 },
+
+  -- Act 1 — Druid Grove (interior)
+  ["GOR_Hollow"]             = { name = "The Hollow",         slug = "druid-grove",        act = 1 },
+  ["GOR_SacredPool"]         = { name = "Sacred Pool",        slug = "druid-grove",        act = 1 },
+  ["GOR_InnerSanctum"]       = { name = "Inner Sanctum",      slug = "druid-grove",        act = 1 },
+
+  -- Act 1 — Forest
+  ["FOR_Forest"]             = { name = "Forest",             slug = "forest",             act = 1 },
+  ["FOR_OwlbearCave"]        = { name = "Owlbear Nest",       slug = "forest",             act = 1 },
+
+  -- Act 1 — Blighted Village
+  ["FOR_Village"]            = { name = "Blighted Village",   slug = "blighted-village",   act = 1 },
+  ["FOR_BlightedVillage"]    = { name = "Blighted Village",   slug = "blighted-village",   act = 1 },
+  ["FOR_ApothecaryCellar"]   = { name = "Apothecary's Cellar",slug = "blighted-village",   act = 1 },
+
+  -- Act 1 — Sunlit Wetlands
+  ["FOR_SunlitWetlands"]     = { name = "Sunlit Wetlands",    slug = "sunlit-wetlands",    act = 1 },
+  ["FOR_HagsHollow"]         = { name = "Sunlit Wetlands",    slug = "sunlit-wetlands",    act = 1 },
+
+  -- Act 1 — Risen Road
+  ["FOR_RisenRoad"]          = { name = "The Risen Road",     slug = "risen-road",         act = 1 },
+  ["WAU_WaukeensRest"]       = { name = "Waukeen's Rest",     slug = "waukeens-rest",      act = 1 },
+
+  -- Act 1 — Goblin Camp
+  ["GOB_GoblinCamp"]         = { name = "Goblin Camp",        slug = "goblin-camp",        act = 1 },
+  ["GOB_A_Camp"]             = { name = "Goblin Camp",        slug = "goblin-camp",        act = 1 },
+  ["FOR_GoblinCamp"]         = { name = "Goblin Camp",        slug = "goblin-camp",        act = 1 },
+  ["GOB_ShatteredSanctum"]   = { name = "Shattered Sanctum",  slug = "goblin-camp",        act = 1 },
+  ["GOB_DefiledTemple"]      = { name = "Defiled Temple",     slug = "goblin-camp",        act = 1 },
+  ["GOB_WorgPens"]           = { name = "Worg Pens",          slug = "goblin-camp",        act = 1 },
+
+  -- Act 1 — Underdark
+  ["UND_Underdark"]          = { name = "Underdark",          slug = "underdark",          act = 1 },
+  ["UND_ChurgUnderdark_Tutorial"] = { name = "Underdark",     slug = "underdark",          act = 1 },
+  ["UND_MushroomForest"]     = { name = "Myconid Colony",     slug = "underdark",          act = 1 },
+  ["UND_SeluniteOutpost"]    = { name = "Selûnite Outpost",   slug = "underdark",          act = 1 },
+  ["UND_ArcaneTower"]        = { name = "Arcane Tower",       slug = "underdark",          act = 1 },
+  ["UND_DecrepitVillage"]    = { name = "Decrepit Village",   slug = "underdark",          act = 1 },
+  ["UND_Beach"]              = { name = "Underdark Beach",    slug = "underdark",          act = 1 },
+  ["UND_Storehouse"]         = { name = "Underdark Storehouse",slug = "underdark",          act = 1 },
+  ["UND_DreadHollow"]        = { name = "Dread Hollow",       slug = "underdark",          act = 1 },
+  ["UND_FesteringCove"]      = { name = "The Festering Cove", slug = "underdark",          act = 1 },
+  ["UND_EbonlakeGrotto"]     = { name = "Ebonlake Grotto",   slug = "underdark",          act = 1 },
+
+  -- Act 1 — Grymforge
+  ["GRY_Grymforge"]          = { name = "Grymforge",          slug = "grymforge",          act = 1 },
+  ["GRY_Foundry"]            = { name = "Grymforge Foundry",  slug = "grymforge",          act = 1 },
+  ["GRY_AdamantineForge"]    = { name = "Adamantine Forge",   slug = "grymforge",          act = 1 },
+  ["GRY_AbandonedRefuge"]    = { name = "Abandoned Refuge",   slug = "grymforge",          act = 1 },
+
+  -- Act 1 — Mountain Pass
+  ["MON_MountainPass"]       = { name = "Mountain Pass",      slug = "mountain-pass",      act = 1 },
+  ["MON_RosymornMonastery"]  = { name = "Rosymorn Monastery", slug = "mountain-pass",      act = 1 },
+  ["MON_Creche"]             = { name = "Crèche Y'llek",      slug = "mountain-pass",      act = 1 },
+  ["MON_RosymornTrail"]      = { name = "Rosymorn Trail",     slug = "mountain-pass",      act = 1 },
+  ["CRE_Creche"]             = { name = "Crèche Y'llek",      slug = "mountain-pass",      act = 1 },
+
+  -- Act 1 — Overgrown Ruins / Dank Crypt
+  ["FOR_OvergrownRuins"]     = { name = "Overgrown Ruins",    slug = "overgrown-ruins",    act = 1 },
+  ["FOR_DankCrypt"]          = { name = "Dank Crypt",         slug = "overgrown-ruins",    act = 1 },
+
+  -- Act 1 — Riverside Teahouse (Hag's lair)
+  ["FOR_RiversideTeahouse"]  = { name = "Riverside Teahouse", slug = "sunlit-wetlands",    act = 1 },
+  ["FOR_HagLair"]            = { name = "Auntie Ethel's Lair",slug = "sunlit-wetlands",    act = 1 },
+
+  -- Camp levels (shared across acts)
+  ["GLO_QuestCamp"]          = { name = "Camp",               slug = "camp",               act = 0 },
+  ["GLO_Camp"]               = { name = "Camp",               slug = "camp",               act = 0 },
+  ["GLO_Camp_Hub"]           = { name = "Camp",               slug = "camp",               act = 0 },
+
+  -- Act 2 — Shadow-Cursed Lands
+  ["WLD_Main_B"]             = { name = "Shadow-Cursed Lands",slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_ShadowCursed"]       = { name = "Shadow-Cursed Lands",slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_Main"]               = { name = "Shadow-Cursed Lands",slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_Reithwin"]           = { name = "Reithwin Town",      slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_ReithwinTown"]       = { name = "Reithwin Town",      slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_SharranSanctuary"]   = { name = "Sharran Sanctuary",  slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_RuinedBattlefield"]  = { name = "Ruined Battlefield", slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_GauntletOfShar"]     = { name = "Gauntlet of Shar",   slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_Shadowfell"]         = { name = "Shadowfell",         slug = "shadow-cursed-lands",act = 2 },
+
+  -- Act 2 — Last Light Inn
+  ["LLI_LastLight"]          = { name = "Last Light Inn",     slug = "last-light-inn",     act = 2 },
+  ["SCL_LastLightInn"]       = { name = "Last Light Inn",     slug = "last-light-inn",     act = 2 },
+
+  -- Act 2 — Moonrise Towers
+  ["MOO_Moonrise"]           = { name = "Moonrise Towers",    slug = "moonrise-towers",    act = 2 },
+  ["MOO_MoonriseTowers"]     = { name = "Moonrise Towers",    slug = "moonrise-towers",    act = 2 },
+  ["MOO_Prison"]             = { name = "Moonrise Prison",    slug = "moonrise-towers",    act = 2 },
+  ["MOO_MindFlayerColony"]   = { name = "Mind Flayer Colony", slug = "moonrise-towers",    act = 2 },
+  ["MOO_Rooftop"]            = { name = "Moonrise Rooftop",   slug = "moonrise-towers",    act = 2 },
+  ["MOO_Oubliette"]          = { name = "Oubliette",          slug = "moonrise-towers",    act = 2 },
+
+  -- Act 2 — House of Healing
+  ["SCL_HouseOfHealing"]     = { name = "House of Healing",   slug = "shadow-cursed-lands",act = 2 },
+
+  -- Act 2 — Reithwin locations
+  ["SCL_GrandMausoleum"]     = { name = "Grand Mausoleum",    slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_MasonsGuild"]        = { name = "Mason's Guild",      slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_Tollhouse"]          = { name = "Reithwin Tollhouse", slug = "shadow-cursed-lands",act = 2 },
+  ["SCL_WaningMoon"]         = { name = "The Waning Moon",    slug = "shadow-cursed-lands",act = 2 },
+
+  -- Act 3 — World
+  ["WLD_Main_C"]             = { name = "Baldur's Gate",      slug = "baldurs-gate",       act = 3 },
+
+  -- Act 3 — Rivington
+  ["RIW_Rivington"]          = { name = "Rivington",          slug = "rivington",          act = 3 },
+  ["RIW_Circus"]             = { name = "Circus of the Last Days", slug = "rivington",     act = 3 },
+  ["RIW_OpenHandTemple"]     = { name = "Open Hand Temple",   slug = "rivington",          act = 3 },
+
+  -- Act 3 — Wyrm's Crossing
+  ["WYC_WyrmsCrossing"]      = { name = "Wyrm's Crossing",    slug = "wyrms-crossing",     act = 3 },
+
+  -- Act 3 — Wyrm's Rock
+  ["WYR_WyrmsRock"]          = { name = "Wyrm's Rock Fortress",slug = "wyrms-rock-fortress",act = 3 },
+  ["WYR_Prison"]             = { name = "Wyrm's Rock Prison", slug = "wyrms-rock-fortress",act = 3 },
+  ["WYR_Wyrmway"]            = { name = "The Wyrmway",        slug = "wyrms-rock-fortress",act = 3 },
+
+  -- Act 3 — Lower City
+  ["LOW_LowerCity"]          = { name = "Lower City",          slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_Sewers"]             = { name = "Lower City Sewers",   slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_Guildhall"]          = { name = "Guildhall",           slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_ElfsongTavern"]      = { name = "Elfsong Tavern",      slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_SorcerousSundries"]  = { name = "Sorcerous Sundries",  slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_BasiliskGate"]       = { name = "Basilisk Gate",       slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_CountingHouse"]      = { name = "The Counting House",  slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_Graveyard"]          = { name = "Graveyard",           slug = "baldurs-gate-lower-city", act = 3 },
+  ["LOW_SteelWatch"]         = { name = "Steel Watch Foundry", slug = "baldurs-gate-lower-city", act = 3 },
+
+  -- Act 3 — Undercity
+  ["UNC_Undercity"]          = { name = "Undercity",           slug = "undercity",          act = 3 },
+  ["UNC_UndercityRuins"]     = { name = "Undercity Ruins",     slug = "undercity",          act = 3 },
+  ["UNC_BhaalTemple"]        = { name = "Bhaal Temple",        slug = "undercity",          act = 3 },
+  ["UNC_MorphicPool"]        = { name = "Morphic Pool",        slug = "undercity",          act = 3 },
+
+  -- Act 3 — Upper City
+  ["UPP_UpperCity"]          = { name = "Upper City",          slug = "baldurs-gate-upper-city", act = 3 },
+  ["UPP_HighHall"]           = { name = "High Hall",           slug = "baldurs-gate-upper-city", act = 3 },
+
+  -- Act 3 — Szarr Palace
+  ["SZA_SzarrPalace"]        = { name = "Szarr Palace",        slug = "baldurs-gate-upper-city", act = 3 },
+  ["SZA_CazadorDungeon"]     = { name = "Cazador's Dungeon",   slug = "baldurs-gate-upper-city", act = 3 },
+
+  -- Other / special
+  ["GEN_CharacterCreation"]  = { name = "Character Creation",  slug = "character-creation", act = 0 },
+  ["WLD_DevilCamp"]          = { name = "Camp",                 slug = "camp",               act = 0 },
+}
+
+-- Prefix fallback: if no exact match, try prefix to map to a parent area
+local AREA_PREFIX_MAP = {
+  ["TUT_"]   = { name = "Prologue",       slug = "nautiloid",          act = 0 },
+  ["FOR_"]   = { name = "Wilderness",      slug = "wilderness",         act = 1 },
+  ["GOB_"]   = { name = "Goblin Camp",     slug = "goblin-camp",        act = 1 },
+  ["UND_"]   = { name = "Underdark",       slug = "underdark",          act = 1 },
+  ["GRY_"]   = { name = "Grymforge",       slug = "grymforge",          act = 1 },
+  ["MON_"]   = { name = "Mountain Pass",   slug = "mountain-pass",      act = 1 },
+  ["CRE_"]   = { name = "Crèche Y'llek",   slug = "mountain-pass",      act = 1 },
+  ["SCL_"]   = { name = "Shadow-Cursed Lands", slug = "shadow-cursed-lands", act = 2 },
+  ["LLI_"]   = { name = "Last Light Inn",  slug = "last-light-inn",     act = 2 },
+  ["MOO_"]   = { name = "Moonrise Towers", slug = "moonrise-towers",    act = 2 },
+  ["RIW_"]   = { name = "Rivington",       slug = "rivington",          act = 3 },
+  ["WYC_"]   = { name = "Wyrm's Crossing", slug = "wyrms-crossing",     act = 3 },
+  ["WYR_"]   = { name = "Wyrm's Rock",     slug = "wyrms-rock-fortress",act = 3 },
+  ["LOW_"]   = { name = "Lower City",      slug = "baldurs-gate-lower-city", act = 3 },
+  ["UNC_"]   = { name = "Undercity",        slug = "undercity",          act = 3 },
+  ["UPP_"]   = { name = "Upper City",      slug = "baldurs-gate-upper-city", act = 3 },
+  ["SZA_"]   = { name = "Szarr Palace",    slug = "baldurs-gate-upper-city", act = 3 },
+  ["GLO_"]   = { name = "Camp",            slug = "camp",               act = 0 },
+  ["WLD_"]   = { name = "World",           slug = "wilderness",         act = 1 },
+  ["WAU_"]   = { name = "Waukeen's Rest",  slug = "waukeens-rest",      act = 1 },
+  ["GOR_"]   = { name = "Grove Interior",  slug = "druid-grove",        act = 1 },
+  ["GEN_"]   = { name = "Game System",     slug = "camp",               act = 0 },
+  ["CAM_"]   = { name = "Camp",            slug = "camp",               act = 0 },
+}
+
+--- Resolve internal level name to friendly area info
+--- @param levelName string Internal BG3 level name (e.g. "GOB_A_Camp")
+--- @return table|nil { name, slug, act }
+local function resolveAreaName(levelName)
+  if not levelName or levelName == "" then return nil end
+  -- Exact match
+  if AREA_MAP[levelName] then return AREA_MAP[levelName] end
+  -- Prefix fallback (longest prefix match)
+  for prefix, info in pairs(AREA_PREFIX_MAP) do
+    if levelName:sub(1, #prefix) == prefix then
+      return info
+    end
   end
   return nil
 end
@@ -864,7 +1079,6 @@ function Tadpole:CaptureState()
           if data then table.insert(party, data) end
         end
       end
-      end
     end)
 
     local hostData = getPartyMemberData(hostGuid, hostGuid)
@@ -872,6 +1086,10 @@ function Tadpole:CaptureState()
     -- Session-level area (from Ext.Utils.GetCurrentLevel)
     local area = ""
     pcall(function() area = Ext.Utils.GetCurrentLevel() or "" end)
+    local areaInfo = resolveAreaName(area)
+    local areaName = areaInfo and areaInfo.name or ""
+    local areaSlug = areaInfo and areaInfo.slug or ""
+    local areaAct = areaInfo and areaInfo.act or 0
 
     local gold = 0
     pcall(function() gold = Osi.GetGold(hostGuid) or 0 end)
@@ -897,6 +1115,9 @@ function Tadpole:CaptureState()
       version = self.version,
       timestamp = getTime(),
       area = area,
+      areaName = areaName,
+      areaSlug = areaSlug,
+      areaAct = areaAct,
       inCombat = inCombat,
       host = hostData,
       party = party,

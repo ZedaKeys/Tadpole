@@ -77,6 +77,7 @@ const callGetLog = callable<[], { log: string }>("get_log");
 const callGetLaunchOptions = callable<[], { success: boolean; current: string; recommended: string; has_dwrite: boolean; error?: string }>("get_launch_options");
 const callSetLaunchOptions = callable<[string], { success: boolean; message: string; value?: string }>("set_launch_options");
 const callCopyToClipboard = callable<[string], { success: boolean; error?: string }>("copy_to_clipboard");
+const callSendCommand = callable<[string, string], { success: boolean; message: string }>("send_command");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,7 +86,7 @@ const callCopyToClipboard = callable<[string], { success: boolean; error?: strin
 interface PluginSettings { port: number; autoStart: boolean; bridgeDir: string; }
 const DEFAULT_SETTINGS: PluginSettings = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
 
-type Tab = "live" | "setup" | "launch" | "settings";
+type Tab = "live" | "setup" | "cheats" | "settings";
 
 // ---------------------------------------------------------------------------
 // Main Panel
@@ -136,6 +137,10 @@ const TadpolePanel: FunctionComponent = () => {
   const [launchHasDwrite, setLaunchHasDwrite] = useState(false);
   const [launchLoading, setLaunchLoading] = useState(false);
   const [launchCopied, setLaunchCopied] = useState("");
+
+  // Cheats
+  const [cheatLoading, setCheatLoading] = useState(false);
+  const [godModeEnabled, setGodModeEnabled] = useState(false);
 
   const autoStartRef = useRef(false);
   const tabRef = useRef<Tab>(tab);
@@ -330,9 +335,9 @@ const TadpolePanel: FunctionComponent = () => {
     };
   }, [reconnecting, tab, fetchStatus]);
 
-  // Auto-fetch launch options when switching to Launch tab
+  // Auto-fetch launch options when switching to Settings tab (launch section is there)
   useEffect(() => {
-    if (tab !== "launch") return;
+    if (tab !== "settings") return;
     (async () => {
       try {
         const info = await callGetLaunchOptions();
@@ -575,11 +580,304 @@ const TadpolePanel: FunctionComponent = () => {
   );
 
   // -----------------------------------------------------------------------
-  // Tab: Launch
+  // Tab: Cheats
   // -----------------------------------------------------------------------
-  const LaunchTab = () => (
+  const CheatsTab = () => (
     <div>
       <div style={s.card()}>
+        <div style={{ ...s.value, fontSize: 14, marginBottom: 6 }}>Cheat Commands</div>
+        <div style={s.muted}>Send commands to the BG3 Lua mod. Game must be running with the mod installed.</div>
+      </div>
+
+      {/* Heal Party */}
+      <div style={s.card("rgba(82,183,136,0.2)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>💚</span>
+            <span style={{ ...s.value, fontSize: 13, color: "#52b788" }}>Heal Party</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("heal_party", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Heal Full Party
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* Revive All */}
+      <div style={s.card("rgba(100,149,237,0.2)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>💙</span>
+            <span style={{ ...s.value, fontSize: 13, color: "rgba(100,149,237,0.9)" }}>Revive All</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("revive", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Revive All Party Members
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* Full Restore */}
+      <div style={s.card("rgba(82,183,136,0.2)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>✨</span>
+            <span style={{ ...s.value, fontSize: 13, color: "#52b788" }}>Full Restore</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("full_restore", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Full HP &amp; Resources
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* Add Gold */}
+      <div style={s.card("rgba(244,162,97,0.15)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>💰</span>
+            <span style={{ ...s.value, fontSize: 13, color: "#f4a261" }}>Add Gold</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[100, 500, 1000, 5000].map(amount => (
+            <ButtonItem key={amount} layout="below" smol style={{ flex: 1, minWidth: 0 }} disabled={cheatLoading} onClick={async () => {
+              setCheatLoading(true);
+              try {
+                const r = await callSendCommand("add_gold", String(amount));
+                toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+              } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+              setCheatLoading(false);
+            }}>
+              +{amount}
+            </ButtonItem>
+          ))}
+        </div>
+      </div>
+
+      {/* Long Rest */}
+      <div style={s.card("rgba(168,85,247,0.15)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>🌙</span>
+            <span style={{ ...s.value, fontSize: 13, color: "rgba(168,85,247,0.9)" }}>Long Rest</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("long_rest", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Trigger Long Rest
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* Short Rest */}
+      <div style={s.card("rgba(168,85,247,0.15)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>⛅</span>
+            <span style={{ ...s.value, fontSize: 13, color: "rgba(168,85,247,0.9)" }}>Short Rest</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("short_rest", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Trigger Short Rest
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* God Mode */}
+      <div style={s.card("rgba(255,215,0,0.15)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>👑</span>
+            <span style={{ ...s.value, fontSize: 13, color: "rgba(255,215,0,0.9)" }}>God Mode</span>
+          </div>
+          {godModeEnabled && <span style={s.pill("rgba(255,215,0,0.8)")}>ON</span>}
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            const newVal = godModeEnabled ? "0" : "1";
+            try {
+              const r = await callSendCommand("god_mode", newVal);
+              if (r.success) setGodModeEnabled(!godModeEnabled);
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            {godModeEnabled ? "Disable God Mode" : "Enable God Mode"}
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* Reset Cooldowns */}
+      <div style={s.card("rgba(100,149,237,0.2)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>🔄</span>
+            <span style={{ ...s.value, fontSize: 13, color: "rgba(100,149,237,0.9)" }}>Reset Cooldowns</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("reset_cooldowns", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Reset All Cooldowns
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+
+      {/* Toggle Combat */}
+      <div style={s.card("rgba(231,111,81,0.2)")}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <div style={s.row(false)}>
+            <span style={{ fontSize: 14, marginRight: 8 }}>⚔️</span>
+            <span style={{ ...s.value, fontSize: 13, color: "#e76f51" }}>Toggle Combat</span>
+          </div>
+        </div>
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={cheatLoading} onClick={async () => {
+            setCheatLoading(true);
+            try {
+              const r = await callSendCommand("toggle_combat", "");
+              toaster.toast({ title: r.success ? "Done" : "Failed", body: r.message });
+            } catch { toaster.toast({ title: "Error", body: "Could not send command" }); }
+            setCheatLoading(false);
+          }}>
+            Enter / Exit Combat
+          </ButtonItem>
+        </PanelSectionRow>
+      </div>
+    </div>
+  );
+
+  // -----------------------------------------------------------------------
+  // Tab: Settings
+  // -----------------------------------------------------------------------
+  const SettingsTab = () => (
+    <div>
+      <div style={s.card()}>
+        <ToggleField label="Auto-start with BG3" checked={settings.autoStart}
+          onChange={(v: any) => updateSettings({ ...settings, autoStart: v })} />
+      </div>
+
+      <div style={s.card()}>
+        <div style={{ ...s.row(), marginBottom: 6 }}>
+          <span style={s.label}>Port</span>
+          <span style={s.value}>{settings.port}</span>
+        </div>
+        <div style={s.row()}>
+          <span style={s.label}>Bridge Dir</span>
+          <span style={{ ...s.value, fontSize: 10, fontFamily: "monospace", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{settings.bridgeDir}</span>
+        </div>
+      </div>
+
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={async () => {
+          setCheckingUpdate(true);
+          try {
+            const info = await callCheckUpdate();
+            setUpdateInfo(info);
+            if (info.update_available) toaster.toast({ title: "Update Available", body: `v${info.latest_version}` });
+            else if (!info.error) toaster.toast({ title: "Up to Date", body: `v${info.current_version}` });
+          } catch { toaster.toast({ title: "Error", body: "Could not check updates" }); }
+          setCheckingUpdate(false);
+        }} disabled={checkingUpdate}>
+          {checkingUpdate ? "Checking..." : "Check for Updates"}
+        </ButtonItem>
+      </PanelSectionRow>
+
+      {updateInfo?.update_available && (
+        <div style={s.card("rgba(120,180,255,0.15)")}>
+          <div style={{ ...s.row(), marginBottom: 4 }}>
+            <span style={{ ...s.value, color: "rgba(120,180,255,0.9)", fontSize: 12 }}>Update v{updateInfo.latest_version}</span>
+            <span style={s.label}>from v{updateInfo.current_version}</span>
+          </div>
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={async () => {
+              setUpdating(true);
+              try {
+                const r = await callPerformUpdate(updateInfo.download_url);
+                toaster.toast({ title: r.success ? "Downloaded!" : "Failed", body: r.message });
+              } catch { toaster.toast({ title: "Error", body: "Download failed" }); }
+              setUpdating(false);
+            }} disabled={updating}>
+              {updating ? "Downloading..." : "Download Update"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </div>
+      )}
+
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={async () => {
+          try { const r = await callGetLog(); setLogText(r.log); } catch { setLogText("Could not read log"); }
+          setShowLog(!showLog);
+        }}>
+          {showLog ? "Hide Log" : "View Log"}
+        </ButtonItem>
+      </PanelSectionRow>
+      {showLog && (
+        <div style={{
+          ...s.card(), fontFamily: "monospace", fontSize: 10,
+          color: "rgba(255,255,255,0.35)", maxHeight: 200, overflowY: "auto",
+          whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
+        }}>
+          {logText || "Loading..."}
+        </div>
+      )}
+
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={() => { runDiagnostics(); setTab("setup"); }}>
+          Run Setup / Diagnostics
+        </ButtonItem>
+      </PanelSectionRow>
+
+      {/* ---- BG3 Launch Options (moved from Launch tab) ---- */}
+
+      <div style={{ ...s.card(), marginTop: 12 }}>
         <div style={{ ...s.value, fontSize: 14, marginBottom: 6 }}>BG3 Launch Options</div>
         <div style={s.muted}>Required for BG3 Script Extender. Steam needs a restart after changing these.</div>
       </div>
@@ -680,7 +978,7 @@ const TadpolePanel: FunctionComponent = () => {
         </div>
       </div>
 
-      {/* Refresh */}
+      {/* Refresh launch status */}
       <PanelSectionRow>
         <ButtonItem layout="below" onClick={async () => {
           setLaunchLoading(true);
@@ -694,90 +992,7 @@ const TadpolePanel: FunctionComponent = () => {
           } catch { toaster.toast({ title: "Error", body: "Could not read launch options" }); }
           setLaunchLoading(false);
         }}>
-          Refresh Status
-        </ButtonItem>
-      </PanelSectionRow>
-    </div>
-  );
-
-  // -----------------------------------------------------------------------
-  // Tab: Settings
-  // -----------------------------------------------------------------------
-  const SettingsTab = () => (
-    <div>
-      <div style={s.card()}>
-        <ToggleField label="Auto-start with BG3" checked={settings.autoStart}
-          onChange={(v: any) => updateSettings({ ...settings, autoStart: v })} />
-      </div>
-
-      <div style={s.card()}>
-        <div style={{ ...s.row(), marginBottom: 6 }}>
-          <span style={s.label}>Port</span>
-          <span style={s.value}>{settings.port}</span>
-        </div>
-        <div style={s.row()}>
-          <span style={s.label}>Bridge Dir</span>
-          <span style={{ ...s.value, fontSize: 10, fontFamily: "monospace", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{settings.bridgeDir}</span>
-        </div>
-      </div>
-
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={async () => {
-          setCheckingUpdate(true);
-          try {
-            const info = await callCheckUpdate();
-            setUpdateInfo(info);
-            if (info.update_available) toaster.toast({ title: "Update Available", body: `v${info.latest_version}` });
-            else if (!info.error) toaster.toast({ title: "Up to Date", body: `v${info.current_version}` });
-          } catch { toaster.toast({ title: "Error", body: "Could not check updates" }); }
-          setCheckingUpdate(false);
-        }} disabled={checkingUpdate}>
-          {checkingUpdate ? "Checking..." : "Check for Updates"}
-        </ButtonItem>
-      </PanelSectionRow>
-
-      {updateInfo?.update_available && (
-        <div style={s.card("rgba(120,180,255,0.15)")}>
-          <div style={{ ...s.row(), marginBottom: 4 }}>
-            <span style={{ ...s.value, color: "rgba(120,180,255,0.9)", fontSize: 12 }}>Update v{updateInfo.latest_version}</span>
-            <span style={s.label}>from v{updateInfo.current_version}</span>
-          </div>
-          <PanelSectionRow>
-            <ButtonItem layout="below" onClick={async () => {
-              setUpdating(true);
-              try {
-                const r = await callPerformUpdate(updateInfo.download_url);
-                toaster.toast({ title: r.success ? "Downloaded!" : "Failed", body: r.message });
-              } catch { toaster.toast({ title: "Error", body: "Download failed" }); }
-              setUpdating(false);
-            }} disabled={updating}>
-              {updating ? "Downloading..." : "Download Update"}
-            </ButtonItem>
-          </PanelSectionRow>
-        </div>
-      )}
-
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={async () => {
-          try { const r = await callGetLog(); setLogText(r.log); } catch { setLogText("Could not read log"); }
-          setShowLog(!showLog);
-        }}>
-          {showLog ? "Hide Log" : "View Log"}
-        </ButtonItem>
-      </PanelSectionRow>
-      {showLog && (
-        <div style={{
-          ...s.card(), fontFamily: "monospace", fontSize: 10,
-          color: "rgba(255,255,255,0.35)", maxHeight: 200, overflowY: "auto",
-          whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.4,
-        }}>
-          {logText || "Loading..."}
-        </div>
-      )}
-
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={() => { runDiagnostics(); setTab("setup"); }}>
-          Run Setup / Diagnostics
+          Refresh Launch Status
         </ButtonItem>
       </PanelSectionRow>
 
@@ -795,9 +1010,9 @@ const TadpolePanel: FunctionComponent = () => {
       <div style={s.root}>
         {/* Tab bar */}
         <div style={s.tabRow}>
-          {(["live", "setup", "launch", "settings"] as Tab[]).map(t => (
+          {(["live", "setup", "cheats", "settings"] as Tab[]).map(t => (
             <button key={t} style={s.tab(tab === t)} onClick={() => setTab(t)}>
-              {t === "live" ? "Live" : t === "setup" ? "Setup" : t === "launch" ? "Launch" : "Settings"}
+              {t === "live" ? "Live" : t === "setup" ? "Setup" : t === "cheats" ? "Cheats" : "Settings"}
             </button>
           ))}
         </div>
@@ -808,7 +1023,7 @@ const TadpolePanel: FunctionComponent = () => {
           <>
             {tab === "live" && <LiveTab />}
             {tab === "setup" && <SetupTab />}
-            {tab === "launch" && <LaunchTab />}
+            {tab === "cheats" && <CheatsTab />}
             {tab === "settings" && <SettingsTab />}
           </>
         )}

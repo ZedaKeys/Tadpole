@@ -52,3 +52,6 @@ PROJECT_CACHE.md
 TadpoleCompanion/
 tadpole-decky-v*.zip
 
+decky-plugin/bridge/phone-app/
+decky-plugin/dist/
+decky-plugin/node_modules/

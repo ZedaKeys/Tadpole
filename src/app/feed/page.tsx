@@ -148,10 +148,20 @@ function formatRelative(timestamp: number, now: number): string {
 }
 
 function getHpColor(hp: number, maxHp: number): string {
-  const pct = maxHp > 0 ? hp / maxHp : 0;
+  const safeHp = typeof hp === 'number' ? hp : 0;
+  const safeMax = typeof maxHp === 'number' ? maxHp : 1;
+  const pct = safeMax > 0 ? safeHp / safeMax : 0;
   if (pct > 0.5) return '#52b788';
   if (pct > 0.25) return '#f4a261';
   return '#e76f51';
+}
+
+/** Ensure a value is a renderable primitive (string/number/boolean/null/undefined).
+ *  Prevents React error #310 "Objects are not valid as a React child". */
+function safeStr(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return String(val);
+  return '';
 }
 
 /* ── Main component ── */
@@ -174,6 +184,14 @@ export default function FeedPage() {
       return next;
     });
   };
+
+  // Event counts by category for filter pills (MUST be before early return — hooks order must be stable)
+  const allEventsForCounts = gameState?.events || [];
+  const categoryCounts = useMemo(() => {
+    const counts: Record<EventCategory, number> = { combat: 0, healing: 0, spells: 0, status: 0, misc: 0 };
+    for (const e of allEventsForCounts) counts[getEventCategory(e.type)]++;
+    return counts;
+  }, [allEventsForCounts]);
 
   // Not connected — show prompt
   if (!isConnected || !gameState) {
@@ -242,13 +260,7 @@ export default function FeedPage() {
   const latestTs = allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp : gameState.timestamp;
   const lastUpdatedSec = latestTs > 0 ? Math.max(0, Math.floor((now - latestTs) / 1000)) : 0;
 
-  // Event counts by category for filter pills
-  const categoryCounts = useMemo(() => {
-    const counts: Record<EventCategory, number> = { combat: 0, healing: 0, spells: 0, status: 0, misc: 0 };
-    for (const e of allEvents) counts[getEventCategory(e.type)]++;
-    return counts;
-  }, [allEvents]);
-
+  // categoryCounts moved above early return for stable hook order
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', width: '100%', padding: '16px 16px 72px' }}>
       {/* Header with last updated */}
@@ -363,18 +375,18 @@ export default function FeedPage() {
         }}>
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: '#e8e8ef' }}>
-              {host.name}
+              {safeStr(host.name) || 'Player'}
             </span>
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginLeft: 8 }}>
-              Lvl {host.level}
+              Lvl {typeof host.level === 'number' ? host.level : '?'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <Heart size={12} style={{ color: getHpColor(host.hp, host.maxHp) }} />
             <span style={{ fontSize: 14, fontWeight: 600, color: getHpColor(host.hp, host.maxHp) }}>
-              {host.hp}
+              {typeof host.hp === 'number' ? host.hp : '?'}
             </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/ {host.maxHp}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>/ {typeof host.maxHp === 'number' ? host.maxHp : '?'}</span>
           </div>
         </div>
       )}
@@ -519,7 +531,7 @@ export default function FeedPage() {
                         )}
                       </div>
                       {/* Show latest event detail if present */}
-                      {group.events[0].detail && (
+                      {safeStr(group.events[0].detail) && (
                         <div style={{
                           fontSize: 11,
                           color: 'rgba(255,255,255,0.3)',
@@ -527,7 +539,7 @@ export default function FeedPage() {
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}>
-                          {group.events[0].detail}
+                          {safeStr(group.events[0].detail)}
                         </div>
                       )}
                     </div>
@@ -578,20 +590,20 @@ export default function FeedPage() {
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
                           }}>
-                            {event.detail || getEventLabel(event.type)}
-                            {event.amount != null && (
+                            {safeStr(event.detail) || getEventLabel(event.type)}
+                            {typeof event.amount === 'number' && event.amount != null && (
                               <span style={{ color, marginLeft: 4, fontWeight: 600 }}>
                                 {event.amount > 0 ? '+' : ''}{event.amount}
                               </span>
                             )}
-                            {event.target && (
+                            {safeStr(event.target) && (
                               <span style={{ color: 'rgba(255,255,255,0.25)', marginLeft: 4 }}>
-                                → {event.target}
+                                → {safeStr(event.target)}
                               </span>
                             )}
-                            {event.entity && (
+                            {safeStr(event.entity) && (
                               <span style={{ color: 'rgba(255,255,255,0.25)' }}>
-                                {event.entity}
+                                {safeStr(event.entity)}
                               </span>
                             )}
                           </span>
@@ -620,7 +632,7 @@ export default function FeedPage() {
       </div>
 
       {/* Area context at bottom */}
-      {gameState.area && (
+      {(safeStr(gameState.area) || safeStr(gameState.areaName)) && (
         <div style={{
           marginTop: 12,
           padding: '10px 14px',
@@ -633,7 +645,7 @@ export default function FeedPage() {
         }}>
           <MapPin size={13} style={{ color: '#48bfe3', flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-            Current area: <strong style={{ color: '#e8e8ef' }}>{gameState.area}</strong>
+            Current area: <strong style={{ color: '#e8e8ef' }}>{safeStr(gameState.areaName) || safeStr(gameState.area)}</strong>
           </span>
         </div>
       )}

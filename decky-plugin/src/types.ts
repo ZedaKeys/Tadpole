@@ -109,6 +109,9 @@ export interface CampSupplies {
 export interface GameState {
   timestamp: number;
   area: string;
+  areaName?: string;
+  areaSlug?: string;
+  areaAct?: number;
   inCombat: boolean;
   inDialog?: boolean;
   weather?: string;

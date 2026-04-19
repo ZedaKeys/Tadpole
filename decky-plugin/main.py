@@ -70,6 +70,33 @@ _status_cache = {
     "node_installed": False, "node_ts": 0,
 }
 
+# Default command file path (used by Lua mod)
+_DEFAULT_COMMAND_FILE = (
+    "/home/deck/.local/share/Steam/steamapps/compatdata/1086940/pfx/drive_c/users/"
+    "steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/Script Extender/TadpoleCommands.json"
+)
+_BRIDGE_ENV_FILE = "/home/deck/.config/tadpole-bridge.env"
+
+
+def _get_command_file() -> str:
+    """Return the path to TadpoleCommands.json.
+
+    Checks the bridge env file for COMMAND_FILE= first, then falls back to the
+    default SE directory path.
+    """
+    try:
+        if os.path.exists(_BRIDGE_ENV_FILE):
+            with open(_BRIDGE_ENV_FILE, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("COMMAND_FILE="):
+                        path = line[len("COMMAND_FILE="):].strip().strip('"').strip("'")
+                        if path:
+                            return path
+    except OSError:
+        pass
+    return _DEFAULT_COMMAND_FILE
+
 # ---------------------------------------------------------------------------
 # WebSocket listener thread — connects to bridge and pushes updates via decky.emit
 # ---------------------------------------------------------------------------
@@ -828,8 +855,10 @@ def _get_steam_launch_options(appid):
             app_section = content[brace_start:app_section_end]
 
             # Now search for LaunchOptions in this section
-            launch_pattern = re.compile(r'"LaunchOptions"\s+"([^"]*)"')
-            match = launch_pattern.search(app_section)
+            # VDF values can contain escaped quotes (\\\") e.g. WINEDLLOVERRIDES=\"DWrite.dll=n,b\"
+            # The regex must match the full value including escaped quotes, stopping only at
+            # an unescaped closing quote.
+            launch_pattern = re.compile(r'"LaunchOptions"\s+"((?:[^"\\]|\\.)*)"')
             if match:
                 return match.group(1)
         except Exception:
@@ -2207,20 +2236,70 @@ class Plugin:
 
             if _bridge_process is None:
                 # Something is listening on the port but we don't track the process.
-                # Try to clean up via PID file or port-based kill.
+                # This happens when the bridge was started by systemd or another instance.
+                killed = False
+
+                # 1. Try stopping systemd service first
                 try:
-                    if os.path.exists(_BRIDGE_PID_FILE):
-                        with open(_BRIDGE_PID_FILE, "r") as f:
-                            pid = int(f.read().strip())
-                        os.kill(pid, signal.SIGTERM)
+                    result = subprocess.run(
+                        ["systemctl", "--user", "stop", "tadpole-bridge"],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    if result.returncode == 0:
+                        killed = True
+                        decky.logger.info("Stopped bridge via systemd")
                 except Exception:
                     pass
+
+                # 2. Try PID file
+                if not killed:
+                    try:
+                        if os.path.exists(_BRIDGE_PID_FILE):
+                            with open(_BRIDGE_PID_FILE, "r") as f:
+                                pid = int(f.read().strip())
+                            if os.path.exists(f"/proc/{pid}"):
+                                os.kill(pid, signal.SIGTERM)
+                                await asyncio.sleep(0.5)
+                                if os.path.exists(f"/proc/{pid}"):
+                                    os.kill(pid, signal.SIGKILL)
+                                killed = True
+                                decky.logger.info(f"Killed bridge PID {pid} from PID file")
+                    except Exception:
+                        pass
+
+                # 3. Try fuser to kill whatever is on the port
+                if not killed:
+                    try:
+                        subprocess.run(
+                            ["fuser", "-k", "-TERM", f"{_bridge_port}/tcp"],
+                            capture_output=True, timeout=5,
+                        )
+                        await asyncio.sleep(0.5)
+                        killed = True
+                        decky.logger.info(f"Killed process on port {_bridge_port} via fuser")
+                    except Exception:
+                        pass
+
+                # 4. Last resort: pkill node server.js
+                if not killed:
+                    try:
+                        subprocess.run(
+                            ["pkill", "-f", "node.*server.js"],
+                            capture_output=True, timeout=5,
+                        )
+                        killed = True
+                        decky.logger.info("Killed bridge via pkill")
+                    except Exception:
+                        pass
+
+                # Clean up PID file
                 try:
                     if os.path.exists(_BRIDGE_PID_FILE):
                         os.remove(_BRIDGE_PID_FILE)
                 except OSError:
                     pass
-                return {"success": True, "message": "Bridge was not tracked (cleaned up)"}
+
+                return {"success": True, "message": "Bridge stopped" if killed else "Bridge was not tracked (cleaned up)"}
 
             pgid = os.getpgid(_bridge_process.pid)
             os.killpg(pgid, signal.SIGTERM)
@@ -2305,3 +2384,63 @@ class Plugin:
             decky.logger.error(f"Could not save settings: {e}")
             _report_plugin_error(f"save_settings: {e}", stack=tb)
             return {"success": False, "message": str(e)}
+
+    # -------------------------------------------------------------------
+    # Cheats — write commands to the Lua mod's command file
+    # -------------------------------------------------------------------
+
+    async def send_command(self, action: str, value: str = "") -> dict:
+        """Append a cheat command to the TadpoleCommands.json file for the Lua mod to consume.
+
+        Allowed actions: heal_party, revive, full_restore, add_gold,
+        trigger_rest, short_rest, long_rest, god_mode, reset_cooldowns, toggle_combat.
+        """
+        ALLOWED = {
+            "heal_party", "revive", "full_restore", "add_gold",
+            "trigger_rest", "short_rest", "long_rest", "god_mode",
+            "reset_cooldowns", "toggle_combat",
+        }
+
+        if action not in ALLOWED:
+            return {"success": False, "message": f"Unknown action: {action}"}
+
+        # Validate value for specific actions
+        if action == "add_gold" and (not value or not value.isdigit()):
+            return {"success": False, "message": "add_gold requires a numeric value"}
+        if action == "god_mode" and value not in ("0", "1"):
+            return {"success": False, "message": "god_mode value must be '0' or '1'"}
+
+        try:
+            cmd_file = _get_command_file()
+            _log(f"send_command: action={action}, value={value}, file={cmd_file}")
+
+            # Read existing commands (or start fresh)
+            commands = []
+            if os.path.exists(cmd_file):
+                try:
+                    with open(cmd_file, "r") as f:
+                        data = f.read().strip()
+                    if data:
+                        commands = json.loads(data)
+                        if not isinstance(commands, list):
+                            commands = []
+                except (json.JSONDecodeError, OSError):
+                    commands = []
+
+            # Append new command
+            commands.append({"type": action, "value": str(value)})
+
+            # Atomic write: temp file + rename
+            cmd_dir = os.path.dirname(cmd_file)
+            os.makedirs(cmd_dir, exist_ok=True)
+            temp_path = cmd_file + ".tmp"
+            with open(temp_path, "w") as f:
+                f.write(json.dumps(commands))
+            os.rename(temp_path, cmd_file)
+
+            _log(f"send_command: wrote command {action} to {cmd_file}")
+            return {"success": True, "message": f"Sent: {action}" + (f" ({value})" if value else "")}
+
+        except Exception as e:
+            _log(f"send_command failed: {e}", "ERROR")
+            return {"success": False, "message": f"Failed: {str(e)}"}

@@ -1,1 +1,0 @@
-self.__SSG_MANIFEST=new Set(["\u002Fareas\u002F[areaId]","\u002Fbuilds\u002F[classId]","\u002Fcompanions\u002F[companionId]","\u002Fitems\u002F[itemId]","\u002Fquests\u002F[questId]","\u002Fspells\u002F[spellId]","\u002Ftours\u002F[tourId]"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()

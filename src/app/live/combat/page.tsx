@@ -1187,7 +1187,7 @@ export default function CombatOverlayPage() {
           {activeState.area && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Location:</span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e0d8' }}>{activeState.area}</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e0d8' }}>{activeState.areaName || activeState.area}</span>
             </div>
           )}
 
