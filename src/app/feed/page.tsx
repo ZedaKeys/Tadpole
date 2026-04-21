@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
 import type { GameEvent } from '@/types';
+import { safeStr } from '@/lib/safe-cast';
 import {
   MapPin, Swords, WifiOff, Shield, Heart, Zap, AlertTriangle,
   ArrowLeft, Sword, Flame, Skull, Sparkles, MessageSquare,
@@ -154,14 +155,6 @@ function getHpColor(hp: number, maxHp: number): string {
   if (pct > 0.5) return '#52b788';
   if (pct > 0.25) return '#f4a261';
   return '#e76f51';
-}
-
-/** Ensure a value is a renderable primitive (string/number/boolean/null/undefined).
- *  Prevents React error #310 "Objects are not valid as a React child". */
-function safeStr(val: unknown): string {
-  if (val == null) return '';
-  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return String(val);
-  return '';
 }
 
 /* ── Main component ── */

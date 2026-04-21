@@ -2155,6 +2155,36 @@ class Plugin:
             env = os.environ.copy()
             env["PORT"] = str(_bridge_port)
 
+            # Set STATE_FILE and COMMAND_FILE to the Script Extender directory.
+            # Without these, the bridge defaults to /tmp/ which means:
+            # - Commands pile up in /tmp and never reach the Lua mod
+            # - State file may be read via symlink (fs.watch doesn't follow symlinks)
+            se_base = os.path.join(
+                decky.DECKY_USER_HOME,
+                ".local", "share", "Steam", "steamapps", "compatdata", "1086940",
+                "pfx", "drive_c", "users", "steamuser", "AppData", "Local",
+                "Larian Studios", "Baldur's Gate 3", "Script Extender",
+            )
+            if os.path.isdir(se_base):
+                env["STATE_FILE"] = os.path.join(se_base, "TadpoleState.json")
+                env["COMMAND_FILE"] = os.path.join(se_base, "TadpoleCommands.json")
+                decky.logger.info(f"Bridge env: STATE_FILE={env['STATE_FILE']}")
+            else:
+                # Fallback: try the env file if the SE dir doesn't exist yet
+                if os.path.exists(_BRIDGE_ENV_FILE):
+                    try:
+                        with open(_BRIDGE_ENV_FILE, "r") as f:
+                            for line in f:
+                                line = line.strip()
+                                if "=" in line and not line.startswith("#"):
+                                    key, _, val = line.partition("=")
+                                    key = key.strip()
+                                    val = val.strip().strip('"').strip("'")
+                                    if key in ("STATE_FILE", "COMMAND_FILE") and val:
+                                        env[key] = val
+                    except OSError:
+                        pass
+
             # Open log files for bridge server output
             global _bridge_stdout_log, _bridge_stderr_log
             log_dir = getattr(decky, 'DECKY_PLUGIN_LOG_DIR', '/tmp')

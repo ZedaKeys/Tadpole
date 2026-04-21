@@ -1,6 +1,7 @@
 'use client';
 
 import type { GameState } from '@/types';
+import { safeStr, safeNum } from '@/lib/safe-cast';
 
 interface WidgetProps {
   gameState: GameState;
@@ -33,8 +34,11 @@ export default function CharacterOverview({ gameState }: WidgetProps) {
     );
   }
 
-  const hpPct = host.maxHp > 0 ? (host.hp / host.maxHp) * 100 : 0;
-  const hpColor = getHpColor(host.hp, host.maxHp);
+  const hp = safeNum(host.hp);
+  const maxHp = safeNum(host.maxHp);
+  const tempHp = safeNum(host.tempHp);
+  const hpPct = maxHp > 0 ? (hp / maxHp) * 100 : 0;
+  const hpColor = getHpColor(hp, maxHp);
 
   return (
     <div style={{
@@ -45,7 +49,7 @@ export default function CharacterOverview({ gameState }: WidgetProps) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <h3 style={{ color: '#e8e8ef', margin: 0, fontSize: 20, fontWeight: 700 }}>
-          {host.name}
+          {safeStr(host.name)}
         </h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {host.isSneaking && (
@@ -67,7 +71,7 @@ export default function CharacterOverview({ gameState }: WidgetProps) {
             borderRadius: 10,
             fontWeight: 600,
           }}>
-            LVL {host.level}
+            LVL {safeNum(host.level)}
           </span>
         </div>
       </div>
@@ -75,10 +79,10 @@ export default function CharacterOverview({ gameState }: WidgetProps) {
       <div style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>
-            HP {host.tempHp != null && host.tempHp > 0 ? `(+${host.tempHp})` : ''}
+            HP {tempHp > 0 ? `(+${tempHp})` : ''}
           </span>
           <span style={{ color: '#e8e8ef', fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-            {host.hp} / {host.maxHp}
+            {hp} / {maxHp}
           </span>
         </div>
         <div style={{
@@ -111,7 +115,7 @@ export default function CharacterOverview({ gameState }: WidgetProps) {
             minWidth: 44,
             justifyContent: 'center',
           }}>
-            AC {host.armorClass}
+            AC {safeNum(host.armorClass)}
           </div>
         )}
         {host.isDead && (
@@ -153,7 +157,7 @@ export default function CharacterOverview({ gameState }: WidgetProps) {
             minWidth: 44,
             justifyContent: 'center',
           }}>
-            +{host.proficiencyBonus} PROF
+            +{safeNum(host.proficiencyBonus)} PROF
           </div>
         )}
         {host.hasTadpole && (

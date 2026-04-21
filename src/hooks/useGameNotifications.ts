@@ -17,12 +17,15 @@ export function useGameNotifications(maxNotifications: number = 50) {
 
   useEffect(() => {
     const conn = getGameConnection();
-    conn.onEvent((event) => {
+    const unsubscribe = conn.onEvent((event) => {
       setNotifications(prev => {
         const next = [...prev, { ...event, id: ++notifId }];
         return next.slice(-maxNotifications);
       });
     });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [maxNotifications]);
 
   const clearNotifications = useCallback(() => {

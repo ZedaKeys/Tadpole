@@ -1,6 +1,7 @@
 'use client';
 
 import type { GameState } from '@/types';
+import { safeStr, safeNum } from '@/lib/safe-cast';
 
 interface WidgetProps {
   gameState: GameState;
@@ -45,16 +46,18 @@ export default function PartyHealth({ gameState }: WidgetProps) {
       </h4>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {party.map((member) => {
-          const pct = member.maxHp > 0 ? (member.hp / member.maxHp) * 100 : 0;
-          const color = getHpColor(member.hp, member.maxHp);
+          const hp = safeNum(member.hp);
+          const maxHp = safeNum(member.maxHp);
+          const pct = maxHp > 0 ? (hp / maxHp) * 100 : 0;
+          const color = getHpColor(hp, maxHp);
           return (
             <div key={member.guid}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <span style={{ color: '#e8e8ef', fontSize: 14, fontWeight: 500 }}>
-                  {member.name}
+                  {safeStr(member.name)}
                 </span>
                 <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
-                  {member.hp}/{member.maxHp}
+                  {hp}/{maxHp}
                   {member.isDead && <span style={{ color: '#e76f51', marginLeft: 4 }}>DEAD</span>}
                 </span>
               </div>

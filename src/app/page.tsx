@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
+import { safeStr } from '@/lib/safe-cast';
 
 // useWidgetConfig hook — imported dynamically since another agent creates it
 // Falls back to defaults if the module doesn't exist yet
@@ -452,7 +453,7 @@ export default function HomePage() {
         flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 18, fontWeight: 600, color: '#e8e8ef' }}>
-          {gameState.areaName || gameState.area || 'Unknown'}
+          {safeStr(gameState.areaName || gameState.area) || 'Unknown'}
         </span>
         {gameState.inCombat && (
           <span style={{
@@ -496,7 +497,7 @@ export default function HomePage() {
             fontSize: 12,
             fontWeight: 600,
           }}>
-            <Cloud size={12} /> {gameState.weather}
+            <Cloud size={12} /> {safeStr(gameState.weather)}
           </span>
         )}
       </div>

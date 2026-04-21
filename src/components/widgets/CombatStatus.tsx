@@ -62,7 +62,7 @@ export default function CombatStatus({ gameState }: WidgetProps) {
             </span>
             {host?.combatDetail && (
               <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-                Init: {host.combatDetail.initiativeRoll}
+                Init: {typeof host.combatDetail.initiativeRoll === 'number' ? host.combatDetail.initiativeRoll : '?'}
               </span>
             )}
           </>

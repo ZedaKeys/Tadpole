@@ -29,6 +29,7 @@ export interface AbilityScores {
 export interface ConcentrationInfo {
   spellId: string;
   caster: string;
+  spellName?: string;
 }
 
 /** Death saves tracker */
@@ -59,6 +60,7 @@ export interface GameCharacter {
   experience?: number;
   proficiencyBonus?: number;
   abilityScores?: AbilityScores;
+  abilityModifiers?: Record<string, number>;
   spellSlots?: SpellSlots;
   actionResources?: ActionResource[];
   conditions?: string[];
@@ -69,7 +71,7 @@ export interface GameCharacter {
   /** Detailed XP breakdown from Experience component */
   experienceDetail?: { currentLevelXp: number; nextLevelXp: number; totalXp: number };
   /** Carry weight and encumbrance state */
-  encumbrance?: { weight: number; weightDisplay: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number };
+  encumbrance?: { weight: number; weightDisplay?: number; state: number; maxWeight: number; encumberedWeight: number; heavilyEncumberedWeight: number };
   /** Stealth state and obscurity level */
   stealthState?: { sneaking: boolean; obscurity: number };
   /** Vision ranges */
@@ -79,15 +81,29 @@ export interface GameCharacter {
   /** Combat-specific data */
   combatDetail?: { initiativeRoll: number; combatGroupId: string };
   /** Character state flags */
-  characterFlags?: { fightMode: boolean; floating: boolean; invisible: boolean; offStage: boolean; storyNPC: boolean; isCompanion: boolean; isPet: boolean; cannotDie: boolean };
+  characterFlags?: { fightMode: boolean; floating: boolean; invisible: boolean; offStage: boolean; storyNPC: boolean; isCompanion?: boolean; isPet: boolean; cannotDie: boolean; cannotMove?: boolean; cannotRun?: boolean; isPlayer?: boolean; spotSneakers?: boolean };
   /** Illithid tadpole tree state */
   tadpoleState?: { state: number };
+  /** Whether character has an illithid tadpole */
+  hasTadpole?: boolean;
   /** Race/Background/Origin IDs */
   raceAndBackground?: { raceId?: string; backgroundId?: string; origin?: string };
   /** Passive ability IDs */
   passives?: string[];
   /** Entity tags */
   tags?: string[];
+  /** Approval rating (companion) */
+  approval?: number;
+  /** Approval level */
+  approvalLevel?: string;
+  /** Whether this entity is a player character */
+  isPlayer?: boolean;
+  /** Whether this is the avatar (main player character) */
+  isAvatar?: boolean;
+  /** Deity worshipped by this character */
+  god?: string;
+  /** Current area/zone name */
+  area?: string;
 }
 
 /** A game event from the Lua mod's Osiris listeners */
@@ -120,6 +136,15 @@ export interface GameState {
   gold: number;
   events: GameEvent[];
   campSupplies?: CampSupplies;
+  version?: string;
+  sessionStats?: SessionStats;
+}
+
+/** Session statistics tracked by the bridge */
+export interface SessionStats {
+  startTime?: number;
+  eventsProcessed?: number;
+  commandsExecuted?: number;
 }
 
 // ---------------------------------------------------------------------------
