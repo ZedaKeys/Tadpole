@@ -1394,6 +1394,15 @@ end)
 
 -- Character died
 Ext.Osiris.RegisterListener("CharacterDied", 1, "after", function(entity)
+  -- Increment kills when a non-party character dies while the party is in combat
+  tryCall(function()
+    if not isHostOrParty(entity) then
+      local hostGuid = Osi.GetHostCharacter()
+      if hostGuid and Osi.IsInCombat(hostGuid) == 1 then
+        Tadpole.sessionStats.kills = Tadpole.sessionStats.kills + 1
+      end
+    end
+  end)
   addEvent({ type = "character_died", entity = entity, timestamp = getTime() })
 end)
 
@@ -1438,6 +1447,18 @@ tryCall(function()
       if isHostOrParty(guid) then
         Tadpole.sessionStats.damageTaken = Tadpole.sessionStats.damageTaken + amount
       end
+      -- Also track damage dealt by party members (via Instigator/Source)
+      local instigatorGuid = ""
+      tryCall(function()
+        if e.Instigator and e.Instigator.Uuid then
+          instigatorGuid = e.Instigator.Uuid._EntityUuid or ""
+        elseif e.Source and type(e.Source) == "table" and e.Source.Uuid then
+          instigatorGuid = e.Source.Uuid._EntityUuid or ""
+        end
+      end)
+      if instigatorGuid ~= "" and isHostOrParty(instigatorGuid) and instigatorGuid ~= guid then
+        Tadpole.sessionStats.damageDealt = Tadpole.sessionStats.damageDealt + amount
+      end
       addEvent({
         type = "damage_taken",
         entity = guid,
@@ -1445,6 +1466,71 @@ tryCall(function()
         damageType = damageType,
         timestamp = getTime(),
       })
+    end)
+  end)
+end)
+
+-- SpellCastHit — track damageDealt and criticalHits for party members
+tryCall(function()
+  Ext.Events.SpellCastHit:Subscribe(function(e)
+    tryCall(function()
+      local casterGuid = ""
+      tryCall(function()
+        if e.Caster then
+          casterGuid = e.Caster.Uuid._EntityUuid or ""
+        elseif e.Entity then
+          casterGuid = e.Entity.Uuid._EntityUuid or ""
+        end
+      end)
+      if isHostOrParty(casterGuid) then
+        -- Track damage dealt
+        local damage = 0
+        tryCall(function()
+          if e.TotalDamageDone then
+            damage = tonumber(e.TotalDamageDone) or 0
+          elseif e.Damage then
+            damage = tonumber(e.Damage) or 0
+          elseif e.Amount then
+            damage = tonumber(e.Amount) or 0
+          end
+        end)
+        if damage > 0 then
+          Tadpole.sessionStats.damageDealt = Tadpole.sessionStats.damageDealt + damage
+        end
+        -- Track critical hits
+        local isCritical = false
+        tryCall(function()
+          if type(e.IsCritical) == "boolean" then
+            isCritical = e.IsCritical
+          elseif type(e.CriticalHit) == "boolean" then
+            isCritical = e.CriticalHit
+          elseif type(e.Critical) == "boolean" then
+            isCritical = e.Critical
+          end
+        end)
+        if isCritical then
+          Tadpole.sessionStats.criticalHits = Tadpole.sessionStats.criticalHits + 1
+        end
+        local targetGuid = ""
+        tryCall(function()
+          if e.Target then
+            targetGuid = e.Target.Uuid._EntityUuid or ""
+          elseif e.TargetEntity then
+            targetGuid = e.TargetEntity.Uuid._EntityUuid or ""
+          end
+        end)
+        local spellId = ""
+        tryCall(function() spellId = tostring(e.SpellId or e.Spell or "") end)
+        addEvent({
+          type = "spell_cast_hit",
+          caster = casterGuid,
+          target = targetGuid,
+          spellId = spellId,
+          damage = damage,
+          critical = isCritical,
+          timestamp = getTime(),
+        })
+      end
     end)
   end)
 end)

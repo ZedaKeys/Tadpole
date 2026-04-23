@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'Areas — Tadpole' };
+
 import { useState, useMemo } from 'react';
 import { Search, MapPin } from 'lucide-react';
 import { areas } from '@/data/areas';

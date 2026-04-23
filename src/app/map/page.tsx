@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'World Map — Tadpole' };
 
 import { useState, useCallback, useEffect } from 'react';
 import { areas } from '@/data/areas';

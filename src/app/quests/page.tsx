@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'Quests — Tadpole' };
+
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { quests } from '@/data/quests';

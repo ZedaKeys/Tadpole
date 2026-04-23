@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'Trivia — Tadpole' };
+
 import { useState, useMemo, useCallback } from 'react';
 import { ArrowLeft, Trophy, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';

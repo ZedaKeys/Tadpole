@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Tracker — Tadpole' };
 
 import { useState, useCallback, useRef } from 'react';
 import {

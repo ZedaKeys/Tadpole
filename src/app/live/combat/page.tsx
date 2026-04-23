@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Combat — Tadpole' };
 
 import { useState, useMemo, memo, useRef, useEffect } from 'react';
 import {

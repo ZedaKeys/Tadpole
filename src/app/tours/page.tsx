@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Tours — Tadpole' };
 
 import { Map, Clock, Layers } from 'lucide-react';
 import { tours } from '@/data/tours';

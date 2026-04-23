@@ -765,11 +765,10 @@ async function writeCommand(command) {
 }
 
 // ---------------------------------------------------------------------------
-// WebSocket per-client rate limiting
+// WebSocket per-client rate limiting (per connection, not per IP)
 // ---------------------------------------------------------------------------
-const wsRateLimitMap = new Map(); // clientIp -> { count, resetAt }
-const WS_RATE_LIMIT_WINDOW = 60000; // 1 minute
-const WS_RATE_LIMIT_MAX = 60; // messages per window
+const WS_MSG_LIMIT = 30;           // max messages per window
+const WS_MSG_WINDOW = 10000;       // 10 seconds
 
 // ---------------------------------------------------------------------------
 // WebSocket connection handling
@@ -789,21 +788,16 @@ wss.on('connection', (ws, req) => {
   }
 
   ws.on('message', async (raw) => {
-    // Per-client WebSocket rate limiting
+    // Per-connection WebSocket rate limiting
     const now = Date.now();
-    // Purge stale WS rate limit entries
-    for (const [key, val] of wsRateLimitMap) {
-      if (now > val.resetAt) wsRateLimitMap.delete(key);
-    }
-    const wsEntry = wsRateLimitMap.get(clientIp);
-    if (!wsEntry || now > wsEntry.resetAt) {
-      wsRateLimitMap.set(clientIp, { count: 1, resetAt: now + WS_RATE_LIMIT_WINDOW });
-    } else {
-      wsEntry.count++;
-      if (wsEntry.count > WS_RATE_LIMIT_MAX) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Rate limited', retry_after: Math.ceil((wsEntry.resetAt - now) / 1000) }));
-        return;
-      }
+    if (!ws._msgTimes) ws._msgTimes = [];
+    ws._msgTimes = ws._msgTimes.filter(t => now - t < WS_MSG_WINDOW);
+    ws._msgTimes.push(now);
+    if (ws._msgTimes.length > WS_MSG_LIMIT) {
+      console.warn(`[ws] Rate limit exceeded for ${clientIp} — closing connection`);
+      ws.send(JSON.stringify({ type: 'error', message: 'Rate limit exceeded: too many messages. Closing connection.' }));
+      ws.close(1008, 'Rate limit exceeded');
+      return;
     }
 
     try {

@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'Dice Calculator — Tadpole' };
+
 import { useState, useMemo, useCallback } from 'react';
 import { Dices } from 'lucide-react';
 import { rollDice, calculateProbability, getDiceStatistics, parseDiceNotation } from '@/lib/dice';

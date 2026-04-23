@@ -1,4 +1,6 @@
-import { items } from '@/data/items';
+1|import { items } from '@/data/items';
+
+export const metadata = { title: 'Item — Tadpole' };
 import ItemDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {

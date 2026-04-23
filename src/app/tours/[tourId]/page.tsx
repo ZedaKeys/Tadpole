@@ -1,4 +1,6 @@
-import { tours } from '@/data/tours';
+1|import { tours } from '@/data/tours';
+
+export const metadata = { title: 'Tour — Tadpole' };
 import TourDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {

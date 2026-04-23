@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Romance — Tadpole' };
 
 import { useMemo } from 'react';
 import { Heart, Sparkles, AlertTriangle, Smile } from 'lucide-react';

@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Browse — Tadpole' };
 
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';

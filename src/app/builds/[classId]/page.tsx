@@ -1,4 +1,6 @@
-import { classes } from '@/data/classes';
+1|import { classes } from '@/data/classes';
+
+export const metadata = { title: 'Build Details — Tadpole' };
 import ClassDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {

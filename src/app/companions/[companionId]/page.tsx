@@ -1,4 +1,6 @@
-import { companions } from '@/data/companions';
+1|import { companions } from '@/data/companions';
+
+export const metadata = { title: 'Companion — Tadpole' };
 import CompanionDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {

@@ -1,4 +1,6 @@
-import { areas } from '@/data/areas';
+1|import { areas } from '@/data/areas';
+
+export const metadata = { title: 'Areas — Tadpole' };
 import AreaDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {

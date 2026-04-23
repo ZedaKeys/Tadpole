@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'New Build — Tadpole' };
+
 import { Suspense, useReducer, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';

@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Activity Feed — Tadpole' };
 
 import { useState, useEffect, useMemo } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';

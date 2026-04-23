@@ -1,4 +1,6 @@
-'use client';
+1|'use client';
+
+export const metadata = { title: 'Dice Poker — Tadpole' };
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ArrowLeft, Coins, Trophy, RotateCcw, Swords, Skull, Sparkles } from 'lucide-react';

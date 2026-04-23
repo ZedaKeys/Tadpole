@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'Spells — Tadpole' };
+
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { spells } from '@/data/spells';

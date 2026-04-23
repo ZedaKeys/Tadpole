@@ -1,5 +1,7 @@
 'use client';
 
+export const metadata = { title: 'Build Planner — Tadpole' };
+
 import { classes } from '@/data/classes';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
