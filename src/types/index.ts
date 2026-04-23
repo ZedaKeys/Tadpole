@@ -225,7 +225,7 @@ export interface UserPreferences {
 }
 
 // === Live Game State (Phase 2+) ===
-// Shape matches the actual Lua mod (TadpoleCompanion.lua v0.20.0) output.
+// Shape matches the actual Lua mod (BootstrapServer.lua v0.22.0) output.
 
 export interface AbilityScores {
   str: number;

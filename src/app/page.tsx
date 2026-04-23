@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
 import { safeStr } from '@/lib/safe-cast';
 
-// useWidgetConfig hook — imported dynamically since another agent creates it
-// Falls back to defaults if the module doesn't exist yet
+import { useWidgetConfig } from '@/hooks/useWidgetConfig';
+
 const DEFAULT_WIDGET_ORDER = [
   'character', 'partyHealth', 'combatStatus', 'xpProgress',
   'goldResources', 'spellSlots', 'conditions', 'campSupplies',
@@ -15,12 +15,9 @@ const DEFAULT_WIDGET_ORDER = [
 
 function useWidgetConfigSafe() {
   try {
-    // Dynamic require for optional module
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-    const mod = require('@/hooks/useWidgetConfig');
-    if (mod && mod.useWidgetConfig) return mod.useWidgetConfig();
+    return useWidgetConfig();
   } catch {
-    // Module doesn't exist yet — use defaults
+    // Hook error — use defaults
   }
   return {
     widgets: DEFAULT_WIDGET_ORDER,

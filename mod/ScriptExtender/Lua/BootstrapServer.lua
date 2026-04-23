@@ -1,4 +1,4 @@
--- TadpoleCompanion v0.21.0
+-- TadpoleCompanion v0.22.0
 -- BG3 ScriptExtender mod for Tadpole companion app
 -- BG3SE v30/v31 — comprehensive state capture with error suppression
 
@@ -7,7 +7,7 @@ local Tadpole = {
   elapsed = 0,
   recentEvents = {},
   prevState = nil,
-  version = "0.21.0",
+  version = "0.22.0",
   sessionStats = {
     damageDealt = 0,
     damageTaken = 0,

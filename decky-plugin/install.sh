@@ -183,6 +183,11 @@ if [[ -d "${SCRIPT_DIR}/assets" ]]; then
     cp -r "${SCRIPT_DIR}/assets" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
 fi
 
+# Copy mod directory if it exists
+if [[ -d "${SCRIPT_DIR}/mod" ]]; then
+    cp -r "${SCRIPT_DIR}/mod" "${DECKY_PLUGIN_DIR}/" 2>/dev/null || true
+fi
+
 log_ok "Plugin files installed to: ${DECKY_PLUGIN_DIR}"
 
 # ── Step 6b: Copy bridge server files ────────────────────────────────────────

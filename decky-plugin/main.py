@@ -55,7 +55,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.18.0"
+PLUGIN_VERSION = "0.22.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -72,10 +72,10 @@ _status_cache = {
 
 # Default command file path (used by Lua mod)
 _DEFAULT_COMMAND_FILE = (
-    "/home/deck/.local/share/Steam/steamapps/compatdata/1086940/pfx/drive_c/users/"
+    os.path.expanduser("~") + "/.local/share/Steam/steamapps/compatdata/1086940/pfx/drive_c/users/"
     "steamuser/AppData/Local/Larian Studios/Baldur's Gate 3/Script Extender/TadpoleCommands.json"
 )
-_BRIDGE_ENV_FILE = "/home/deck/.config/tadpole-bridge.env"
+_BRIDGE_ENV_FILE = os.path.expanduser("~") + "/.config/tadpole-bridge.env"
 
 
 def _get_command_file() -> str:
@@ -711,7 +711,7 @@ def _is_lua_mod_installed():
         for candidate in candidates:
             # Check for v30 mod structure
             config_json = os.path.join(candidate, "ScriptExtender", "Config.json")
-            lua_file = os.path.join(candidate, "ScriptExtender", "Lua", "TadpoleCompanion.lua")
+            lua_file = os.path.join(candidate, "ScriptExtender", "Lua", "BootstrapServer.lua")
             if os.path.exists(config_json) and os.path.exists(lua_file):
                 return True
         # Also check if BG3 SE is even installed (Mods directory exists)
@@ -1094,14 +1094,12 @@ GITHUB_RAW = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main"
 BRIDGE_FILES = [
     "bridge/package.json",
     "bridge/server.js",
-    "bridge/ws-handler.js",
-    "bridge/state-parser.js",
 ]
 
 # The Lua mod files (v30 format)
 LUA_MOD_FILES = [
     "mod/ScriptExtender/Config.json",
-    "mod/ScriptExtender/Lua/TadpoleCompanion.lua",
+    "mod/ScriptExtender/Lua/BootstrapServer.lua",
     "mod/meta.lsx",
     "mod/modsettings.lsx",
 ]
@@ -1578,17 +1576,20 @@ async def _kill_bridge_cascade():
     # 4. Try fuser on bridge port
     if not killed:
         try:
-            subprocess.run(
+            r1 = subprocess.run(
                 ["fuser", "-k", "-TERM", f"{_bridge_port}/tcp"],
                 capture_output=True, timeout=5,
             )
             await asyncio.sleep(0.5)
-            subprocess.run(
+            r2 = subprocess.run(
                 ["fuser", "-k", f"{_bridge_port}/tcp"],
                 capture_output=True, timeout=5,
             )
-            killed = True
-            decky.logger.info(f"Killed process on port {_bridge_port} via fuser")
+            if r1.returncode == 0 or r2.returncode == 0:
+                killed = True
+                decky.logger.info(f"Killed process on port {_bridge_port} via fuser")
+            else:
+                decky.logger.info(f"fuser found no process on port {_bridge_port}")
         except Exception:
             pass
 
@@ -2133,7 +2134,7 @@ class Plugin:
                     os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleCompanion", "bridge", "server.js"),
                     os.path.join(decky.DECKY_USER_HOME, "homebrew", "plugins", "TadpoleBG3", "bridge", "server.js"),
                     os.path.join(decky.DECKY_USER_HOME, ".config", "decky", "plugins", "TadpoleBG3", "bridge", "server.js"),
-                    "/home/deck/tadpole/bridge/server.js",
+                    os.path.join(os.path.expanduser("~"), "tadpole", "bridge", "server.js"),
                 ]
                 for candidate in candidates:
                     if os.path.exists(candidate):

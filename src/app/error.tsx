@@ -2,108 +2,108 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { APP_NAME } from '@/lib/version';
-import { reportError } from '@/lib/error-reporter';
 
-export default function GlobalError({
+export default function Error({
   error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // Report the error when the boundary catches it
   useEffect(() => {
-    try {
-      reportError(error, {
-        source: 'app',
-        metadata: { digest: error?.digest },
-      });
-    } catch {
-      // Never let error reporting crash the error boundary
-    }
+    console.error('[Tadpole] Render error:', error);
   }, [error]);
 
   return (
-    <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-lg mx-auto w-full text-center">
-      {/* Error icon */}
-      <div
-        className="mb-6"
-        style={{
-          width: 80,
-          height: 80,
-          borderRadius: '50%',
-          background: 'rgba(239, 68, 68, 0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '2.5rem',
-        }}
-      >
-        ⚠️
-      </div>
-
-      <h1
-        className="text-2xl font-bold tracking-tight mb-2"
-        style={{ color: 'var(--text-primary)' }}
-      >
-        Something went wrong
-      </h1>
-
-      <p
-        className="mb-2"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}
-      >
-        {APP_NAME} encountered an unexpected error.
-      </p>
-
-      {error?.message && (
-        <p
-          className="mb-6"
-          style={{
-            color: 'var(--text-muted)',
-            fontSize: '0.8rem',
-            lineHeight: 1.5,
-            maxWidth: 320,
-            wordBreak: 'break-word',
-          }}
-        >
-          {error.message}
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100dvh',
+      padding: '24px',
+      textAlign: 'center',
+      background: '#0a0a0f',
+      color: '#e8e8ef',
+    }}>
+      <div style={{
+        background: 'rgba(198, 162, 85, 0.08)',
+        border: '1px solid rgba(198, 162, 85, 0.25)',
+        borderRadius: 12,
+        padding: '32px 24px',
+        maxWidth: 360,
+        width: '100%',
+      }}>
+        <h2 style={{
+          fontFamily: "'Cinzel', serif",
+          color: '#c6a255',
+          marginBottom: 12,
+          fontSize: 20,
+        }}>
+          Something went wrong
+        </h2>
+        <p style={{
+          color: 'rgba(232, 232, 239, 0.7)',
+          fontSize: 14,
+          marginBottom: 24,
+          lineHeight: 1.5,
+        }}>
+          The companion app encountered an unexpected error. Your game data is safe.
         </p>
-      )}
-
-      <div className="flex gap-3">
-        <button
-          onClick={() => reset()}
-          className="touch-target rounded-xl px-6 py-3 font-semibold"
-          style={{
-            background: 'var(--gold)',
-            color: '#1a1830',
-            border: 'none',
-            cursor: 'pointer',
-            minHeight: 44,
-          }}
-        >
-          Try Again
-        </button>
-
-        <Link
-          href="/"
-          className="touch-target rounded-xl px-6 py-3 font-semibold"
-          style={{
-            background: 'var(--surface)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border)',
-            textDecoration: 'none',
-            minHeight: 44,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Go Home
-        </Link>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          alignItems: 'center',
+        }}>
+          <button
+            onClick={reset}
+            style={{
+              background: 'linear-gradient(135deg, #c6a255, #8b7355)',
+              border: 'none',
+              borderRadius: 8,
+              color: '#0a0a0f',
+              fontWeight: 600,
+              padding: '12px 24px',
+              fontSize: 14,
+              cursor: 'pointer',
+              minWidth: 160,
+              minHeight: 44,
+            }}
+          >
+            Try Again
+          </button>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-block',
+              background: 'transparent',
+              border: '1px solid rgba(198, 162, 85, 0.3)',
+              borderRadius: 8,
+              color: '#c6a255',
+              fontWeight: 600,
+              padding: '12px 24px',
+              fontSize: 14,
+              textDecoration: 'none',
+              minWidth: 160,
+              minHeight: 44,
+              lineHeight: '20px',
+              textAlign: 'center',
+            }}
+          >
+            Go Home
+          </Link>
+        </div>
+        <p style={{
+          color: 'rgba(232, 232, 239, 0.3)',
+          fontSize: 11,
+          marginTop: 20,
+          wordBreak: 'break-word',
+          lineHeight: 1.4,
+        }}>
+          {error?.message || 'Unknown error'}
+        </p>
       </div>
-    </main>
+    </div>
   );
 }

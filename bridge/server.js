@@ -13,7 +13,7 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const NATIVE_SOCKET = process.env.NATIVE_SOCKET || '/tmp/tadpole_native.sock';
-const BRIDGE_VERSION = '0.18.0';
+const BRIDGE_VERSION = '0.22.0';
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.
@@ -157,6 +157,12 @@ const RATE_LIMIT_MAX = 120; // requests per window
 function rateLimiter(req, res, next) {
   const ip = req.socket.remoteAddress || 'unknown';
   const now = Date.now();
+
+  // Purge stale entries from rate limit map
+  for (const [key, val] of rateLimitMap) {
+    if (now > val.resetAt) rateLimitMap.delete(key);
+  }
+
   const entry = rateLimitMap.get(ip);
 
   if (!entry || now > entry.resetAt) {
@@ -667,6 +673,8 @@ function processStateUpdate() {
 // File watcher on state file
 // ---------------------------------------------------------------------------
 let watcherReady = false;
+let stateWatcher = null;        // fs.watch() handle for cleanup
+let staleCleanupInterval = null; // setInterval ID for stale command cleanup
 
 function startStateWatcher() {
   // Ensure the directory exists
@@ -690,7 +698,7 @@ function startStateWatcher() {
   // fs.watch on the directory is more reliable than watching the file itself
   // (the Lua mod may delete+recreate the file)
   try {
-    fs.watch(dir, (eventType, filename) => {
+    stateWatcher = fs.watch(dir, (eventType, filename) => {
       if (filename === path.basename(STATE_FILE)) {
         handleChange(eventType, filename);
       }
@@ -701,8 +709,7 @@ function startStateWatcher() {
     console.error(`[watcher] Failed to watch ${dir}:`, err.message);
     reportBridgeError(`startStateWatcher: ${err.message}`, err.stack, { dir });
     // Fallback: poll every 2 seconds
-    console.log('[watcher] Falling back to polling every 2s');
-    setInterval(processStateUpdate, 2000);
+    stateWatcher = setInterval(processStateUpdate, 2000);
   }
 }
 
@@ -739,27 +746,8 @@ function writeCommandToLua(command) {
 
 async function writeCommand(command) {
   // Try Lua mod first (preferred - more features)
+  // writeCommandToLua() handles all file I/O for the command file
   const luaSuccess = writeCommandToLua(command);
-  
-  // Also write to /tmp/tadpole_commands.json for the Lua mod's polling path
-  // The Lua mod reads from os.tmpdir()/tadpole_commands.json which is /tmp on Linux
-  try {
-    const tmpCmdPath = path.join(os.tmpdir(), 'tadpole_commands.json');
-    let tmpCommands = [];
-    if (fs.existsSync(tmpCmdPath)) {
-      const raw = fs.readFileSync(tmpCmdPath, 'utf8');
-      if (raw.trim()) {
-        tmpCommands = JSON.parse(raw);
-        if (!Array.isArray(tmpCommands)) tmpCommands = [tmpCommands];
-      }
-    }
-    tmpCommands.push({ ...command, _bridgeTimestamp: Date.now() });
-    if (tmpCommands.length > 50) tmpCommands = tmpCommands.slice(-50);
-    fs.writeFileSync(tmpCmdPath, JSON.stringify(tmpCommands, null, 2), { mode: 0o600 });
-  } catch (err) {
-    // Non-critical - the Lua mod might read from the SE path instead
-    console.error('[commands] Failed to write to /tmp command file:', err.message);
-  }
   
   if (luaSuccess) return true;
 
@@ -775,6 +763,13 @@ async function writeCommand(command) {
 
   return false;
 }
+
+// ---------------------------------------------------------------------------
+// WebSocket per-client rate limiting
+// ---------------------------------------------------------------------------
+const wsRateLimitMap = new Map(); // clientIp -> { count, resetAt }
+const WS_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const WS_RATE_LIMIT_MAX = 60; // messages per window
 
 // ---------------------------------------------------------------------------
 // WebSocket connection handling
@@ -793,7 +788,24 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'history', data: stateHistory }));
   }
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
+    // Per-client WebSocket rate limiting
+    const now = Date.now();
+    // Purge stale WS rate limit entries
+    for (const [key, val] of wsRateLimitMap) {
+      if (now > val.resetAt) wsRateLimitMap.delete(key);
+    }
+    const wsEntry = wsRateLimitMap.get(clientIp);
+    if (!wsEntry || now > wsEntry.resetAt) {
+      wsRateLimitMap.set(clientIp, { count: 1, resetAt: now + WS_RATE_LIMIT_WINDOW });
+    } else {
+      wsEntry.count++;
+      if (wsEntry.count > WS_RATE_LIMIT_MAX) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Rate limited', retry_after: Math.ceil((wsEntry.resetAt - now) / 1000) }));
+        return;
+      }
+    }
+
     try {
       const msg = JSON.parse(raw.toString());
       console.log(`[ws] Command from ${clientIp}:`, msg.action || msg.type || 'unknown');
@@ -827,8 +839,8 @@ wss.on('connection', (ws, req) => {
         if (msg.value !== undefined) msg.value = Number(msg.value) || 0;
         if (msg.itemId !== undefined) msg.itemId = String(msg.itemId).replace(/[^a-zA-Z0-9_-]/g, '');
 
-        // It's a command for the Lua mod
-        const ok = writeCommand(msg);
+        // It's a command for the Lua mod — await the async writeCommand
+        const ok = await writeCommand(msg);
         ws.send(JSON.stringify({
           type: 'command_ack',
           action: msg.action,
@@ -865,7 +877,7 @@ wss.on('connection', (ws, req) => {
 // ---------------------------------------------------------------------------
 // Periodic cleanup of stale commands (older than 60s)
 // ---------------------------------------------------------------------------
-setInterval(() => {
+staleCleanupInterval = setInterval(() => {
   try {
     if (!fs.existsSync(COMMAND_FILE)) return;
     const raw = fs.readFileSync(COMMAND_FILE, 'utf8');
@@ -998,6 +1010,15 @@ wss.on('connection', (ws) => {
 function gracefulShutdown(signal) {
   console.log(`\n[shutdown] Received ${signal}. Closing connections...`);
   clearInterval(keepaliveTimer);
+  if (staleCleanupInterval) clearInterval(staleCleanupInterval);
+
+  // Close file watcher
+  if (stateWatcher) {
+    try {
+      if (typeof stateWatcher.close === 'function') stateWatcher.close();
+      else clearInterval(stateWatcher); // fallback setInterval
+    } catch {}
+  }
 
   // Stop mDNS advertisements
   if (global._bonjour) {
@@ -1035,6 +1056,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
   reportBridgeError(`uncaughtException: ${err.message}`, err.stack);
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {

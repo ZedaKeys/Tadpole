@@ -7,12 +7,21 @@
 // Core game state — matches Lua mod output exactly
 // ---------------------------------------------------------------------------
 
-/** A class resource (Bardic Inspiration, Sorcery Points, Ki, Rages, etc) */
+/** A slot within a class resource (per-level for spell slots, or single entry for actions) */
+export interface ActionResourceSlot {
+  amount: number;
+  maxAmount: number;
+  level?: number;
+}
+
+/** A class resource (Bardic Inspiration, Sorcery Points, Ki, Rages, Spell Slots, etc) */
 export interface ActionResource {
   id: string;
   name: string;
   current: number;
   max: number;
+  /** Nested slots array — the actual data format from Lua/bridge */
+  slots?: ActionResourceSlot[];
 }
 
 /** Ability scores (STR/DEX/CON/INT/WIS/CHA) */

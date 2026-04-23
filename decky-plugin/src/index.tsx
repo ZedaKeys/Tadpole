@@ -84,7 +84,7 @@ const callSendCommand = callable<[string, string], { success: boolean; message: 
 // ---------------------------------------------------------------------------
 
 interface PluginSettings { port: number; autoStart: boolean; bridgeDir: string; }
-const DEFAULT_SETTINGS: PluginSettings = { port: 3456, autoStart: true, bridgeDir: "/home/deck/tadpole/bridge" };
+const DEFAULT_SETTINGS: PluginSettings = { port: 3456, autoStart: true, bridgeDir: "~/tadpole/bridge" };
 
 type Tab = "live" | "setup" | "cheats" | "settings";
 
@@ -638,24 +638,30 @@ const TadpolePanel: FunctionComponent = () => {
                 </div>
               )}
               {/* XP Progress Bar */}
-              {gameState.host?.experience?.nextLevelXp > 0 && (
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ ...s.row(), marginBottom: 2 }}>
-                    <span style={{ ...s.muted, fontSize: 10 }}>XP</span>
-                    <span style={{ ...s.muted, fontSize: 10 }}>
-                      {gameState.host.experience.currentLevelXp} / {gameState.host.experience.nextLevelXp}
-                    </span>
+              {(() => {
+                const xpDetail = gameState.host?.experienceDetail;
+                const nextXp = xpDetail?.nextLevelXp ?? gameState.host?.experience?.nextLevelXp;
+                const curXp = xpDetail?.currentLevelXp ?? gameState.host?.experience?.currentLevelXp;
+                if (!nextXp || nextXp <= 0) return null;
+                return (
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ ...s.row(), marginBottom: 2 }}>
+                      <span style={{ ...s.muted, fontSize: 10 }}>XP</span>
+                      <span style={{ ...s.muted, fontSize: 10 }}>
+                        {curXp ?? 0} / {nextXp}
+                      </span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${Math.min(100, ((curXp ?? 0) / nextXp) * 100)}%`,
+                        backgroundColor: "rgba(120,180,255,0.7)", borderRadius: 2,
+                        transition: "width 0.4s ease",
+                      }} />
+                    </div>
                   </div>
-                  <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%",
-                      width: `${Math.min(100, (gameState.host.experience.currentLevelXp / gameState.host.experience.nextLevelXp) * 100)}%`,
-                      backgroundColor: "rgba(120,180,255,0.7)", borderRadius: 2,
-                      transition: "width 0.4s ease",
-                    }} />
-                  </div>
-                </div>
-              )}
+                );
+              })()}
               {/* Spell Slots as pips */}
               {gameState.host?.spellSlots && (() => {
                 const levels = ["level1","level2","level3","level4","level5","level6","level7","level8","level9"];

@@ -1,20 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <save>
-  <version major="4" minor="6" revision="0" build="0"/>
-  <region id="ModuleInfo">
-    <node id="root">
-      <children>
-        <node id="ModuleInfo">
-          <attribute id="UUID" type="guid" value="d1c8e9a5-7b4f-4a2e-8c1d-3f9a5b6c7d8e"/>
-          <attribute id="Name" type="LSString" value="TadpoleCompanion"/>
-          <attribute id="Folder" type="LSString" value="TadpoleCompanion"/>
-          <attribute id="Description" type="LSString" value="BG3 companion app - provides real-time game state to phone app via WebSocket bridge"/>
-          <attribute id="Author" type="LSString" value="Zeda"/>
-          <attribute id="Version" type="LSString" value="0.9.0"/>
-          <attribute id="TargetVersion" type="LSString" value="4.69"/>
-          <attribute id="Homepage" type="LSString" value="https://github.com/ZedaKeys/Tadpole"/>
+    <version major="4" minor="0" revision="9" build="303"/>
+    <region id="Config">
+        <node id="root">
+            <children>
+                <node id="Dependencies"/>
+                <node id="ModuleInfo">
+                    <attribute id="Author" type="LSString" value="Zeda"/>
+                    <attribute id="CharacterCreationLevelName" type="FixedString" value=""/>
+                    <attribute id="Description" type="LSString" value="BG3 companion app - real-time game state for phone app"/>
+                    <attribute id="Folder" type="LSString" value="TadpoleCompanion"/>
+                    <attribute id="LobbyLevelName" type="FixedString" value=""/>
+                    <attribute id="MD5" type="LSString" value=""/>
+                    <attribute id="MainMenuBackgroundVideo" type="FixedString" value=""/>
+                    <attribute id="MenuLevelName" type="FixedString" value=""/>
+                    <attribute id="Name" type="LSString" value="TadpoleCompanion"/>
+                    <attribute id="NumPlayers" type="uint8" value="4"/>
+                    <attribute id="PhotoBooth" type="FixedString" value=""/>
+                    <attribute id="StartupLevelName" type="FixedString" value=""/>
+                    <attribute id="Tags" type="LSString" value=""/>
+                    <attribute id="Type" type="FixedString" value="Add-on"/>
+                    <attribute id="UUID" type="FixedString" value="d1c8e9a5-7b4f-4a2e-8c1d-3f9a5b6c7d8e"/>
+                    <attribute id="Version64" type="int64" value="3096224743817216"/>
+                    <children>
+                        <node id="PublishVersion">
+                            <attribute id="Version64" type="int64" value="3096224743817216"/>
+                        </node>
+                        <node id="Scripts"/>
+                        <node id="TargetModes">
+                            <children>
+                                <node id="Target">
+                                    <attribute id="Object" type="FixedString" value="Story"/>
+                                </node>
+                            </children>
+                        </node>
+                    </children>
+                </node>
+            </children>
         </node>
-      </children>
-    </node>
-  </region>
+    </region>
 </save>

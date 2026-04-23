@@ -14,9 +14,16 @@
     --warning: #f4a261;
     --danger: #e76f51;
     --gold: #c6a255;
+    --gold-bright: #e5c170;
     --gold-dim: #c6a25560;
+    --gold-muted: #8b7355;
+    --arcane: #8b5cf6;
     --text: #e8e8ef;
+    --text-primary: #ede6d6;
+    --text-secondary: rgba(232, 232, 239, 0.72);
     --text-dim: rgba(255, 255, 255, 0.45);
+    --text-muted: rgba(232, 232, 239, 0.4);
+    --surface-active: #2a2848;
     --radius: 16px;
     --radius-sm: 10px;
   }
