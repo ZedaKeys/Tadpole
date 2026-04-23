@@ -55,7 +55,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.15.0"
+PLUGIN_VERSION = "0.18.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -859,6 +859,7 @@ def _get_steam_launch_options(appid):
             # The regex must match the full value including escaped quotes, stopping only at
             # an unescaped closing quote.
             launch_pattern = re.compile(r'"LaunchOptions"\s+"((?:[^"\\]|\\.)*)"')
+            match = launch_pattern.search(app_section)
             if match:
                 return match.group(1)
         except Exception:
@@ -936,7 +937,8 @@ def _set_steam_launch_options(appid, launch_options):
             app_section = content[brace_start:app_section_end + 1]
 
             # Check if LaunchOptions already exists in this section
-            launch_pattern = re.compile(r'("LaunchOptions"\s+"[^"]*")')
+            # Use escaped-quote-aware regex to match values like WINEDLLOVERRIDES=\"DWrite.dll=n,b\"
+            launch_pattern = re.compile(r'("LaunchOptions"\s+"((?:[^"\\]|\\.)*)")')
             match = launch_pattern.search(app_section)
 
             if match:
@@ -1513,6 +1515,105 @@ def _settings_path():
     return os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "tadpole.json")
 
 
+
+async def _kill_bridge_cascade():
+    """Shared cascade to fully stop the bridge process.
+
+    Tries in order:
+    1. Tracked subprocess (plugin-managed)
+    2. systemd user service
+    3. PID file (orphan detection)
+    4. fuser on bridge port
+    5. pkill fallback
+    Then cleans up PID file and resets global state.
+    Returns True if something was killed.
+    """
+    global _bridge_process, _bridge_port
+
+    killed = False
+
+    # 1. Try the tracked plugin-managed process
+    if _bridge_process is not None and _bridge_process.poll() is None:
+        try:
+            pgid = os.getpgid(_bridge_process.pid)
+            os.killpg(pgid, signal.SIGTERM)
+            try:
+                _bridge_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                os.killpg(pgid, signal.SIGKILL)
+            killed = True
+            decky.logger.info("Killed tracked bridge process")
+        except Exception as e:
+            decky.logger.warn(f"Failed to kill tracked bridge: {e}")
+    _bridge_process = None
+
+    # 2. Try systemd user service
+    if not killed:
+        try:
+            result = subprocess.run(
+                ["systemctl", "--user", "stop", "tadpole-bridge"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                killed = True
+                decky.logger.info("Stopped bridge via systemd")
+        except Exception:
+            pass
+
+    # 3. Try PID file (orphan detection)
+    if not killed and os.path.exists(_BRIDGE_PID_FILE):
+        try:
+            with open(_BRIDGE_PID_FILE, "r") as f:
+                pid = int(f.read().strip())
+            if os.path.exists(f"/proc/{pid}"):
+                os.kill(pid, signal.SIGTERM)
+                await asyncio.sleep(0.5)
+                if os.path.exists(f"/proc/{pid}"):
+                    os.kill(pid, signal.SIGKILL)
+                killed = True
+                decky.logger.info(f"Killed bridge PID {pid} from PID file")
+        except Exception as e:
+            decky.logger.warn(f"Failed to kill via PID file: {e}")
+
+    # 4. Try fuser on bridge port
+    if not killed:
+        try:
+            subprocess.run(
+                ["fuser", "-k", "-TERM", f"{_bridge_port}/tcp"],
+                capture_output=True, timeout=5,
+            )
+            await asyncio.sleep(0.5)
+            subprocess.run(
+                ["fuser", "-k", f"{_bridge_port}/tcp"],
+                capture_output=True, timeout=5,
+            )
+            killed = True
+            decky.logger.info(f"Killed process on port {_bridge_port} via fuser")
+        except Exception:
+            pass
+
+    # 5. Last resort: pkill
+    if not killed:
+        try:
+            subprocess.run(
+                ["pkill", "-f", "node.*server.js"],
+                capture_output=True, timeout=5,
+            )
+            killed = True
+            decky.logger.info("Killed bridge via pkill")
+        except Exception:
+            pass
+
+    # Clean up PID file
+    try:
+        if os.path.exists(_BRIDGE_PID_FILE):
+            os.remove(_BRIDGE_PID_FILE)
+    except OSError:
+        pass
+
+    return killed
+
+
 # ---------------------------------------------------------------------------
 # Plugin class — DeckyLoader calls async methods on this instance
 # ---------------------------------------------------------------------------
@@ -1578,84 +1679,13 @@ class Plugin:
     async def _unload(self):
         """Lifecycle: called when the plugin is unloaded."""
         decky.logger.info("Tadpole BG3 Companion plugin unloading")
-        global _bridge_process, _bridge_stdout_log, _bridge_stderr_log
+        global _bridge_stdout_log, _bridge_stderr_log
 
         # Stop the WebSocket listener thread
         _stop_ws_listener()
 
-        # 1. Stop the tracked process first
-        if _bridge_process and _is_bridge_running():
-            try:
-                pgid = os.getpgid(_bridge_process.pid)
-                os.killpg(pgid, signal.SIGTERM)
-                try:
-                    _bridge_process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    os.killpg(pgid, signal.SIGKILL)
-            except Exception as e:
-                decky.logger.warn(f"Failed to kill tracked bridge: {e}")
-        _bridge_process = None
-
-        # 2. Check and kill any process from PID file (orphan detection)
-        if os.path.exists(_BRIDGE_PID_FILE):
-            try:
-                with open(_BRIDGE_PID_FILE, "r") as f:
-                    pid = int(f.read().strip())
-                # Check if process is still running
-                if os.path.exists(f"/proc/{pid}"):
-                    try:
-                        os.kill(pid, signal.SIGTERM)
-                        await asyncio.sleep(0.5)
-                        # If still alive, force kill
-                        if os.path.exists(f"/proc/{pid}"):
-                            os.kill(pid, signal.SIGKILL)
-                        decky.logger.info(f"Killed orphaned bridge PID {pid}")
-                    except Exception as e:
-                        decky.logger.warn(f"Failed to kill PID {pid}: {e}")
-            except Exception as e:
-                decky.logger.warn(f"Failed to read PID file: {e}")
-            finally:
-                try:
-                    os.remove(_BRIDGE_PID_FILE)
-                except OSError:
-                    pass
-
-        # 3. Kill any node process running the bridge server (by port)
-        try:
-            import psutil
-            port = _bridge_port
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['name'] == 'node':
-                        # Check if this node process has our port open
-                        for conn in proc.connections():
-                            if conn.laddr.port == port:
-                                decky.logger.info(f"Killing bridge process {proc.pid} on port {port}")
-                                proc.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    continue
-        except ImportError:
-            # psutil not available, try a simpler approach
-            try:
-                # Use fuser to find process on our port, send SIGTERM first then SIGKILL
-                port = _bridge_port
-                # Try graceful SIGTERM first
-                subprocess.run(
-                    ["fuser", "-k", "-TERM", f"{port}/tcp"],
-                    capture_output=True,
-                    timeout=5
-                )
-                await asyncio.sleep(0.5)
-                # If still alive, force kill
-                result = subprocess.run(
-                    ["fuser", "-k", f"{port}/tcp"],
-                    capture_output=True,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    decky.logger.info(f"Killed process on port {port} using fuser")
-            except Exception as e:
-                decky.logger.debug(f"Could not use fuser to kill port {port}: {e}")
+        # Use shared cascade to stop bridge (process -> systemd -> PID file -> fuser -> pkill)
+        await _kill_bridge_cascade()
 
         # Close log file handles to prevent file descriptor leaks
         if _bridge_stdout_log:
@@ -2079,15 +2109,8 @@ class Plugin:
 
             decky.logger.info(f"start_bridge called: port={port}, bridge_dir={bridge_dir}")
 
-            if _is_bridge_running() or self._is_port_in_use(port or 3456):
+            if _is_bridge_running():
                 return {"success": True, "message": "Bridge already running"}
-
-            # Check port conflict before starting
-            if self._is_port_in_use(port or 3456):
-                return {
-                    "success": False,
-                    "message": f"Bridge is already running on port {port or 3456}. Everything is working!",
-                }
 
             if not _is_node_installed():
                 return {
@@ -2249,123 +2272,26 @@ class Plugin:
             }
 
     async def stop_bridge(self) -> dict:
-        """Stop the bridge server process."""
-        global _bridge_process
-
+        """Stop the bridge server process using the shared kill cascade."""
         decky.logger.info("stop_bridge called")
 
         try:
             if not _is_bridge_running():
-                _bridge_process = None
-                try:
-                    if os.path.exists(_BRIDGE_PID_FILE):
-                        os.remove(_BRIDGE_PID_FILE)
-                except OSError:
-                    pass
+                # Already stopped, just clean up
+                await _kill_bridge_cascade()
                 return {"success": True, "message": "Bridge was not running"}
 
-            if _bridge_process is None:
-                # Something is listening on the port but we don't track the process.
-                # This happens when the bridge was started by systemd or another instance.
-                killed = False
-
-                # 1. Try stopping systemd service first
-                try:
-                    result = subprocess.run(
-                        ["systemctl", "--user", "stop", "tadpole-bridge"],
-                        capture_output=True, text=True, timeout=5,
-                    )
-                    if result.returncode == 0:
-                        killed = True
-                        decky.logger.info("Stopped bridge via systemd")
-                except Exception:
-                    pass
-
-                # 2. Try PID file
-                if not killed:
-                    try:
-                        if os.path.exists(_BRIDGE_PID_FILE):
-                            with open(_BRIDGE_PID_FILE, "r") as f:
-                                pid = int(f.read().strip())
-                            if os.path.exists(f"/proc/{pid}"):
-                                os.kill(pid, signal.SIGTERM)
-                                await asyncio.sleep(0.5)
-                                if os.path.exists(f"/proc/{pid}"):
-                                    os.kill(pid, signal.SIGKILL)
-                                killed = True
-                                decky.logger.info(f"Killed bridge PID {pid} from PID file")
-                    except Exception:
-                        pass
-
-                # 3. Try fuser to kill whatever is on the port
-                if not killed:
-                    try:
-                        subprocess.run(
-                            ["fuser", "-k", "-TERM", f"{_bridge_port}/tcp"],
-                            capture_output=True, timeout=5,
-                        )
-                        await asyncio.sleep(0.5)
-                        killed = True
-                        decky.logger.info(f"Killed process on port {_bridge_port} via fuser")
-                    except Exception:
-                        pass
-
-                # 4. Last resort: pkill node server.js
-                if not killed:
-                    try:
-                        subprocess.run(
-                            ["pkill", "-f", "node.*server.js"],
-                            capture_output=True, timeout=5,
-                        )
-                        killed = True
-                        decky.logger.info("Killed bridge via pkill")
-                    except Exception:
-                        pass
-
-                # Clean up PID file
-                try:
-                    if os.path.exists(_BRIDGE_PID_FILE):
-                        os.remove(_BRIDGE_PID_FILE)
-                except OSError:
-                    pass
-
-                return {"success": True, "message": "Bridge stopped" if killed else "Bridge was not tracked (cleaned up)"}
-
-            pgid = os.getpgid(_bridge_process.pid)
-            os.killpg(pgid, signal.SIGTERM)
-
-            try:
-                _bridge_process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                os.killpg(pgid, signal.SIGKILL)
-                _bridge_process.wait(timeout=2)
-
-            _bridge_process = None
-
-            # Clean up PID file
-            try:
-                if os.path.exists(_BRIDGE_PID_FILE):
-                    os.remove(_BRIDGE_PID_FILE)
-            except OSError:
-                pass
-
+            killed = await _kill_bridge_cascade()
             decky.logger.info("Bridge stopped")
-            return {"success": True, "message": "Bridge stopped"}
+            return {"success": True, "message": "Bridge stopped" if killed else "Bridge cleaned up"}
         except Exception as e:
             tb = traceback.format_exc()
             decky.logger.error(f"stop_bridge error: {e}")
             _report_plugin_error(f"stop_bridge: {e}", stack=tb)
-            if _bridge_process is not None:
-                try:
-                    _bridge_process.kill()
-                except Exception:
-                    pass
-            _bridge_process = None
-            # Clean up PID file even on error
+            # Ensure cleanup on error
             try:
-                if os.path.exists(_BRIDGE_PID_FILE):
-                    os.remove(_BRIDGE_PID_FILE)
-            except OSError:
+                await _kill_bridge_cascade()
+            except Exception:
                 pass
             return {
                 "success": False,
@@ -2418,6 +2344,66 @@ class Plugin:
     # -------------------------------------------------------------------
     # Cheats — write commands to the Lua mod's command file
     # -------------------------------------------------------------------
+
+    async def get_god_mode(self) -> dict:
+        """Get persisted God Mode state from settings."""
+        try:
+            sp = _settings_path()
+            if os.path.exists(sp):
+                with open(sp, "r") as f:
+                    settings = json.loads(f.read())
+                return {"enabled": settings.get("godModeEnabled", False)}
+        except Exception:
+            pass
+        return {"enabled": False}
+
+    async def set_god_mode(self, enabled: bool) -> dict:
+        """Persist God Mode state to settings."""
+        try:
+            sp = _settings_path()
+            settings = {}
+            if os.path.exists(sp):
+                with open(sp, "r") as f:
+                    settings = json.loads(f.read())
+            settings["godModeEnabled"] = enabled
+            os.makedirs(os.path.dirname(sp), exist_ok=True)
+            temp_path = sp + ".tmp"
+            with open(temp_path, "w") as f:
+                f.write(json.dumps(settings, indent=2))
+            os.rename(temp_path, sp)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+
+    async def get_macros(self) -> dict:
+        """Get saved command macros from settings."""
+        try:
+            sp = _settings_path()
+            if os.path.exists(sp):
+                with open(sp, "r") as f:
+                    settings = json.loads(f.read())
+                return {"macros": settings.get("macros", [])}
+        except Exception:
+            pass
+        return {"macros": []}
+
+    async def save_macros(self, macros: list) -> dict:
+        """Persist command macros to settings."""
+        try:
+            sp = _settings_path()
+            settings = {}
+            if os.path.exists(sp):
+                with open(sp, "r") as f:
+                    settings = json.loads(f.read())
+            settings["macros"] = macros
+            os.makedirs(os.path.dirname(sp), exist_ok=True)
+            temp_path = sp + ".tmp"
+            with open(temp_path, "w") as f:
+                f.write(json.dumps(settings, indent=2))
+            os.rename(temp_path, sp)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
 
     async def send_command(self, action: str, value: str = "") -> dict:
         """Append a cheat command to the TadpoleCommands.json file for the Lua mod to consume.

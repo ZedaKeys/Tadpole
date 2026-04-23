@@ -142,6 +142,10 @@ const TadpolePanel: FunctionComponent = () => {
   const [cheatLoading, setCheatLoading] = useState(false);
   const [godModeEnabled, setGodModeEnabled] = useState(false);
 
+  // Phase 2: collapsible section state
+  const [charSheetOpen, setCharSheetOpen] = useState(false);
+  const [statusEffectsOpen, setStatusEffectsOpen] = useState(false);
+
   const autoStartRef = useRef(false);
   const tabRef = useRef<Tab>(tab);
   tabRef.current = tab;
@@ -508,6 +512,40 @@ const TadpolePanel: FunctionComponent = () => {
             )}
           </div>
 
+          {/* Action Resources Bar (inline, always visible) */}
+          {gameState.host?.actionResources && gameState.host.actionResources.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+              {gameState.host.actionResources.map((res: any, ri: number) => {
+                const totalSlots = res.slots || [];
+                const totalAmount = totalSlots.reduce((acc: number, sl: any) => acc + (sl.amount || 0), 0);
+                const totalMax = totalSlots.reduce((acc: number, sl: any) => acc + (sl.maxAmount || 0), 0);
+                if (totalMax <= 0) return null;
+                let color = "rgba(255,255,255,0.5)";
+                if (res.name === "Action") color = "#52b788";
+                else if (res.name === "Bonus Action") color = "rgba(100,149,237,0.9)";
+                else if (res.name === "Reaction") color = "#f4a261";
+                else if (res.name?.includes("Sorcery")) color = "rgba(168,85,247,0.9)";
+                else if (res.name?.includes("Channel")) color = "rgba(255,215,0,0.9)";
+                else if (res.name?.includes("Spell")) color = "rgba(120,180,255,0.9)";
+                return (
+                  <div key={ri} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 6, background: `${color}12`, border: `1px solid ${color}20` }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: color, boxShadow: `0 0 4px ${color}60` }} />
+                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", whiteSpace: "nowrap" }}>{res.name}</span>
+                    {totalSlots.length <= 1 ? (
+                      <span style={{ fontSize: 10, fontWeight: 600, color }}>{Math.round(totalAmount)}/{Math.round(totalMax)}</span>
+                    ) : (
+                      <div style={{ display: "flex", gap: 2 }}>
+                        {totalSlots.map((sl: any, si: number) => (
+                          <div key={si} style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: sl.amount > 0 ? color : `${color}30`, transition: "background-color 0.2s" }} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* HP bars */}
           {gameState.host?.maxHp > 0 && (
             <HpRow name={gameState.host.name || "Host"} hp={gameState.host.hp} maxHp={gameState.host.maxHp} bold />
@@ -526,6 +564,189 @@ const TadpolePanel: FunctionComponent = () => {
                   <span style={{ color: "rgba(255,255,255,0.45)" }}>{evt.type.replace(/_/g, " ")}{evt.detail ? ` - ${evt.detail}` : ""}</span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Character Sheet (collapsible) */}
+      {hasLiveData && (
+        <div style={s.card()}>
+          <div
+            style={{ ...s.row(), cursor: "pointer", userSelect: "none" }}
+            onClick={() => setCharSheetOpen(!charSheetOpen)}
+          >
+            <span style={{ ...s.value, fontSize: 12 }}>
+              {charSheetOpen ? "▾" : "▸"} Character Sheet
+            </span>
+            {gameState.host?.name && <span style={s.muted}>{gameState.host.name}</span>}
+          </div>
+          {charSheetOpen && (
+            <div style={{ marginTop: 8 }}>
+              {/* Name, Level */}
+              {gameState.host?.name && (
+                <div style={{ ...s.row(), marginBottom: 4 }}>
+                  <span style={{ ...s.value, fontSize: 14 }}>{gameState.host.name}</span>
+                  {gameState.host.level != null && <span style={s.pill("rgba(120,180,255,0.8)")}>Lv {gameState.host.level}</span>}
+                </div>
+              )}
+              {/* Character flags */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                {gameState.host?.hasTadpole && <span style={s.pill("rgba(168,85,247,0.7)")}>Tadpole</span>}
+                {gameState.host?.isAvatar && <span style={s.pill("rgba(120,180,255,0.6)")}>Avatar</span>}
+              </div>
+              {/* AC, Proficiency Bonus */}
+              <div style={{ ...s.row(), marginBottom: 6 }}>
+                {gameState.host?.armorClass != null && (
+                  <div style={{ textAlign: "center", padding: "2px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)" }}>
+                    <div style={{ ...s.muted, fontSize: 9 }}>AC</div>
+                    <div style={{ ...s.value, fontSize: 13 }}>{gameState.host.armorClass}</div>
+                  </div>
+                )}
+                {gameState.host?.proficiencyBonus != null && (
+                  <div style={{ textAlign: "center", padding: "2px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)" }}>
+                    <div style={{ ...s.muted, fontSize: 9 }}>Prof</div>
+                    <div style={{ ...s.value, fontSize: 13 }}>+{gameState.host.proficiencyBonus}</div>
+                  </div>
+                )}
+              </div>
+              {/* Ability Scores 2×3 grid */}
+              {gameState.host?.abilityScores && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 3, marginBottom: 6 }}>
+                  {[
+                    { key: "str", label: "STR" },
+                    { key: "dex", label: "DEX" },
+                    { key: "con", label: "CON" },
+                    { key: "int", label: "INT" },
+                    { key: "wis", label: "WIS" },
+                    { key: "cha", label: "CHA" },
+                  ].map((abi) => {
+                    const score = gameState.host.abilityScores?.[abi.key];
+                    const mod = gameState.host.abilityModifiers?.[abi.key];
+                    return score != null ? (
+                      <div key={abi.key} style={{ textAlign: "center", padding: "3px 0", borderRadius: 4, background: "rgba(255,255,255,0.03)" }}>
+                        <div style={{ ...s.muted, fontSize: 9 }}>{abi.label}</div>
+                        <div style={{ ...s.value, fontSize: 12 }}>
+                          {score}{" "}
+                          <span style={{ fontSize: 10, color: mod >= 0 ? "#52b788" : "#e76f51" }}>
+                            ({mod >= 0 ? "+" : ""}{mod})
+                          </span>
+                        </div>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              )}
+              {/* XP Progress Bar */}
+              {gameState.host?.experience?.nextLevelXp > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ ...s.row(), marginBottom: 2 }}>
+                    <span style={{ ...s.muted, fontSize: 10 }}>XP</span>
+                    <span style={{ ...s.muted, fontSize: 10 }}>
+                      {gameState.host.experience.currentLevelXp} / {gameState.host.experience.nextLevelXp}
+                    </span>
+                  </div>
+                  <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%",
+                      width: `${Math.min(100, (gameState.host.experience.currentLevelXp / gameState.host.experience.nextLevelXp) * 100)}%`,
+                      backgroundColor: "rgba(120,180,255,0.7)", borderRadius: 2,
+                      transition: "width 0.4s ease",
+                    }} />
+                  </div>
+                </div>
+              )}
+              {/* Spell Slots as pips */}
+              {gameState.host?.spellSlots && (() => {
+                const levels = ["level1","level2","level3","level4","level5","level6","level7","level8","level9"];
+                const slots = levels.map((l, idx) => {
+                  const sl = gameState.host.spellSlots[l];
+                  return sl && sl.max > 0 ? { level: idx + 1, current: sl.current || 0, max: sl.max } : null;
+                }).filter(Boolean);
+                if (slots.length === 0) return null;
+                return (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {slots.map((sl: any) => (
+                      <div key={sl.level} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 6, background: "rgba(120,180,255,0.08)", border: "1px solid rgba(120,180,255,0.12)" }}>
+                        <span style={{ fontSize: 9, color: "rgba(120,180,255,0.7)" }}>{sl.level}</span>
+                        <div style={{ display: "flex", gap: 2 }}>
+                          {Array.from({ length: sl.max }).map((_, pi: number) => (
+                            <div key={pi} style={{
+                              width: 5, height: 5, borderRadius: "50%",
+                              backgroundColor: pi < sl.current ? "rgba(120,180,255,0.9)" : "rgba(120,180,255,0.15)",
+                              transition: "background-color 0.2s",
+                            }} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Status Effects (collapsible) */}
+      {hasLiveData && (
+        <div style={s.card()}>
+          <div
+            style={{ ...s.row(), cursor: "pointer", userSelect: "none" }}
+            onClick={() => setStatusEffectsOpen(!statusEffectsOpen)}
+          >
+            <span style={{ ...s.value, fontSize: 12 }}>
+              {statusEffectsOpen ? "▾" : "▸"} Status Effects
+            </span>
+            {gameState.host?.conditions?.length > 0 && (
+              <span style={{ ...s.muted, fontSize: 10 }}>{gameState.host.conditions.length} active</span>
+            )}
+          </div>
+          {statusEffectsOpen && (
+            <div style={{ marginTop: 8 }}>
+              {/* Concentration */}
+              {gameState.host?.concentration && (
+                <div style={{ ...s.row(), marginBottom: 6, padding: "4px 8px", borderRadius: 6, background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.15)" }}>
+                  <span style={{ fontSize: 10, color: "rgba(168,85,247,0.9)", fontWeight: 600 }}>Concentrating</span>
+                </div>
+              )}
+              {/* Sneaking / Invulnerable flags */}
+              {(gameState.host?.isSneaking || gameState.host?.isInvulnerable) && (
+                <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                  {gameState.host.isSneaking && <span style={s.pill("#52b788")}>Sneaking</span>}
+                  {gameState.host.isInvulnerable && <span style={s.pill("rgba(255,215,0,0.8)")}>Invulnerable</span>}
+                </div>
+              )}
+              {/* Active Conditions */}
+              {gameState.host?.conditions?.length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ ...s.muted, fontSize: 9, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>Conditions</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                    {gameState.host.conditions.map((cond: string, i: number) => {
+                      const lc = cond.toLowerCase();
+                      const condColor = lc.includes("poison") ? "#e76f51"
+                        : lc.includes("bless") || lc.includes("shield") ? "#52b788"
+                        : lc.includes("haste") ? "#f4a261"
+                        : "rgba(255,255,255,0.5)";
+                      return <span key={i} style={s.pill(condColor)}>{cond}</span>;
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Passive Features */}
+              {gameState.host?.passives?.length > 0 && (
+                <div>
+                  <div style={{ ...s.muted, fontSize: 9, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>Passives</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                    {gameState.host.passives.map((passive: string, i: number) => (
+                      <span key={i} style={{
+                        ...s.pill("rgba(255,255,255,0.25)"),
+                        fontSize: 9, fontWeight: 400,
+                      }}>{passive}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -665,7 +886,7 @@ const TadpolePanel: FunctionComponent = () => {
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {[100, 500, 1000, 5000].map(amount => (
-            <ButtonItem key={amount} layout="below" smol style={{ flex: 1, minWidth: 0 }} disabled={cheatLoading} onClick={async () => {
+            <ButtonItem key={amount} layout="below" style={{ flex: 1, minWidth: 0 }} disabled={cheatLoading} onClick={async () => {
               setCheatLoading(true);
               try {
                 const r = await callSendCommand("add_gold", String(amount));
@@ -908,7 +1129,7 @@ const TadpolePanel: FunctionComponent = () => {
           {LAUNCH_CMD_DWRITE}
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} onClick={async () => {
+          <ButtonItem layout="below" style={{ flex: 1, minWidth: 0 }} onClick={async () => {
               try {
                 const r = await callCopyToClipboard(LAUNCH_CMD_DWRITE);
                 if (r.success) {
@@ -920,7 +1141,7 @@ const TadpolePanel: FunctionComponent = () => {
             }}>
               {launchCopied === "dwrite" ? "✓ Copied" : "📋 Copy"}
             </ButtonItem>
-            <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} disabled={launchLoading} onClick={async () => {
+            <ButtonItem layout="below" style={{ flex: 1, minWidth: 0 }} disabled={launchLoading} onClick={async () => {
               setLaunchLoading(true);
               try {
                 const r = await callSetLaunchOptions(LAUNCH_CMD_DWRITE);
@@ -949,7 +1170,7 @@ const TadpolePanel: FunctionComponent = () => {
           Use this if you have Lossless Scaling installed with LSFG frame generation.
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} onClick={async () => {
+          <ButtonItem layout="below" style={{ flex: 1, minWidth: 0 }} onClick={async () => {
               try {
                 const r = await callCopyToClipboard(LAUNCH_CMD_LSFG);
                 if (r.success) {
@@ -961,7 +1182,7 @@ const TadpolePanel: FunctionComponent = () => {
             }}>
               {launchCopied === "lsfg" ? "✓ Copied" : "📋 Copy"}
             </ButtonItem>
-            <ButtonItem layout="below" smol style={{ flex: 1, minWidth: 0 }} disabled={launchLoading} onClick={async () => {
+            <ButtonItem layout="below" style={{ flex: 1, minWidth: 0 }} disabled={launchLoading} onClick={async () => {
               setLaunchLoading(true);
               try {
                 const r = await callSetLaunchOptions(LAUNCH_CMD_LSFG);
