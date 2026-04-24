@@ -33,7 +33,7 @@ function useWidgetConfigSafe() {
 
 import {
   Swords, Wifi, WifiOff, Shield, MessageSquare, Cloud,
-  Search, Map, SlidersHorizontal, X,
+  Search, Map, SlidersHorizontal, X, Compass,
   Eye, EyeOff, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -316,6 +316,26 @@ export default function HomePage() {
           flexWrap: 'wrap',
         }}>
           <Link
+            href="/browse"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              borderRadius: 20,
+              background: 'rgba(198,162,85,0.06)',
+              border: '1px solid rgba(198,162,85,0.15)',
+              color: '#c6a255',
+              fontSize: 13,
+              textDecoration: 'none',
+              fontWeight: 600,
+              transition: 'background-color 0.2s, border-color 0.2s',
+            }}
+          >
+            <Compass size={14} />
+            Browse
+          </Link>
+          <Link
             href="/map"
             style={{
               display: 'inline-flex',
@@ -500,6 +520,38 @@ export default function HomePage() {
           </span>
         )}
       </div>
+
+      {/* Browse Encyclopedia link */}
+      <Link
+        href="/browse"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(198,162,85,0.06) 0%, rgba(139,92,246,0.04) 100%)',
+          border: '1px solid rgba(198,162,85,0.12)',
+          marginBottom: 12,
+          textDecoration: 'none',
+          transition: 'background 0.2s, border-color 0.2s',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'rgba(198,162,85,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Compass size={16} style={{ color: '#c6a255' }} />
+          </div>
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e0d8' }}>Browse Encyclopedia</span>
+            <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Spells, items, builds, quests & more</span>
+          </div>
+        </div>
+        <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 18 }}>›</span>
+      </Link>
 
       {/* Widget Grid */}
       <div style={{

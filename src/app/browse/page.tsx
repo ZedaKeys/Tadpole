@@ -39,6 +39,7 @@ const SECTIONS = [
     items: [
       { href: '/live/combat', icon: Swords, label: 'Combat', desc: 'HP & conditions', color: '#e76f51' },
       { href: '/live/approval', icon: Heart, label: 'Approval', desc: 'Real-time', color: '#c6a255' },
+      { href: '/map', icon: MapPin, label: 'World Map', desc: 'Area overview', color: '#10b981' },
     ],
   },
 ];

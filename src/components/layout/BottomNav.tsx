@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, Rss, Zap, Settings, Map } from 'lucide-react';
+import { Activity, Rss, Zap, Settings, Compass } from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -10,8 +10,8 @@ export default function BottomNav() {
   const tabs = [
     { href: '/', label: 'Live', icon: Activity },
     { href: '/feed', label: 'Feed', icon: Rss },
+    { href: '/browse', label: 'Browse', icon: Compass },
     { href: '/cheats', label: 'Cheats', icon: Zap },
-    { href: '/map', label: 'Map', icon: Map },
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
