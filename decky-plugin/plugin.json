@@ -2,7 +2,7 @@
   "name": "Tadpole BG3 Companion",
   "author": "ZedaKeys",
   "flags": [],
-  "api_version": 1,
+  "api_version": 2,
   "version": "0.22.0",
   "publish": {
     "tags": ["bg3", "companion", "game", "utility"],

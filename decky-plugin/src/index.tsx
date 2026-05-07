@@ -1,6 +1,5 @@
 import { definePlugin, callable, toaster, addEventListener, removeEventListener } from "@decky/api";
 import {
-  PanelSection,
   PanelSectionRow,
   ButtonItem,
   ToggleField,
@@ -164,7 +163,7 @@ const TadpolePanel: FunctionComponent = () => {
 
   // Load settings + diagnostics on mount
   useEffect(() => {
-    callGetSettings().then((s: any) => { if (s && Object.keys(s).length > 0) setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch(() => {});
+    callGetSettings().then((s: any) => { if (s && Object.keys(s).length > 0) setSettings({ ...DEFAULT_SETTINGS, ...s }); }).catch((e: any) => toaster.toast({ title: "Settings Error", body: e?.message || "Failed to load settings" }));
     runDiagnostics().finally(() => setInitialLoading(false));
   }, [runDiagnostics]);
 
@@ -349,7 +348,7 @@ const TadpolePanel: FunctionComponent = () => {
           setLaunchCurrent(info.current);
           setLaunchHasDwrite(info.has_dwrite);
         }
-      } catch {}
+        } catch (e: any) { console.error('Failed to load launch options:', e); }
     })();
   }, [tab]);
 
