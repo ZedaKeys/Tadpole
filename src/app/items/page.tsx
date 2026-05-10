@@ -1,6 +1,5 @@
 'use client';
 
-export const metadata = { title: 'Items — Tadpole' };
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';

@@ -1,6 +1,5 @@
-1|'use client';
+'use client';
 
-export const metadata = { title: 'Tadpole — BG3 Live Companion' };
 
 import { useState, useEffect, useMemo } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';

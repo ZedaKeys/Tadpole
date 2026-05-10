@@ -1,7 +1,8 @@
-1|import { areas } from '@/data/areas';
+import { areas } from '@/data/areas';
+
+import AreaDetailClientPage from './ClientPage';
 
 export const metadata = { title: 'Areas — Tadpole' };
-import AreaDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {
   return areas.map((a) => ({ areaId: a.id }));

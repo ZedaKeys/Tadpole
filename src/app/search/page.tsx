@@ -1,6 +1,5 @@
-1|'use client';
+'use client';
 
-export const metadata = { title: 'Search — Tadpole' };
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';

@@ -1,6 +1,5 @@
-1|'use client';
+'use client';
 
-export const metadata = { title: 'Equipment — Tadpole' };
 
 import { useState, useMemo } from 'react';
 import { Sword, Shield, Gem, ChevronDown, Search, Swords, ArrowLeft } from 'lucide-react';

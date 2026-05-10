@@ -1,7 +1,8 @@
-1|import { items } from '@/data/items';
+import { items } from '@/data/items';
+
+import ItemDetailClientPage from './ClientPage';
 
 export const metadata = { title: 'Item — Tadpole' };
-import ItemDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {
   return items.map((i) => ({ itemId: i.id }));

@@ -1,7 +1,8 @@
-1|import { classes } from '@/data/classes';
+import { classes } from '@/data/classes';
+
+import ClassDetailClientPage from './ClientPage';
 
 export const metadata = { title: 'Build Details — Tadpole' };
-import ClassDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {
   return classes.map((c) => ({ classId: c.id }));

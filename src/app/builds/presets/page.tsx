@@ -1,6 +1,5 @@
-1|'use client';
+'use client';
 
-export const metadata = { title: 'Preset Builds — Tadpole' };
 
 import { presetBuilds } from '@/data/preset-builds';
 import { classes } from '@/data/classes';

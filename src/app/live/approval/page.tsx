@@ -1,6 +1,5 @@
-1|'use client';
+'use client';
 
-export const metadata = { title: 'Approval — Tadpole' };
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Heart, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, Activity, ThumbsUp, ThumbsDown } from 'lucide-react';

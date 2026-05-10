@@ -1,6 +1,5 @@
-1|'use client';
+'use client';
 
-export const metadata = { title: 'Activity Feed — Tadpole' };
 
 import { useState, useEffect, useMemo } from 'react';
 import { useGameConnection } from '@/hooks/useGameConnection';
@@ -588,7 +587,7 @@ export default function FeedPage() {
                             {safeStr(event.detail) || getEventLabel(event.type)}
                             {typeof event.amount === 'number' && event.amount != null && (
                               <span style={{ color, marginLeft: 4, fontWeight: 600 }}>
-                                {event.amount > 0 ? '+' : ''}{event.amount}
+                                {typeof event.amount === 'number' ? (event.amount > 0 ? '+' : '') + event.amount : ''}
                               </span>
                             )}
                             {safeStr(event.target) && (

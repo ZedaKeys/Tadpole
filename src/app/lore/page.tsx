@@ -1,6 +1,5 @@
 'use client';
 
-export const metadata = { title: 'Lore — Tadpole' };
 
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { Search, BookOpen } from 'lucide-react';

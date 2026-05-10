@@ -1,6 +1,5 @@
-1|"use client";
+'use client';
 
-export const metadata = { title: 'Settings — Tadpole' };
 
 import { VERSION } from "@/lib/version";
 import { useGameConnection } from "@/hooks/useGameConnection";

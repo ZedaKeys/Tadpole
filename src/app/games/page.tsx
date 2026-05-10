@@ -1,6 +1,5 @@
 'use client';
 
-export const metadata = { title: 'Games — Tadpole' };
 
 import { Brain, Dices, Sword } from 'lucide-react';
 import { Card } from '@/components/ui/Card';

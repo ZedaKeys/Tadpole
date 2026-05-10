@@ -1,7 +1,8 @@
-1|import { spells } from '@/data/spells';
+import { spells } from '@/data/spells';
+
+import SpellDetailClientPage from './ClientPage';
 
 export const metadata = { title: 'Spell — Tadpole' };
-import SpellDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {
   return spells.map((s) => ({ spellId: s.id }));

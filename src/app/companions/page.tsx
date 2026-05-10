@@ -1,6 +1,5 @@
 'use client';
 
-export const metadata = { title: 'Companions — Tadpole' };
 
 import { useState, useMemo } from 'react';
 import { Users, Heart } from 'lucide-react';

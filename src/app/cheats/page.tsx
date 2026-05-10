@@ -1,6 +1,5 @@
-1|"use client";
+'use client';
 
-export const metadata = { title: 'Cheats — Tadpole' };
 
 import { useState } from "react";
 import { useGameConnection } from "@/hooks/useGameConnection";

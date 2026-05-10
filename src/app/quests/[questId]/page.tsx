@@ -1,7 +1,8 @@
-1|import { quests } from '@/data/quests';
+import { quests } from '@/data/quests';
+
+import QuestDetailClientPage from './ClientPage';
 
 export const metadata = { title: 'Quest — Tadpole' };
-import QuestDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {
   return quests.map((q) => ({ questId: q.id }));

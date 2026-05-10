@@ -1,7 +1,8 @@
-1|import { tours } from '@/data/tours';
+import { tours } from '@/data/tours';
+
+import TourDetailClientPage from './ClientPage';
 
 export const metadata = { title: 'Tour — Tadpole' };
-import TourDetailClientPage from './ClientPage';
 
 export function generateStaticParams() {
   return tours.map((t) => ({ tourId: t.id }));
