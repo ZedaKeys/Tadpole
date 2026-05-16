@@ -1,7 +1,7 @@
 'use client';
 
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import { Search, MapPin } from 'lucide-react';
 import { areas } from '@/data/areas';
 import { Badge } from '@/components/ui/Badge';
@@ -52,21 +52,14 @@ export default function AreasPage() {
       <a
         key={area.id}
         href={`/areas/${area.id}`}
-        className="bg3-card-premium touch-target stagger-in"
+        className="bg3-card-premium premium-card-link touch-target stagger-in"
         style={{
-          textDecoration: 'none',
-          display: 'block',
           animationDelay: `${0.2 + index * 0.04}s`,
-        }}
+          '--item-color': AREA_ACCENT,
+        } as CSSProperties}
       >
         <div
-          className="card-inner"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            background: `linear-gradient(160deg, ${AREA_ACCENT}0C, rgba(255,255,255,0.02))`,
-          }}
+          className="card-inner premium-card-column-inner"
         >
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <Badge label={`Act ${area.act}`} color="var(--gold)" />
@@ -76,44 +69,24 @@ export default function AreasPage() {
             />
           </div>
           <h3
-            className="font-heading font-semibold text-sm leading-tight mb-1"
-            style={{ color: 'var(--text-primary)' }}
+            className="font-heading premium-card-title leading-tight mb-1"
           >
             {area.name}
           </h3>
           <p
-            className="text-xs leading-snug mb-2"
-            style={{ color: 'var(--text-secondary)' }}
+            className="premium-card-description text-xs leading-snug mb-2"
           >
             {area.description}
           </p>
           {area.lockedAfter && (
             <p
-              className="text-xs mb-2"
-              style={{ color: 'var(--gold)', fontStyle: 'italic' }}
+              className="premium-card-note text-xs mb-2"
             >
               Locked after Act {area.lockedAfter}
             </p>
           )}
-          <div
-            style={{
-              background: 'var(--parchment)',
-              borderRadius: 4,
-              height: 6,
-              width: '100%',
-              overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <div
-              style={{
-                background: 'linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-bright))',
-                height: '100%',
-                width: '0%',
-                borderRadius: 4,
-                boxShadow: '0 0 6px rgba(198,162,85,0.4)',
-              }}
-            />
+          <div className="premium-progress-track">
+            <div className="premium-progress-fill" />
           </div>
         </div>
       </a>
@@ -123,30 +96,16 @@ export default function AreasPage() {
   return (
     <AppShell title="Areas">
       {/* Count */}
-      <p
-        className="mb-3 stagger-in"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', animationDelay: '0.05s' }}
-      >
+      <p className="premium-count mb-3 stagger-in stagger-1">
         {filteredAreas.length} area{filteredAreas.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div className="flex gap-3 mb-4 stagger-in" style={{ paddingBottom: 4, animationDelay: '0.1s' }}>
+      <div className="filter-row mb-4 stagger-in stagger-2">
         <select
           value={actFilter}
           onChange={(e) => setActFilter(Number(e.target.value))}
           className="bg3-select"
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 8,
-            color: 'var(--text-primary)',
-            fontSize: '0.8rem',
-            minHeight: 32,
-            paddingLeft: 10,
-            paddingRight: 10,
-            minWidth: 0,
-          }}
         >
           <option value={0}>All Acts</option>
           {ACTS.map((a) => (
@@ -158,31 +117,17 @@ export default function AreasPage() {
       </div>
 
       {/* Search input */}
-      <div className="relative mb-5 stagger-in" style={{ animationDelay: '0.15s' }}>
+      <div className="premium-search-shell mb-5 stagger-in stagger-3">
         <Search
           size={18}
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--gold-dim)',
-          }}
+          className="premium-search-icon"
         />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search areas..."
-          className="w-full pl-10 pr-3 py-2.5"
-          style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 12,
-            color: 'var(--text-primary)',
-            fontSize: '0.875rem',
-            padding: '10px 14px 10px 40px',
-          }}
+          className="premium-search-input"
         />
       </div>
 

@@ -3,7 +3,7 @@
  *
  * - Reports errors to PocketBase (https://pb.gohanlab.uk/api/collections/tadpole_errors/records)
  * - Stores last 50 errors in localStorage as backup
- * - Rate limited: max 1 report per error message per 5 minutes, max 10 per minute overall
+ * - Deduplicates repeated reports for the same error message
  * - Never blocks or crashes the app — all operations are fire-and-forget with try/catch
  *
  * PocketBase collection setup (admin UI):
@@ -18,7 +18,6 @@ const PB_ENDPOINT = 'https://pb.gohanlab.uk/api/collections/tadpole_errors/recor
 const LOCAL_STORAGE_KEY = 'tadpole-error-log';
 const MAX_LOCAL_ERRORS = 50;
 const DEDUPE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const RATE_LIMIT_PER_MINUTE = 10;
 const REQUEST_TIMEOUT_MS = 3000;
 
 interface ErrorRecord {
@@ -55,7 +54,6 @@ function hashMessage(msg: string): string {
 
 export class ErrorReporter {
   private static recentReports: Map<string, number> = new Map(); // hash -> timestamp
-  private static reportTimestamps: number[] = []; // for per-minute rate limit
 
   /**
    * Report an error. Safe to call anywhere — never throws.
@@ -77,15 +75,8 @@ export class ErrorReporter {
         return; // Already reported this error recently
       }
 
-      // Check per-minute rate limit
-      ErrorReporter.reportTimestamps = ErrorReporter.reportTimestamps.filter(t => now - t < 60000);
-      if (ErrorReporter.reportTimestamps.length >= RATE_LIMIT_PER_MINUTE) {
-        return; // Too many reports this minute
-      }
-
       // Mark as reported
       ErrorReporter.recentReports.set(hash, now);
-      ErrorReporter.reportTimestamps.push(now);
 
       // Build record
       const record: ErrorRecord = {

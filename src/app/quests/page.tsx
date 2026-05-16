@@ -1,7 +1,7 @@
 'use client';
 
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import { Search } from 'lucide-react';
 import { quests } from '@/data/quests';
 import { Badge } from '@/components/ui/Badge';
@@ -65,30 +65,16 @@ export default function QuestsPage() {
   return (
     <AppShell title="Quests">
       {/* Count */}
-      <p
-        className="mb-3 stagger-in"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', animationDelay: '0.05s' }}
-      >
+      <p className="premium-count mb-3 stagger-in stagger-1">
         {filteredQuests.length} quest{filteredQuests.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div className="flex gap-3 mb-4 stagger-in" style={{ paddingBottom: 4, animationDelay: '0.1s' }}>
+      <div className="filter-row mb-4 stagger-in stagger-2">
         <select
           value={actFilter}
           onChange={(e) => setActFilter(Number(e.target.value))}
           className="bg3-select"
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 8,
-            color: 'var(--text-primary)',
-            fontSize: '0.8rem',
-            minHeight: 32,
-            paddingLeft: 10,
-            paddingRight: 10,
-            minWidth: 0,
-          }}
         >
           <option value={0}>All Acts</option>
           {ACTS.map((a) => (
@@ -100,31 +86,17 @@ export default function QuestsPage() {
       </div>
 
       {/* Search input */}
-      <div className="relative mb-5 stagger-in" style={{ animationDelay: '0.15s' }}>
+      <div className="premium-search-shell mb-5 stagger-in stagger-3">
         <Search
           size={18}
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--gold-dim)',
-          }}
+          className="premium-search-icon"
         />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search quests..."
-          className="w-full pl-10 pr-3 py-2.5"
-          style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 12,
-            color: 'var(--text-primary)',
-            fontSize: '0.875rem',
-            padding: '10px 14px 10px 40px',
-          }}
+          className="premium-search-input"
         />
       </div>
 
@@ -143,35 +115,26 @@ export default function QuestsPage() {
               <a
                 key={quest.id}
                 href={`/quests/${quest.id}`}
-                className="bg3-card-premium touch-target stagger-in"
+                className="bg3-card-premium premium-card-link touch-target stagger-in"
                 style={{
-                  textDecoration: 'none',
-                  display: 'block',
                   animationDelay: `${0.2 + i * 0.04}s`,
-                }}
+                  '--item-color': statusColor,
+                } as CSSProperties}
               >
                 <div
-                  className="card-inner"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative',
-                    background: `linear-gradient(160deg, ${statusColor}0C, rgba(255,255,255,0.02))`,
-                  }}
+                  className="card-inner premium-card-column-inner"
                 >
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <Badge label={`Act ${quest.act}`} color="var(--gold)" />
                     <Badge label={quest.status} color={statusColor} />
                   </div>
                   <h3
-                    className="font-heading font-semibold text-sm leading-tight mb-1"
-                    style={{ color: 'var(--text-primary)' }}
+                    className="font-heading premium-card-title leading-tight mb-1"
                   >
                     {quest.name}
                   </h3>
                   <p
-                    className="text-xs leading-snug mb-2 truncate-3"
-                    style={{ color: 'var(--text-secondary)' }}
+                    className="premium-card-description text-xs leading-snug mb-2 truncate-3"
                   >
                     {quest.description}
                   </p>
@@ -202,34 +165,25 @@ export default function QuestsPage() {
                     <a
                       key={quest.id}
                       href={`/quests/${quest.id}`}
-                      className="bg3-card-premium touch-target stagger-in"
+                      className="bg3-card-premium premium-card-link touch-target stagger-in"
                       style={{
-                        textDecoration: 'none',
-                        display: 'block',
                         animationDelay: `${0.2 + i * 0.04}s`,
-                      }}
+                        '--item-color': statusColor,
+                      } as CSSProperties}
                     >
                       <div
-                        className="card-inner"
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          position: 'relative',
-                          background: `linear-gradient(160deg, ${statusColor}0C, rgba(255,255,255,0.02))`,
-                        }}
+                        className="card-inner premium-card-column-inner"
                       >
                         <div className="flex flex-wrap items-center gap-3 mb-3">
                           <Badge label={quest.status} color={statusColor} />
                         </div>
                         <h3
-                          className="font-heading font-semibold text-sm leading-tight mb-1"
-                          style={{ color: 'var(--text-primary)' }}
+                          className="font-heading premium-card-title leading-tight mb-1"
                         >
                           {quest.name}
                         </h3>
                         <p
-                          className="text-xs leading-snug mb-2 truncate-3"
-                          style={{ color: 'var(--text-secondary)' }}
+                          className="premium-card-description text-xs leading-snug mb-2 truncate-3"
                         >
                           {quest.description}
                         </p>

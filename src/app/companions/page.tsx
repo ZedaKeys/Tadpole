@@ -34,40 +34,19 @@ export default function CompanionsPage() {
     return list;
   }, [actFilter]);
 
-  const selectStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    color: 'var(--text-primary)',
-    fontSize: '0.8rem',
-    minHeight: 32,
-    paddingLeft: 10,
-    paddingRight: 10,
-  };
-
   return (
     <AppShell title="Companions">
       {/* Count */}
-      <p
-        className="stagger-in mb-5"
-        style={{
-          color: 'var(--text-secondary)',
-          fontSize: '0.85rem',
-          animationDelay: '0.05s',
-        }}
-      >
+      <p className="premium-count stagger-in stagger-1 mb-5">
         {filteredCompanions.length} companion{filteredCompanions.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div
-        className="stagger-in flex gap-3 mb-6"
-        style={{ animationDelay: '0.1s' }}
-      >
+      <div className="filter-row stagger-in stagger-2 mb-6">
         <select
           value={actFilter}
           onChange={(e) => setActFilter(Number(e.target.value))}
-          style={selectStyle}
+          className="bg3-select"
         >
           <option value={0}>All Acts</option>
           <option value={1}>Act 1</option>
@@ -77,22 +56,17 @@ export default function CompanionsPage() {
       </div>
 
       {/* Romance overview link */}
-      <div className="stagger-in mb-6" style={{ animationDelay: '0.12s' }}>
+      <div className="stagger-in stagger-3 mb-6">
         <a
           href="/companions/romance"
-          className="flex items-center gap-3 rounded-xl px-4 py-3"
-          style={{
-            background: 'rgba(236, 64, 122, 0.08)',
-            border: '1px solid rgba(236, 64, 122, 0.2)',
-            textDecoration: 'none',
-          }}
+          className="premium-guide-link premium-guide-link-romance"
         >
-          <Heart size={18} style={{ color: '#ec407a', flexShrink: 0 }} />
+          <Heart size={18} className="premium-guide-heart-icon" />
           <div>
-            <div style={{ color: '#ec407a', fontSize: '0.875rem', fontWeight: 600 }}>
+            <div className="premium-guide-title premium-guide-title-romance">
               Romance Guide
             </div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+            <div className="premium-guide-subtitle">
               View all romance paths, key moments, and tips
             </div>
           </div>

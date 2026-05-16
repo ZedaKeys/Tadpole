@@ -1,0 +1,485 @@
+.page {
+  position: relative;
+  isolation: isolate;
+}
+
+.page::before {
+  content: '';
+  position: fixed;
+  inset: 56px 0 72px;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 16% 4%, rgba(198, 162, 85, 0.12), transparent 34%),
+    radial-gradient(circle at 88% 18%, rgba(124, 58, 237, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
+  opacity: 0.9;
+}
+
+.commandDeck {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(198, 162, 85, 0.2);
+  border-radius: 22px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background:
+    linear-gradient(135deg, rgba(198, 162, 85, 0.13), rgba(139, 92, 246, 0.08) 42%, rgba(5, 5, 6, 0.92)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015));
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.commandDeck::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 76%);
+  pointer-events: none;
+}
+
+.commandDeck::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(229, 193, 112, 0.9), transparent);
+}
+
+.kicker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--gold-bright);
+  font-family: 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.kicker::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  box-shadow: 0 0 14px rgba(229, 193, 112, 0.85);
+}
+
+.deckTitle {
+  position: relative;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  font-weight: 850;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.deckCopy {
+  position: relative;
+  margin: 8px 0 14px;
+  color: rgba(232, 232, 239, 0.72);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.actions {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.actionButton,
+.presetLink {
+  min-height: 46px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.actionButtonPrimary {
+  color: #09080a;
+  border: 1px solid rgba(229, 193, 112, 0.65);
+  background:
+    linear-gradient(135deg, var(--gold-bright), var(--gold) 56%, #9b7330),
+    var(--gold);
+  box-shadow: 0 12px 28px rgba(198, 162, 85, 0.22);
+}
+
+.actionButtonSecondary {
+  color: var(--gold-bright);
+  border: 1px solid rgba(198, 162, 85, 0.24);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.actionButton:hover,
+.presetLink:hover,
+.classCard:hover {
+  transform: translateY(-2px);
+}
+
+.actionButtonPrimary:hover {
+  box-shadow: 0 16px 34px rgba(198, 162, 85, 0.28);
+}
+
+.actionButtonSecondary:hover {
+  border-color: rgba(229, 193, 112, 0.4);
+  background: rgba(198, 162, 85, 0.08);
+}
+
+.presetLink {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  overflow: hidden;
+  color: inherit;
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(198, 162, 85, 0.07)),
+    rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.presetLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 14% 50%, rgba(168, 85, 247, 0.28), transparent 34%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.presetLink:hover {
+  border-color: rgba(168, 85, 247, 0.48);
+  box-shadow: 0 14px 34px rgba(88, 28, 135, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.presetLink:hover::after {
+  opacity: 1;
+}
+
+.presetIcon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  box-shadow: 0 0 24px rgba(168, 85, 247, 0.18);
+}
+
+.presetText {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.presetTitle {
+  color: #c4a7ff;
+  font-size: 0.88rem;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+}
+
+.presetSubtitle {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.presetArrow {
+  position: relative;
+  color: rgba(229, 193, 112, 0.8);
+  font-size: 1.1rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.sectionEyebrow {
+  margin: 0 0 2px;
+  color: var(--gold-bright);
+  font-family: 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  font-weight: 850;
+  letter-spacing: -0.025em;
+}
+
+.classCount {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid rgba(198, 162, 85, 0.24);
+  border-radius: 999px;
+  color: rgba(229, 193, 112, 0.92);
+  background: rgba(198, 162, 85, 0.08);
+  font-family: 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.classGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.classCard {
+  --class-color: var(--gold);
+  position: relative;
+  min-height: 176px;
+  overflow: hidden;
+  display: flex;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left-color: color-mix(in srgb, var(--class-color) 62%, rgba(255, 255, 255, 0.12));
+  border-left-width: 3px;
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--class-color) 17%, transparent), transparent 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.018)),
+    #101018;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.classCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--class-color) 28%, transparent), transparent 36%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 28%);
+  opacity: 0.58;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.classCard::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 7px;
+  width: 1px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, transparent, var(--class-color), transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--class-color) 52%, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.classCard:hover {
+  border-color: color-mix(in srgb, var(--class-color) 45%, rgba(255, 255, 255, 0.12));
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.38),
+    0 0 26px color-mix(in srgb, var(--class-color) 20%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.classCard:hover::before {
+  opacity: 0.88;
+}
+
+.classCard:focus-visible,
+.actionButton:focus-visible,
+.presetLink:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--gold-bright) 74%, white);
+  outline-offset: 3px;
+}
+
+.cardContent {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 100%;
+  width: 100%;
+  flex-direction: column;
+  padding: 13px 11px 12px 13px;
+}
+
+.cardTopline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.classSigil {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+  color: var(--class-color);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--class-color) 22%, transparent), rgba(255, 255, 255, 0.035));
+  border: 1px solid color-mix(in srgb, var(--class-color) 28%, rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 18px color-mix(in srgb, var(--class-color) 13%, transparent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.cardIndex {
+  color: color-mix(in srgb, var(--class-color) 66%, rgba(232, 232, 239, 0.54));
+  font-family: 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.className {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  font-weight: 880;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.classDescription {
+  display: -webkit-box;
+  flex: 1;
+  margin: 7px 0 12px;
+  overflow: hidden;
+  color: rgba(232, 232, 239, 0.68);
+  font-size: 0.72rem;
+  line-height: 1.42;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.statBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 23px;
+  max-width: 100%;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--badge-color, var(--class-color)) 34%, rgba(255, 255, 255, 0.1));
+  color: color-mix(in srgb, var(--badge-color, var(--class-color)) 82%, white);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--badge-color, var(--class-color)) 15%, transparent), rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  font-family: 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.61rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.badgeLabel {
+  color: rgba(232, 232, 239, 0.54);
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+
+.badgeValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 390px) {
+  .classGrid {
+    gap: 10px;
+  }
+
+  .classCard {
+    min-height: 184px;
+    border-radius: 16px;
+  }
+
+  .cardContent {
+    padding: 12px 9px 11px 11px;
+  }
+
+  .classDescription {
+    font-size: 0.69rem;
+  }
+
+  .statBadge {
+    padding-inline: 6px;
+    font-size: 0.58rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actionButton,
+  .presetLink,
+  .classCard,
+  .classCard::before {
+    transition: none;
+  }
+
+  .actionButton:hover,
+  .presetLink:hover,
+  .classCard:hover {
+    transform: none;
+  }
+}

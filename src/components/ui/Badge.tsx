@@ -7,14 +7,20 @@ interface BadgeProps {
 
 export function Badge({ label, color }: BadgeProps) {
   const badgeColor = color ?? 'var(--text-primary)';
+  const badgeBackground = color
+    ? `color-mix(in srgb, ${badgeColor} 20%, transparent)`
+    : 'rgba(255, 255, 255, 0.06)';
+  const badgeBorder = color
+    ? `color-mix(in srgb, ${badgeColor} 30%, transparent)`
+    : 'rgba(255, 255, 255, 0.1)';
 
   return (
     <span
       className="inline-flex items-center rounded-full whitespace-nowrap"
       style={{
-        background: color ? `${color}20` : 'rgba(255, 255, 255, 0.06)',
+        background: badgeBackground,
         color: badgeColor,
-        border: `1px solid ${color ? `${color}30` : 'rgba(255, 255, 255, 0.1)'}`,
+        border: `1px solid ${badgeBorder}`,
         padding: '3px 8px',
         fontSize: '0.6875rem',
         fontWeight: 700,

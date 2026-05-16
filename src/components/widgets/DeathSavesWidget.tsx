@@ -1,78 +1,51 @@
 'use client';
 
-import type { GameState, GameCharacter } from '@/types';
+import type { GameState } from '@/types';
 
-interface WidgetProps {
-  gameState: GameState;
-}
-
-function DeathSavesRow({ character }: { character: GameCharacter }) {
-  const saves = character.deathSaves!;
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ color: '#e8e8ef', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-        {character.name}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ color: '#52b788', fontSize: 10, width: 32 }}>Success</span>
-          {[0, 1, 2].map((i) => (
-            <div
-              key={`s-${i}`}
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: 8,
-                border: `2px solid ${i < saves.successes ? '#52b788' : 'rgba(255,255,255,0.15)'}`,
-                background: i < saves.successes ? '#52b788' : 'transparent',
-              }}
-            />
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ color: '#e76f51', fontSize: 10, width: 32 }}>Failure</span>
-          {[0, 1, 2].map((i) => (
-            <div
-              key={`f-${i}`}
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: 8,
-                border: `2px solid ${i < saves.failures ? '#e76f51' : 'rgba(255,255,255,0.15)'}`,
-                background: i < saves.failures ? '#e76f51' : 'transparent',
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+interface WidgetProps { gameState: GameState; }
 
 export default function DeathSavesWidget({ gameState }: WidgetProps) {
   const host = gameState.host;
-  const party = gameState.party ?? [];
-  const allChars = [host, ...party].filter((c): c is NonNullable<typeof c> => c != null);
+  const deaths = host?.deathSaves;
+  if (!deaths) return null;
 
-  const dyingChars = allChars.filter(
-    (c) => c.isDead || (c.deathSaves && (c.deathSaves.successes > 0 || c.deathSaves.failures > 0))
-  );
-
-  if (dyingChars.length === 0) return null;
+  const { successes = 0, failures = 0 } = deaths;
 
   return (
-    <div style={{
-      background: 'rgba(26, 26, 38, 0.8)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: 20,
-      padding: 16,
-    }}>
-      <h4 style={{ color: '#e76f51', margin: '0 0 12px 0', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
-        Death Saves
-      </h4>
-      {dyingChars.map((c) => (
-        <DeathSavesRow key={c.guid} character={c} />
-      ))}
+    <div className="widget-card">
+      <h3 className="widget-title">Death Saves</h3>
+      <div style={{ display: 'flex', gap: 16 }}>
+        {/* Successes */}
+        <div>
+          <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-3)', margin: '0 0 6px' }}>Success</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  width: 18, height: 18, borderRadius: 999, border: '2px solid var(--success)',
+                  background: i < successes ? 'var(--success)' : 'transparent',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        {/* Failures */}
+        <div>
+          <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-3)', margin: '0 0 6px' }}>Failure</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  width: 18, height: 18, borderRadius: 999, border: '2px solid var(--danger)',
+                  background: i < failures ? 'var(--danger)' : 'transparent',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

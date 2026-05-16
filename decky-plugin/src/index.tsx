@@ -144,6 +144,10 @@ const TadpolePanel: FunctionComponent = () => {
   // Phase 2: collapsible section state
   const [charSheetOpen, setCharSheetOpen] = useState(false);
   const [statusEffectsOpen, setStatusEffectsOpen] = useState(false);
+  const [sessionStatsOpen, setSessionStatsOpen] = useState(false);
+
+  // Session stats tracking (cumulative, reset on bridge disconnect)
+  const sessionRef = useRef({ startGold: null as number | null, combats: 0, startTime: 0, eventCount: 0 });
 
   const autoStartRef = useRef(false);
   const tabRef = useRef<Tab>(tab);
@@ -229,6 +233,7 @@ const TadpolePanel: FunctionComponent = () => {
   }, [settings, fetchStatus]);
 
   const stopBridge = useCallback(async () => {
+    autoStartRef.current = false;  // reset so auto-start can fire again
     setLoading(true);
     try {
       const r = await callStopBridge();
@@ -264,9 +269,19 @@ const TadpolePanel: FunctionComponent = () => {
     const handler = (data: any) => {
       if (data?.game_state) {
         setGameState(data.game_state);
+        // Session stats tracking
+        const gs = data.game_state;
+        if (sessionRef.current.startTime === 0) {
+          sessionRef.current.startTime = Date.now();
+          if (typeof gs.gold === 'number') sessionRef.current.startGold = gs.gold;
+        }
       }
       if (data?.recent_events) {
         setRecentEvents(data.recent_events);
+        // Count combat events
+        const newCombats = data.recent_events.filter((e: any) => e.type === 'combat_started').length;
+        sessionRef.current.combats += newCombats;
+        sessionRef.current.eventCount += data.recent_events.length;
       }
     };
 
@@ -363,6 +378,10 @@ const TadpolePanel: FunctionComponent = () => {
     } else if (!bg3Running) {
       // BG3 stopped — reset auto-start so it can fire again next time
       autoStartRef.current = false;
+    }
+    if (!bridgeRunning) {
+      // Bridge disconnected — reset session stats
+      sessionRef.current = { startGold: null, combats: 0, startTime: 0, eventCount: 0 };
     }
   }, [bg3Running, bridgeRunning, settings.autoStart, startBridge, nodeMissing]);
 
@@ -752,6 +771,72 @@ const TadpolePanel: FunctionComponent = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Session Stats (collapsible) */}
+      {hasLiveData && sessionRef.current.startTime > 0 && (
+        <div style={s.card()}>
+          <div
+            style={{ ...s.row(), cursor: "pointer", userSelect: "none" }}
+            onClick={() => setSessionStatsOpen(!sessionStatsOpen)}
+          >
+            <span style={{ ...s.value, fontSize: 12 }}>
+              {sessionStatsOpen ? "▾" : "▸"} Session Stats
+            </span>
+            <span style={{ ...s.muted, fontSize: 10 }}>
+              {(() => {
+                const mins = Math.floor((Date.now() - sessionRef.current.startTime) / 60000);
+                return mins < 1 ? "<1m" : `${mins}m`;
+              })()}
+            </span>
+          </div>
+          {sessionStatsOpen && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                {/* Session duration */}
+                <div style={{ textAlign: "center", padding: "4px 0", borderRadius: 4, background: "rgba(255,255,255,0.02)" }}>
+                  <div style={{ ...s.muted, fontSize: 9 }}>Duration</div>
+                  <div style={{ ...s.value, fontSize: 12 }}>
+                    {(() => {
+                      const secs = Math.floor((Date.now() - sessionRef.current.startTime) / 1000);
+                      const h = Math.floor(secs / 3600);
+                      const m = Math.floor((secs % 3600) / 60);
+                      const s = secs % 60;
+                      return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+                    })()}
+                  </div>
+                </div>
+                {/* Gold delta */}
+                {sessionRef.current.startGold !== null && typeof gameState?.gold === "number" && (
+                  <div style={{ textAlign: "center", padding: "4px 0", borderRadius: 4, background: "rgba(255,255,255,0.02)" }}>
+                    <div style={{ ...s.muted, fontSize: 9 }}>Gold Δ</div>
+                    <div style={{
+                      ...s.value, fontSize: 12,
+                      color: gameState.gold >= sessionRef.current.startGold! ? "#52b788" : "#e76f51",
+                    }}>
+                      {gameState.gold >= sessionRef.current.startGold! ? "+" : ""}
+                      {gameState.gold - sessionRef.current.startGold!}
+                    </div>
+                  </div>
+                )}
+                {/* Combats */}
+                <div style={{ textAlign: "center", padding: "4px 0", borderRadius: 4, background: "rgba(255,255,255,0.02)" }}>
+                  <div style={{ ...s.muted, fontSize: 9 }}>Combats</div>
+                  <div style={{ ...s.value, fontSize: 12, color: "#e76f51" }}>
+                    {sessionRef.current.combats}
+                  </div>
+                </div>
+                {/* Event count */}
+                <div style={{ textAlign: "center", padding: "4px 0", borderRadius: 4, background: "rgba(255,255,255,0.02)" }}>
+                  <div style={{ ...s.muted, fontSize: 9 }}>Events</div>
+                  <div style={{ ...s.value, fontSize: 12 }}>
+                    {sessionRef.current.eventCount}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -55,7 +55,7 @@ _BRIDGE_PID_FILE = "/tmp/tadpole-bridge.pid"
 
 # Error reporting
 PB_ERROR_ENDPOINT = "https://pb.gohanlab.uk/api/collections/tadpole_errors/records"
-PLUGIN_VERSION = "0.22.0"
+PLUGIN_VERSION = "0.24.0"
 _error_report_timestamps = []
 ERROR_RATE_LIMIT_PER_MINUTE = 10
 
@@ -295,6 +295,27 @@ def _recv_exact(sock, nbytes):
     return buf
 
 
+def _emit_game_state(game_state, events):
+    """Emit game state update to frontend via decky — async via thread event loop."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop in this thread — create one
+        asyncio.run(_emit_async(game_state, events))
+        return
+    # Schedule on the existing thread's event loop so it doesn't block
+    loop.call_soon_threadsafe(lambda: asyncio.create_task(_emit_async(game_state, events)))
+
+async def _emit_async(game_state, events):
+    """Async inner: actually await decky.emit."""
+    try:
+        await decky.emit('game-state-update', {
+            'game_state': game_state,
+            'recent_events': events,
+        })
+    except Exception as e:
+        _log(f"decky.emit failed: {e}", "ERROR")
+
 def _ws_listener_loop():
     """Background thread: connect to bridge WS and emit state updates to frontend."""
     global _ws_last_state
@@ -340,14 +361,8 @@ def _ws_listener_loop():
                         continue
                     _ws_last_state = new_ts
 
-                    # Push to frontend via decky.emit
-                    try:
-                        decky.emit('game-state-update', {
-                            'game_state': game_state,
-                            'recent_events': events,
-                        })
-                    except Exception as e:
-                        _log(f"decky.emit failed: {e}", "ERROR")
+                    # Push to frontend via decky.emit (async, non-blocking)
+                    _emit_game_state(game_state, events)
 
                 elif msg_type == 'history':
                     # Initial history dump — extract latest state if we don't have one
@@ -358,13 +373,7 @@ def _ws_listener_loop():
                         if game_state:
                             new_ts = game_state.get('timestamp')
                             _ws_last_state = new_ts
-                            try:
-                                decky.emit('game-state-update', {
-                                    'game_state': game_state,
-                                    'recent_events': [],
-                                })
-                            except Exception:
-                                pass
+                            _emit_game_state(game_state, [])
 
         except Exception as e:
             _log(f"WS listener error: {e}", "ERROR")

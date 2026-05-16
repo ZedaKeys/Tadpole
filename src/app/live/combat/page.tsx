@@ -178,8 +178,7 @@ const CombatStatusBanner = memo(function CombatStatusBanner({ inCombat }: { inCo
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(90deg, transparent, rgba(231,111,81,0.06), transparent)',
-            animation: 'pulse 2s ease-in-out infinite',
+            background: 'linear-gradient(90deg, transparent, rgba(231,111,81,0.04), transparent)',
           }}
         />
       )}

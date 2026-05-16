@@ -13,7 +13,7 @@ const PORT = parseInt(process.env.PORT || '3456', 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(os.tmpdir(), 'tadpole_state.json');
 const COMMAND_FILE = process.env.COMMAND_FILE || path.join(os.tmpdir(), 'tadpole_commands.json');
 const NATIVE_SOCKET = process.env.NATIVE_SOCKET || '/tmp/tadpole_native.sock';
-const BRIDGE_VERSION = '0.22.0';
+const BRIDGE_VERSION = '0.24.0';
 
 // Auth token for write operations (commands). Auto-generated if not set.
 // Set BRIDGE_TOKEN env var to a fixed value for persistent auth.

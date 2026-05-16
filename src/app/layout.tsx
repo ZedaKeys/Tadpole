@@ -39,8 +39,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{
         margin: 0,
         padding: 0,
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        background: '#0a0a0f',
+        fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        background: '#090910',
         color: '#e8e8ef',
         WebkitFontSmoothing: 'antialiased',
       }}>

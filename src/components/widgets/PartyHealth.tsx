@@ -2,78 +2,41 @@
 
 import type { GameState } from '@/types';
 import { safeStr, safeNum } from '@/lib/safe-cast';
+import { Heart, Swords } from 'lucide-react';
 
-interface WidgetProps {
-  gameState: GameState;
-}
+interface WidgetProps { gameState: GameState; }
 
-function getHpColor(hp: number, maxHp: number): string {
-  if (maxHp <= 0) return '#e76f51';
-  const pct = hp / maxHp;
-  if (pct > 0.6) return '#52b788';
-  if (pct > 0.3) return '#f4a261';
-  return '#e76f51';
+function hpColor(ratio: number): string {
+  if (ratio > 0.6) return 'var(--success)';
+  if (ratio > 0.25) return 'var(--warning)';
+  return 'var(--danger)';
 }
 
 export default function PartyHealth({ gameState }: WidgetProps) {
-  const party = gameState.party ?? [];
-
-  if (party.length === 0) {
-    return (
-      <div style={{
-        background: 'rgba(26, 26, 38, 0.8)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 20,
-        padding: 20,
-        textAlign: 'center',
-      }}>
-        <p style={{ color: 'rgba(255,255,255,0.45)', margin: 0, fontSize: 14 }}>
-          No party members yet
-        </p>
-      </div>
-    );
-  }
+  const party = gameState.party || [];
+  if (!party.length) return <div className="widget-card widget-card-empty"><p>No party data</p></div>;
 
   return (
-    <div style={{
-      background: 'rgba(26, 26, 38, 0.8)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: 20,
-      padding: 16,
-    }}>
-      <h4 style={{ color: 'rgba(255,255,255,0.45)', margin: '0 0 12px 0', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
-        Party
-      </h4>
+    <div className="widget-card">
+      <h3 className="widget-title">Party Health</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {party.map((member) => {
-          const hp = safeNum(member.hp);
-          const maxHp = safeNum(member.maxHp);
-          const pct = maxHp > 0 ? (hp / maxHp) * 100 : 0;
-          const color = getHpColor(hp, maxHp);
+        {party.map((char) => {
+          const hp = safeNum(char.hp);
+          const maxHp = safeNum(char.maxHp);
+          const pct = maxHp > 0 ? hp / maxHp : 0;
+          const color = hpColor(pct);
           return (
-            <div key={member.guid}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ color: '#e8e8ef', fontSize: 14, fontWeight: 500 }}>
-                  {safeStr(member.name)}
+            <div key={char.guid || safeStr(char.name)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)' }}>
+                  {safeStr(char.name)}
                 </span>
-                <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' }}>
                   {hp}/{maxHp}
-                  {member.isDead && <span style={{ color: '#e76f51', marginLeft: 4 }}>DEAD</span>}
                 </span>
               </div>
-              <div style={{
-                height: 6,
-                background: 'rgba(255,255,255,0.08)',
-                borderRadius: 3,
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: `${Math.min(pct, 100)}%`,
-                  height: '100%',
-                  background: color,
-                  borderRadius: 3,
-                  transition: 'width 0.4s ease, background 0.4s ease',
-                }} />
+              <div className="progress-track progress-track-lg">
+                <div style={{ width: `${Math.min(pct * 100, 100)}%`, height: '100%', borderRadius: 999, background: color, transition: 'width 0.3s' }} />
               </div>
             </div>
           );

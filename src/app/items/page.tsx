@@ -1,7 +1,7 @@
 'use client';
 
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { Search, Swords } from 'lucide-react';
 import { items } from '@/data/items';
@@ -15,11 +15,11 @@ const TYPES: ItemType[] = ['weapon', 'armor', 'accessory', 'consumable', 'misc']
 const ACTS = [1, 2, 3];
 
 const RARITY_COLORS: Record<ItemRarity, string> = {
-  common: 'var(--rarity-common)',
-  uncommon: 'var(--rarity-uncommon)',
-  rare: 'var(--rarity-rare)',
-  'very rare': 'var(--rarity-very-rare)',
-  legendary: 'var(--rarity-legendary)',
+  common: '#a3a3a3',
+  uncommon: '#22c55e',
+  rare: '#3b82f6',
+  'very rare': '#a855f7',
+  legendary: '#f59e0b',
 };
 
 const TYPE_LABELS: Record<ItemType, string> = {
@@ -67,53 +67,28 @@ export default function ItemsPage() {
       {/* Equipment guide link */}
       <Link
         href="/items/equipment"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 16px',
-          borderRadius: 14,
-          background: 'linear-gradient(135deg, rgba(198,162,85,0.15), rgba(198,162,85,0.05))',
-          border: '1px solid rgba(198,162,85,0.2)',
-          textDecoration: 'none',
-          marginBottom: 20,
-        }}
+        className="premium-guide-link premium-guide-link-gold stagger-in mb-5"
       >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            background: 'rgba(198,162,85,0.15)',
-            color: 'var(--gold)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
+        <div className="premium-guide-icon">
           <Swords size={20} />
         </div>
         <div>
-          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+          <div className="premium-guide-title">
             Equipment Guide
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          <div className="premium-guide-subtitle">
             Class-specific gear recommendations by act
           </div>
         </div>
       </Link>
 
       {/* Count */}
-      <p
-        className="mb-5"
-        style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}
-      >
+      <p className="premium-count mb-5">
         {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar */}
-      <div className="flex gap-3 mb-6 overflow-x-auto" style={{ paddingBottom: 4 }}>
+      <div className="filter-row mb-6">
         <select
           value={rarityFilter}
           onChange={(e) => setRarityFilter(e.target.value as ItemRarity | '')}
@@ -155,31 +130,17 @@ export default function ItemsPage() {
       </div>
 
       {/* Search input */}
-      <div className="relative mb-6">
+      <div className="premium-search-shell mb-6">
         <Search
           size={18}
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--gold-dim)',
-          }}
+          className="premium-search-icon"
         />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search items..."
-          className="w-full pl-10 pr-3 py-2.5"
-          style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 12,
-            color: 'var(--text-primary)',
-            fontSize: '0.875rem',
-            padding: '10px 14px 10px 40px',
-          }}
+          className="premium-search-input"
         />
       </div>
 
@@ -196,18 +157,14 @@ export default function ItemsPage() {
             <a
               key={item.id}
               href={`/items/${item.id}`}
-              className="bg3-card-premium touch-target stagger-in"
+              className="bg3-card-premium premium-card-link touch-target stagger-in"
               style={{
-                textDecoration: 'none',
-                cursor: 'pointer',
                 animationDelay: `${0.05 + i * 0.04}s`,
-              }}
+                '--item-color': RARITY_COLORS[item.rarity],
+              } as CSSProperties}
             >
               <div
-                className="rounded-2xl p-4 flex flex-col"
-                style={{
-                  background: `linear-gradient(160deg, ${RARITY_COLORS[item.rarity]}0C, rgba(255,255,255,0.02))`,
-                }}
+                className="card-inner premium-card-column-inner"
               >
                 <div className="flex flex-wrap gap-2 mb-2">
                   <Badge
@@ -219,13 +176,10 @@ export default function ItemsPage() {
                     color={RARITY_COLORS[item.rarity]}
                   />
                 </div>
-                <h3 className="font-heading font-semibold text-sm leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
+                <h3 className="font-heading premium-card-title leading-tight truncate">
                   {item.name}
                 </h3>
-                <p
-                  className="text-xs mt-2 leading-snug"
-                  style={{ color: 'var(--gold-dim)' }}
-                >
+                <p className="premium-card-meta premium-card-meta-gold mt-2 leading-snug">
                   Act {item.act}
                 </p>
               </div>

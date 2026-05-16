@@ -1,49 +1,33 @@
 'use client';
 
-import { Coins } from 'lucide-react';
 import type { GameState } from '@/types';
+import { safeNum } from '@/lib/safe-cast';
 
-interface WidgetProps {
-  gameState: GameState;
-}
+interface WidgetProps { gameState: GameState; }
 
 export default function GoldResources({ gameState }: WidgetProps) {
-  const gold = gameState.gold;
+  const gold = safeNum(gameState.gold);
+  const supplies = gameState.campSupplies;
+  const campCurrent = safeNum((supplies as any)?.current ?? 0);
+  const campMax = safeNum((supplies as any)?.max ?? 0);
 
   return (
-    <div style={{
-      background: 'rgba(26, 26, 38, 0.8)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: 20,
-      padding: 16,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      minHeight: 44,
-    }}>
-      <div style={{
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        background: 'rgba(198, 162, 85, 0.15)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <Coins size={20} color="#c6a255" />
-      </div>
-      <div>
-        {gold > 0 ? (
-          <>
-            <div style={{ color: '#c6a255', fontSize: 26, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
-              {gold.toLocaleString()}
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>Gold</div>
-          </>
-        ) : (
-          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14 }}>No gold data</div>
-        )}
+    <div className="widget-card">
+      <h3 className="widget-title">Resources</h3>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--warning)', fontVariantNumeric: 'tabular-nums' }}>
+            {gold.toLocaleString()}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-3)', marginTop: 2 }}>Gold</div>
+        </div>
+        <div style={{ width: 1, background: 'var(--border)' }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+            {campCurrent}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-3)', marginTop: 2 }}>Camp Supplies</div>
+        </div>
       </div>
     </div>
   );

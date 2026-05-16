@@ -1,7 +1,7 @@
 'use client';
 
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import { Search } from 'lucide-react';
 import { spells } from '@/data/spells';
 import { Badge } from '@/components/ui/Badge';
@@ -79,97 +79,29 @@ export default function SpellsPage() {
   return (
     <AppShell title="Spells" onSearchClick={() => setSearchOpen(true)}>
       {/* ═══ Page Header ═══════════════════════════════════════════════════ */}
-      <div
-        className="stagger-in"
-        style={{
-          position: 'relative',
-          textAlign: 'center',
-          paddingTop: 24,
-          paddingBottom: 12,
-          paddingLeft: 32,
-          paddingRight: 32,
-        }}
-      >
+      <div className="premium-page-header stagger-in">
         {/* Ambient golden glow */}
-        <div
-          aria-hidden="true"
-          className="hero-glow"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 280,
-            height: 140,
-            borderRadius: '50%',
-            background:
-              'radial-gradient(ellipse, rgba(139, 92, 246, 0.10) 0%, rgba(139, 92, 246, 0.03) 40%, transparent 70%)',
-            pointerEvents: 'none',
-            filter: 'blur(30px)',
-          }}
-        />
+        <div aria-hidden="true" className="hero-glow" />
 
-        <h1
-          className="font-heading"
-          style={{
-            fontSize: '1.75rem',
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            color: 'var(--gold)',
-            lineHeight: 1.2,
-            textShadow:
-              '0 0 40px rgba(198, 162, 85, 0.20), 0 2px 4px rgba(0, 0, 0, 0.4)',
-            position: 'relative',
-          }}
-        >
+        <h1 className="font-heading premium-page-title">
           Arcane Grimoire
         </h1>
 
-        <p
-          className="stagger-in"
-          style={{
-            color: 'var(--text-secondary)',
-            fontSize: '0.8rem',
-            marginTop: 6,
-            letterSpacing: '0.02em',
-            position: 'relative',
-            animationDelay: '0.05s',
-          }}
-        >
+        <p className="premium-page-subtitle stagger-in stagger-1">
           Browse and search the complete spell compendium
         </p>
 
         {/* Gold divider */}
-        <div
-          className="stagger-in"
-          style={{
-            marginTop: 18,
-            marginLeft: 60,
-            marginRight: 60,
-            height: 2,
-            background:
-              'linear-gradient(90deg, transparent 0%, var(--gold-dim) 20%, var(--gold) 50%, var(--gold-dim) 80%, transparent 100%)',
-            opacity: 0.4,
-            position: 'relative',
-            animationDelay: '0.1s',
-          }}
-        />
+        <div className="premium-divider stagger-in stagger-2" />
       </div>
 
       {/* Count */}
-      <p
-        className="stagger-in mb-3"
-        style={{
-          color: 'var(--text-secondary)',
-          fontSize: '0.85rem',
-          animationDelay: '0.12s',
-        }}
-      >
+      <p className="premium-count stagger-in stagger-2 mb-3">
         {filteredSpells.length} spell{filteredSpells.length !== 1 ? 's' : ''}
       </p>
 
       {/* Filter bar — level pills */}
-      <div className="filter-row mb-5 stagger-in" style={{ animationDelay: '0.14s' }}>
+      <div className="filter-row mb-5 stagger-in stagger-3">
         <button
           className={`pill-btn pill-btn-ghost pill-sm ${levelFilter === -1 ? 'pill-btn-ghost-active' : ''}`}
           onClick={() => setLevelFilter(-1)}
@@ -188,7 +120,7 @@ export default function SpellsPage() {
       </div>
 
       {/* School pills */}
-      <div className="filter-row mb-5 stagger-in" style={{ animationDelay: '0.18s' }}>
+      <div className="filter-row mb-5 stagger-in stagger-4">
         <button
           className={`pill-btn pill-btn-ghost pill-sm ${schoolFilter === '' ? 'pill-btn-ghost-active' : ''}`}
           onClick={() => setSchoolFilter('')}
@@ -203,14 +135,7 @@ export default function SpellsPage() {
           >
             <span
               className="spell-school-dot"
-              style={{
-                display: 'inline-block',
-                width: 8,
-                height: 8,
-                marginRight: 6,
-                background: SCHOOL_COLORS[s],
-                '--dot-color': SCHOOL_COLORS[s],
-              } as React.CSSProperties}
+              style={{ '--dot-color': SCHOOL_COLORS[s] } as CSSProperties}
             />
             {s}
           </button>
@@ -218,7 +143,7 @@ export default function SpellsPage() {
       </div>
 
       {/* Class pills */}
-      <div className="filter-row mb-5 stagger-in" style={{ animationDelay: '0.22s' }}>
+      <div className="filter-row mb-5 stagger-in stagger-5">
         <button
           className={`pill-btn pill-btn-ghost pill-sm ${classFilter === '' ? 'pill-btn-ghost-active' : ''}`}
           onClick={() => setClassFilter('')}
@@ -237,45 +162,18 @@ export default function SpellsPage() {
       </div>
 
       {/* Search input — glass panel style */}
-      <div
-        className="stagger-in"
-        style={{
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          borderRadius: 12,
-          overflow: 'hidden',
-          marginBottom: 16,
-          position: 'relative',
-          animationDelay: '0.26s',
-        }}
-      >
+      <div className="premium-search-shell stagger-in stagger-6 mb-4">
         <Search
           size={16}
           strokeWidth={1.8}
-          style={{
-            position: 'absolute',
-            left: 14,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text-muted)',
-            zIndex: 1,
-          }}
+          className="premium-search-icon"
         />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search spells..."
-          className="w-full"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-primary)',
-            fontSize: '0.85rem',
-            padding: '12px 14px 12px 40px',
-            minHeight: 44,
-            outline: 'none',
-          }}
+          className="premium-search-input"
         />
       </div>
 
@@ -295,58 +193,32 @@ export default function SpellsPage() {
               <a
                 key={spell.id}
                 href={`/spells/${spell.id}`}
-                className="bg3-card-premium touch-target stagger-in"
+                className="bg3-card-premium premium-card-link touch-target stagger-in"
                 style={{
-                  textDecoration: 'none',
-                  display: 'block',
                   animationDelay: `${0.3 + i * 0.04}s`,
-                }}
+                  '--item-color': schoolColor,
+                } as CSSProperties}
               >
                 <div
-                  className="card-inner"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    position: 'relative',
-                    background: `linear-gradient(160deg, ${schoolColor}0C, rgba(255,255,255,0.02))`,
-                  }}
+                  className="card-inner premium-card-row-inner"
                 >
                   {/* School accent left bar */}
                   <div
                     aria-hidden="true"
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: 4,
-                      bottom: 4,
-                      width: 3,
-                      borderRadius: 2,
-                      background: schoolColor,
-                    }}
+                    className="premium-accent-bar"
                   />
 
                   {/* School color dot */}
                   <div
-                    className="spell-school-dot"
-                    style={{
-                      background: schoolColor,
-                      '--dot-color': schoolColor,
-                      marginLeft: 6,
-                    } as React.CSSProperties}
+                    className="spell-school-dot spell-school-dot-lg"
+                    style={{ '--dot-color': schoolColor } as CSSProperties}
                   />
 
                   {/* Spell info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span
-                        className="font-heading truncate"
-                        style={{
-                          fontWeight: 600,
-                          fontSize: '0.875rem',
-                          color: 'var(--text-primary)',
-                          letterSpacing: '0.02em',
-                        }}
+                        className="font-heading premium-card-title truncate"
                       >
                         {spell.name}
                       </span>
@@ -359,10 +231,7 @@ export default function SpellsPage() {
                       {spell.ritual && (
                         <Badge label="R" color="var(--arcane)" />
                       )}
-                      <span
-                        className="text-xs"
-                        style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}
-                      >
+                      <span className="premium-card-meta">
                         {levelLabel(spell.level)} · {spell.castingTime}
                       </span>
                     </div>

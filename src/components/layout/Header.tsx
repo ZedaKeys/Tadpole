@@ -1,64 +1,100 @@
 'use client';
 
-import { Search, Settings } from 'lucide-react';
+import { Search, Settings, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
   title: string;
   onSearchClick?: () => void;
+  showBack?: boolean;
 }
 
-export function Header({ title, onSearchClick }: HeaderProps) {
-  return (
-    <header
-      className="sticky top-0 z-30 glass-panel"
-      style={{
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-      }}
-    >
-      <div className="flex items-center justify-between px-4 py-3">
-        {/* Title — Cinzel serif, clean gold */}
-        <h1
-          className="font-heading text-lg truncate"
-          style={{
-            fontWeight: 700,
-            letterSpacing: '0.04em',
-            color: 'var(--gold)',
-          }}
-        >
-          {title}
-        </h1>
+export function Header({ title, onSearchClick, showBack }: HeaderProps) {
+  const router = useRouter();
 
-        {/* Action icons */}
-        <div className="flex items-center gap-1">
+  return (
+    <header style={{
+      position: 'sticky',
+      top: 0,
+      zIndex: 30,
+      background: 'var(--bg)',
+      borderBottom: '1px solid var(--border)',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        height: 56,
+        maxWidth: 480,
+        margin: '0 auto',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {showBack && (
+            <button
+              onClick={() => router.back()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 44,
+                height: 44,
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-2)',
+                cursor: 'pointer',
+                marginLeft: -10,
+                flexShrink: 0,
+              }}
+              aria-label="Go back"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <h1 style={{
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            letterSpacing: '-0.01em',
+            color: 'var(--text)',
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {title}
+          </h1>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {onSearchClick && (
             <button
               onClick={onSearchClick}
-              className="touch-target flex items-center justify-center rounded-lg"
               style={{
-                minWidth: 44,
-                minHeight: 44,
-                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 44,
+                height: 44,
+                background: 'none',
                 border: 'none',
-                color: 'var(--gold-dim)',
-                transition: 'color 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+                color: 'var(--text-2)',
+                cursor: 'pointer',
               }}
               aria-label="Search"
             >
               <Search size={20} strokeWidth={1.8} />
             </button>
           )}
-
           <Link
             href="/settings"
-            className="touch-target flex items-center justify-center rounded-lg"
             style={{
-              minWidth: 44,
-              minHeight: 44,
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--gold-dim)',
-              transition: 'color 0.2s cubic-bezier(0.32, 0.72, 0, 1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 44,
+              height: 44,
+              color: 'var(--text-2)',
             }}
             aria-label="Settings"
           >

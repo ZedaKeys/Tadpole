@@ -1,120 +1,84 @@
 'use client';
 
-
 import Link from 'next/link';
-import { AppShell } from '@/components/layout/AppShell';
 import {
   Swords, BookOpen, Users, ScrollText, MapPin,
   Wrench, Heart, Search, Compass, Trophy,
-  Package, Gamepad2, Star, Zap
+  Package, Gamepad2, Zap, Star,
 } from 'lucide-react';
+import { Header } from '@/components/layout/Header';
 
 const SECTIONS = [
   {
     title: 'Encyclopedia',
     items: [
-      { href: '/builds', icon: Swords, label: 'Build Planner', desc: 'Plan & share builds', color: '#f97316' },
-      { href: '/spells', icon: Zap, label: 'Spells', desc: '127 spells', color: '#8b5cf6' },
-      { href: '/items', icon: Package, label: 'Items', desc: '52 unique items', color: '#22c55e' },
-      { href: '/items/equipment', icon: Wrench, label: 'Equipment', desc: 'Per-class gear', color: '#3b82f6' },
-      { href: '/companions', icon: Users, label: 'Companions', desc: '8 companions', color: '#ec4899' },
-      { href: '/companions/romance', icon: Heart, label: 'Romance', desc: 'Paths & endings', color: '#f43f5e' },
-      { href: '/quests', icon: ScrollText, label: 'Quests', desc: '19 walkthroughs', color: '#f59e0b' },
-      { href: '/areas', icon: MapPin, label: 'Areas', desc: '40 locations', color: '#10b981' },
-      { href: '/lore', icon: BookOpen, label: 'Lore', desc: 'World & gods', color: '#6366f1' },
+      { href: '/builds',             icon: Swords,     label: 'Builds',     desc: 'Plan builds',      color: '#5B8AFF' },
+      { href: '/spells',             icon: Zap,        label: 'Spells',     desc: 'All spells',       color: '#A855F7' },
+      { href: '/items',              icon: Package,    label: 'Items',      desc: 'Browse items',    color: '#22C55E' },
+      { href: '/items/equipment',    icon: Wrench,     label: 'Equipment',  desc: 'By class',        color: '#3B82F6' },
+      { href: '/companions',         icon: Users,      label: 'Companions', desc: '8 companions',    color: '#EC4899' },
+      { href: '/companions/romance', icon: Heart,      label: 'Romance',    desc: 'Paths & endings', color: '#F43F5E' },
+      { href: '/quests',             icon: ScrollText, label: 'Quests',     desc: 'Walkthroughs',    color: '#F59E0B' },
+      { href: '/areas',              icon: MapPin,     label: 'Areas',      desc: 'Locations',       color: '#10B981' },
+      { href: '/lore',               icon: BookOpen,   label: 'Lore',       desc: 'World & gods',    color: '#6366F1' },
     ],
   },
   {
     title: 'Tools',
     items: [
-      { href: '/games', icon: Gamepad2, label: 'Mini-Games', desc: 'Dice Poker', color: '#f97316' },
-      { href: '/tracker', icon: Trophy, label: 'Loot Tracker', desc: 'Session stats', color: '#22c55e' },
-      { href: '/tours', icon: Compass, label: 'Tours', desc: 'Guided runs', color: '#06b6d4' },
-      { href: '/cheats', icon: Star, label: 'Cheats', desc: 'In-game cmds', color: '#eab308' },
+      { href: '/games',   icon: Gamepad2, label: 'Mini-Games', desc: 'Dice & trivia', color: '#F97316' },
+      { href: '/tracker', icon: Trophy,   label: 'Loot Tracker',desc: 'Session stats', color: '#22C55E' },
+      { href: '/tours',   icon: Compass, label: 'Tours',       desc: 'Guided runs',   color: '#06B6D4' },
+      { href: '/cheats',  icon: Star,     label: 'Cheats',      desc: 'In-game cmds', color: '#EAB308' },
     ],
   },
   {
     title: 'Live Game',
     items: [
-      { href: '/live/combat', icon: Swords, label: 'Combat', desc: 'HP & conditions', color: '#e76f51' },
-      { href: '/live/approval', icon: Heart, label: 'Approval', desc: 'Real-time', color: '#c6a255' },
-      { href: '/map', icon: MapPin, label: 'World Map', desc: 'Area overview', color: '#10b981' },
+      { href: '/live/combat',   icon: Swords, label: 'Combat',   desc: 'HP & conditions', color: '#F87171' },
+      { href: '/live/approval',icon: Heart,  label: 'Approval',  desc: 'Real-time',        color: '#5B8AFF' },
+      { href: '/map',          icon: MapPin, label: 'World Map',desc: 'Area overview',   color: '#10B981' },
     ],
   },
 ];
 
 export default function BrowsePage() {
   return (
-    <AppShell title="Browse">
-      {/* Search bar */}
-      <Link
-        href="/search"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 16px',
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          marginBottom: 24,
-          textDecoration: 'none',
-          minHeight: 48,
-        }}
-      >
-        <Search size={18} style={{ color: 'rgba(255,255,255,0.3)' }} />
-        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Search spells, items, companions...</span>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 20px 100px' }}>
+      {/* Search */}
+      <Link href="/search" className="browse-search-bar" aria-label="Search">
+        <Search size={17} strokeWidth={1.8} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="browse-search-label">Search terminal</div>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-2)', marginTop: 1 }}>Spells, items, companions...</div>
+        </div>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontFamily: 'monospace' }}>⌘K</span>
       </Link>
 
-      {SECTIONS.map((section, si) => (
-        <div key={section.title} style={{ marginBottom: 28 }}>
-          <h2 style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
-            marginBottom: 12, paddingLeft: 2,
-          }}>
-            {section.title}
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-            {section.items.map((item, i) => (
+      {SECTIONS.map((section) => (
+        <section key={section.title} className="browse-section">
+          <h2 className="browse-section-title">{section.title}</h2>
+          <div className="browse-grid">
+            {section.items.map(({ href, icon: Icon, label, desc, color }) => (
               <Link
-                key={item.href}
-                href={item.href}
-                className="stagger-in"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '14px 6px',
-                  borderRadius: 14,
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  textDecoration: 'none',
-                  minHeight: 90,
-                  justifyContent: 'center',
-                  animationDelay: `${(si * 9 + i) * 0.03}s`,
-                  transition: 'background 0.2s, border-color 0.2s',
-                }}
+                key={href}
+                href={href}
+                className="browse-card"
+                aria-label={label}
               >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: `${item.color}15`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <item.icon size={18} style={{ color: item.color }} />
+                <div
+                  className="browse-card-icon"
+                  style={{ color, borderColor: `${color}40` }}
+                >
+                  <Icon size={18} strokeWidth={1.8} />
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#e2e0d8', textAlign: 'center', lineHeight: 1.2 }}>
-                  {item.label}
-                </span>
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 1.2 }}>
-                  {item.desc}
-                </span>
+                <span className="browse-card-label">{label}</span>
+                <span className="browse-card-desc">{desc}</span>
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       ))}
-    </AppShell>
+    </div>
   );
 }

@@ -1,73 +1,38 @@
 'use client';
 
 import type { GameState } from '@/types';
+import { safeNum } from '@/lib/safe-cast';
 
-interface WidgetProps {
-  gameState: GameState;
-}
+interface WidgetProps { gameState: GameState; }
 
 export default function XpProgress({ gameState }: WidgetProps) {
   const host = gameState.host;
   if (!host) return null;
 
-  const detail = host.experienceDetail;
-  const level = host.level;
+  const xp = host.experienceDetail;
+  if (!xp) return null;
 
-  if (!detail || detail.nextLevelXp <= 0) {
-    return (
-      <div style={{
-        background: 'rgba(26, 26, 38, 0.8)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 20,
-        padding: 16,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        minHeight: 44,
-      }}>
-        <span style={{ color: '#c6a255', fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-          {level}
-        </span>
-        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14 }}>Level</span>
-      </div>
-    );
-  }
+  const totalXp = safeNum(xp.totalXp);
+  const currentLevelXp = safeNum(xp.currentLevelXp);
+  const nextLevelXp = safeNum(xp.nextLevelXp);
+  const level = safeNum(host.level);
 
-  const range = detail.nextLevelXp - detail.currentLevelXp;
-  const progress = range > 0 ? detail.totalXp - detail.currentLevelXp : 0;
-  const pct = range > 0 ? Math.min((progress / range) * 100, 100) : 0;
+  const progressPct = nextLevelXp > 0 ? (currentLevelXp / nextLevelXp) * 100 : 100;
 
   return (
-    <div style={{
-      background: 'rgba(26, 26, 38, 0.8)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: 20,
-      padding: 16,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-        <span style={{ color: '#c6a255', fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-          {level}
-        </span>
-        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>Level</span>
-        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-          {progress.toLocaleString()} / {range.toLocaleString()} XP
-        </span>
+    <div className="widget-card">
+      <h3 className="widget-title">XP Progress</h3>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
+        <span className="widget-value-lg" style={{ color: 'var(--accent)' }}>{totalXp.toLocaleString()}</span>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-3)' }}>XP</span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginLeft: 4 }}>Level {level}</span>
       </div>
-      <div style={{
-        height: 8,
-        background: 'rgba(255,255,255,0.08)',
-        borderRadius: 4,
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${pct}%`,
-          height: '100%',
-          background: 'linear-gradient(90deg, #c6a255, #e0c080)',
-          borderRadius: 4,
-          transition: 'width 0.4s ease',
-        }} />
+      <div className="progress-track">
+        <div className="progress-fill progress-accent" style={{ width: `${Math.min(progressPct, 100)}%` }} />
       </div>
+      <p style={{ fontSize: '0.7rem', color: 'var(--text-3)', marginTop: 6 }}>
+        {nextLevelXp - currentLevelXp} XP to Level {level + 1}
+      </p>
     </div>
   );
 }

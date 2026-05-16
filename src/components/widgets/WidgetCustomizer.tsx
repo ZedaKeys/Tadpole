@@ -1,7 +1,6 @@
 'use client';
 
-import { X, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
-import { useCallback } from 'react';
+import { X, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff } from 'lucide-react';
 
 interface WidgetCustomizerProps {
   widgets: string[];
@@ -39,198 +38,71 @@ export default function WidgetCustomizer({
   onReorder,
   onClose,
 }: WidgetCustomizerProps) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      {/* Backdrop */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.6)',
-          backdropFilter: 'blur(4px)',
-        }}
-      />
+  const visibleCount = widgets.filter((id) => !hidden.includes(id)).length;
 
-      {/* Panel */}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: 480,
-          maxHeight: '80vh',
-          background: 'rgba(26, 26, 38, 0.98)',
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          overflow: 'auto',
-          animation: 'slideUp 0.3s ease-out',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 20px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          position: 'sticky',
-          top: 0,
-          background: 'rgba(26, 26, 38, 0.98)',
-          zIndex: 2,
-        }}>
-          <h3 style={{ color: '#e8e8ef', margin: 0, fontSize: 18, fontWeight: 600 }}>
-            Customize Widgets
-          </h3>
+  return (
+    <div className="widget-customizer-backdrop" onClick={onClose}>
+      <div className="widget-customizer-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-handle" />
+
+        <div className="sheet-header">
+          <div>
+            <span className="micro-label">Layout Console</span>
+            <h2>Customize Widgets</h2>
+            <p>{visibleCount} visible · {hidden.length} hidden</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            style={{
-              width: 44,
-              height: 44,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'rgba(255,255,255,0.45)',
-            }}
+            className="icon-button-premium"
+            aria-label="Close widget customizer"
           >
-            <X size={22} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Drag handle indicator */}
-        <div style={{
-          padding: '12px 20px 0',
-          color: 'rgba(255,255,255,0.3)',
-          fontSize: 11,
-        }}>
-          Toggle visibility &amp; reorder widgets
-        </div>
+        <p className="widget-customizer-note">Toggle visibility &amp; reorder dashboard widgets.</p>
 
-        {/* Widget list */}
-        <div style={{ padding: '8px 12px 20px' }}>
+        <div className="widget-list">
           {widgets.map((id, idx) => {
             const isHidden = hidden.includes(id);
             return (
-              <div
-                key={id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 8px',
-                  borderRadius: 12,
-                  opacity: isHidden ? 0.45 : 1,
-                  minHeight: 52,
-                }}
-              >
-                {/* Reorder controls */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div key={id} className={`widget-list-row ${isHidden ? 'is-muted' : ''}`}>
+                <div className="reorder-controls" aria-label={`Reorder ${getWidgetName(id)}`}>
                   <button
+                    type="button"
                     onClick={() => idx > 0 && onReorder(idx, idx - 1)}
                     disabled={idx === 0}
-                    style={{
-                      width: 28,
-                      height: 22,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: idx === 0 ? 'default' : 'pointer',
-                      color: idx === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.45)',
-                      padding: 0,
-                    }}
+                    aria-label="Move widget up"
                   >
-                    <ChevronUp size={14} />
+                    <ChevronUp size={15} />
                   </button>
                   <button
+                    type="button"
                     onClick={() => idx < widgets.length - 1 && onReorder(idx, idx + 1)}
                     disabled={idx === widgets.length - 1}
-                    style={{
-                      width: 28,
-                      height: 22,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: idx === widgets.length - 1 ? 'default' : 'pointer',
-                      color: idx === widgets.length - 1 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.45)',
-                      padding: 0,
-                    }}
+                    aria-label="Move widget down"
                   >
-                    <ChevronDown size={14} />
+                    <ChevronDown size={15} />
                   </button>
                 </div>
 
-                {/* Drag handle */}
-                <GripVertical size={16} color="rgba(255,255,255,0.2)" style={{ flexShrink: 0 }} />
+                <GripVertical size={16} className="widget-subtle-text" aria-hidden="true" />
+                <span className="widget-list-label">{getWidgetName(id)}</span>
 
-                {/* Name */}
-                <span style={{
-                  flex: 1,
-                  color: isHidden ? 'rgba(255,255,255,0.35)' : '#e8e8ef',
-                  fontSize: 15,
-                  fontWeight: 500,
-                  textDecoration: isHidden ? 'line-through' : 'none',
-                }}>
-                  {getWidgetName(id)}
-                </span>
-
-                {/* Toggle switch */}
                 <button
+                  type="button"
                   onClick={() => onToggle(id)}
-                  style={{
-                    width: 44,
-                    height: 26,
-                    borderRadius: 13,
-                    background: isHidden ? 'rgba(255,255,255,0.1)' : '#48bfe3',
-                    border: 'none',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    transition: 'background 0.2s',
-                    flexShrink: 0,
-                    padding: 0,
-                  }}
+                  className={`visibility-toggle ${isHidden ? '' : 'is-visible'}`}
+                  aria-label={`${isHidden ? 'Show' : 'Hide'} ${getWidgetName(id)}`}
                 >
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 10,
-                    background: '#fff',
-                    position: 'absolute',
-                    top: 3,
-                    left: isHidden ? 3 : 21,
-                    transition: 'left 0.2s',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                  }} />
+                  {isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Slide-up animation */}
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }
