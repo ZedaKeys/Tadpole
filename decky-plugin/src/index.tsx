@@ -145,6 +145,9 @@ const TadpolePanel: FunctionComponent = () => {
   const [charSheetOpen, setCharSheetOpen] = useState(false);
   const [statusEffectsOpen, setStatusEffectsOpen] = useState(false);
   const [sessionStatsOpen, setSessionStatsOpen] = useState(false);
+  const [expandedPartyIdx, setExpandedPartyIdx] = useState(-1);
+  const [deathSavesOpen, setDeathSavesOpen] = useState(false);
+  const [approvalOpen, setApprovalOpen] = useState(false);
 
   // Session stats tracking (cumulative, reset on bridge disconnect)
   const sessionRef = useRef({ startGold: null as number | null, combats: 0, startTime: 0, eventCount: 0 });
@@ -528,6 +531,22 @@ const TadpolePanel: FunctionComponent = () => {
                 <div style={s.value}>{gameState.party.length + 1}</div>
               </div>
             )}
+            {/* Camp Supplies */}
+            {gameState.campSupplies && (
+              <div style={{ textAlign: "center", padding: "4px 0" }}>
+                <div style={{ ...s.muted, fontSize: 10 }}>Supplies</div>
+                <div style={{ ...s.value, fontSize: 12, color: gameState.campSupplies.canRest ? "#52b788" : "#f4a261" }}>
+                  {gameState.campSupplies.current}{gameState.campSupplies.max ? `/${gameState.campSupplies.max}` : ""}
+                </div>
+              </div>
+            )}
+            {/* Weather */}
+            {gameState.weather && gameState.weather !== "Clear" && (
+              <div style={{ textAlign: "center", padding: "4px 0" }}>
+                <div style={{ ...s.muted, fontSize: 10 }}>Weather</div>
+                <div style={{ ...s.value, fontSize: 11, color: "rgba(120,180,255,0.8)" }}>{gameState.weather}</div>
+              </div>
+            )}
           </div>
 
           {/* Action Resources Bar (inline, always visible) */}
@@ -564,12 +583,14 @@ const TadpolePanel: FunctionComponent = () => {
             </div>
           )}
 
-          {/* HP bars */}
+          {/* HP bars with encumbrance + temp HP, expandable for party */}
           {gameState.host?.maxHp > 0 && (
-            <HpRow name={gameState.host.name || "Host"} hp={gameState.host.hp} maxHp={gameState.host.maxHp} bold />
+            <CharacterHpRow char={gameState.host} bold expanded={false} onClick={() => {}} />
           )}
           {gameState.party?.map((m: any, i: number) => m.maxHp > 0 ? (
-            <HpRow key={m.guid || i} name={m.name} hp={m.hp} maxHp={m.maxHp} />
+            <CharacterHpRow key={m.guid || i} char={m}
+              expanded={expandedPartyIdx === i}
+              onClick={() => setExpandedPartyIdx(expandedPartyIdx === i ? -1 : i)} />
           ) : null)}
 
           {/* Recent events */}
@@ -841,6 +862,119 @@ const TadpolePanel: FunctionComponent = () => {
           )}
         </div>
       )}
+
+      {/* Death Saves Dashboard (all downed characters) */}
+      {hasLiveData && (() => {
+        const downedChars: any[] = [];
+        if (gameState.host?.deathSaves?.failures > 0 || gameState.host?.deathSaves?.successes > 0 || gameState.host?.isDead)
+          downedChars.push(gameState.host);
+        gameState.party?.forEach((m: any) => {
+          if (m.deathSaves?.failures > 0 || m.deathSaves?.successes > 0 || m.isDead) downedChars.push(m);
+        });
+        if (downedChars.length === 0) return null;
+        return (
+          <div style={s.card("#e76f5115")}>
+            <div
+              style={{ ...s.row(), cursor: "pointer", userSelect: "none" }}
+              onClick={() => setDeathSavesOpen(!deathSavesOpen)}
+            >
+              <span style={{ ...s.value, fontSize: 12, color: "#e76f51" }}>
+                {deathSavesOpen ? "▾" : "▸"} ☠ Death Saves
+              </span>
+              <span style={{ ...s.muted, fontSize: 10 }}>{downedChars.length} down</span>
+            </div>
+            {deathSavesOpen && (
+              <div style={{ marginTop: 6 }}>
+                {downedChars.map((ch: any, ci: number) => (
+                  <div key={ci} style={{ marginBottom: ci < downedChars.length - 1 ? 6 : 0, padding: "4px 6px", borderRadius: 6, background: "rgba(231,111,81,0.06)", border: "1px solid rgba(231,111,81,0.12)" }}>
+                    <div style={{ ...s.row(), marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: ch.isDead ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)" }}>
+                        {ch.name}{ch.isDead ? " (Dead)" : ""}
+                      </span>
+                    </div>
+                    {!ch.isDead && (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ ...s.muted, fontSize: 8, marginBottom: 2 }}>Successes</div>
+                          <div style={{ display: "flex", gap: 3 }}>
+                            {[0,1,2].map(si => (
+                              <div key={si} style={{
+                                width: 16, height: 16, borderRadius: "50%",
+                                background: si < (ch.deathSaves?.successes || 0) ? "#52b788" : "rgba(255,255,255,0.06)",
+                                border: `1px solid ${si < (ch.deathSaves?.successes || 0) ? "#52b788" : "rgba(255,255,255,0.1)"}`,
+                                boxShadow: si < (ch.deathSaves?.successes || 0) ? "0 0 6px rgba(82,183,136,0.3)" : "none",
+                              }} />
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ ...s.muted, fontSize: 8, marginBottom: 2 }}>Failures</div>
+                          <div style={{ display: "flex", gap: 3 }}>
+                            {[0,1,2].map(fi => (
+                              <div key={fi} style={{
+                                width: 16, height: 16, borderRadius: "50%",
+                                background: fi < (ch.deathSaves?.failures || 0) ? "#e76f51" : "rgba(255,255,255,0.06)",
+                                border: `1px solid ${fi < (ch.deathSaves?.failures || 0) ? "#e76f51" : "rgba(255,255,255,0.1)"}`,
+                                boxShadow: fi < (ch.deathSaves?.failures || 0) ? "0 0 6px rgba(231,111,81,0.3)" : "none",
+                              }} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Companion Approval Dashboard */}
+      {hasLiveData && (() => {
+        const companions = gameState.party?.filter((m: any) => m.approval != null || m.approvalLevel) || [];
+        if (companions.length === 0) return null;
+        return (
+          <div style={s.card()}>
+            <div
+              style={{ ...s.row(), cursor: "pointer", userSelect: "none" }}
+              onClick={() => setApprovalOpen(!approvalOpen)}
+            >
+              <span style={{ ...s.value, fontSize: 12 }}>
+                {approvalOpen ? "▾" : "▸"} ♥ Approval
+              </span>
+              <span style={{ ...s.muted, fontSize: 10 }}>{companions.length} companions</span>
+            </div>
+            {approvalOpen && (
+              <div style={{ marginTop: 6 }}>
+                {companions.map((ch: any, ci: number) => {
+                  const lvl = ch.approvalLevel || "";
+                  const val = ch.approval ?? 0;
+                  const pct = Math.min(100, Math.max(0, (val + 50) / 150 * 100)); // map -50..100 to 0..100
+                  const barColor = val >= 50 ? "#52b788" : val >= 20 ? "#f4a261" : val >= -10 ? "rgba(255,255,255,0.3)" : "#e76f51";
+                  return (
+                    <div key={ci} style={{ marginBottom: ci < companions.length - 1 ? 6 : 0 }}>
+                      <div style={{ ...s.row(), marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.7)" }}>{ch.name}</span>
+                        <span style={{ fontSize: 9, color: barColor, fontWeight: 600 }}>
+                          {val > 0 ? "+" : ""}{val} {lvl ? `(${lvl})` : ""}
+                        </span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                        <div style={{
+                          height: "100%", width: `${pct}%`,
+                          backgroundColor: barColor, borderRadius: 2,
+                          transition: "width 0.4s ease",
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* No game data hint */}
       {!hasLiveData && bridgeRunning && (
@@ -1362,28 +1496,140 @@ const CheckLine: FunctionComponent<{ label: string; ok: boolean }> = ({ label, o
   </div>
 );
 
-const HpRow: FunctionComponent<{ name: string; hp: number; maxHp: number; bold?: boolean }> = ({ name, hp, maxHp, bold }) => {
+const CharacterHpRow: FunctionComponent<{
+  char: any; bold?: boolean; expanded: boolean; onClick: () => void;
+}> = ({ char, bold, expanded, onClick }) => {
+  const hp = char.hp ?? 0; const maxHp = char.maxHp ?? 0;
   const pct = maxHp > 0 ? Math.max(0, Math.min(hp / maxHp, 1)) : 0;
   const color = hpColor(pct);
+  const tempHp = char.tempHp ?? 0;
+  const enc = char.encumbrance;
+  const downed = char.isDead || (char.deathSaves?.failures > 0);
   return (
     <div style={{ marginBottom: bold ? 6 : 4 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 }}>
-        <span style={{ fontSize: bold ? 12 : 11, fontWeight: bold ? 600 : 500, color: bold ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.55)" }}>{name}</span>
-        <span style={{ fontSize: bold ? 11 : 10, color, fontWeight: 600 }}>{hp}/{maxHp}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2, cursor: "pointer" }} onClick={onClick}>
+        <span style={{ fontSize: bold ? 12 : 11, fontWeight: bold ? 600 : 500, color: bold ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.55)" }}>
+          {expanded ? "▾ " : "▸ "}{char.name}
+          {downed && <span style={{ color: "#e76f51", fontSize: 10, marginLeft: 4 }}>DOWN</span>}
+        </span>
+        <span style={{ fontSize: bold ? 11 : 10, color: downed ? "#e76f51" : color, fontWeight: 600 }}>
+          {downed ? "0" : hp}{tempHp > 0 ? <span style={{ color: "rgba(120,180,255,0.8)", fontSize: 9 }}>+{tempHp}</span> : null}/{maxHp}
+        </span>
       </div>
+      {/* HP bar + temp HP overlay */}
       <div style={{ height: bold ? 6 : 4, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
         <div style={{
-          height: "100%", width: `${pct * 100}%`, backgroundColor: color,
+          height: "100%", width: downed ? "0%" : `${pct * 100}%`, backgroundColor: color,
           borderRadius: 3, transition: "width 0.4s ease",
           boxShadow: pct < 0.3 ? `0 0 4px ${color}50` : "none",
         }} />
       </div>
+      {tempHp > 0 && (
+        <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.04)", overflow: "hidden", marginTop: 2 }}>
+          <div style={{ height: "100%", width: "100%", backgroundColor: "rgba(120,180,255,0.4)", borderRadius: 2 }} />
+        </div>
+      )}
+      {/* Encumbrance gauge */}
+      {enc && enc.maxWeight > 0 && (
+        <div style={{ marginTop: 3 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 1 }}>
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>Weight</span>
+            <span style={{ fontSize: 9, color: enc.state >= 2 ? "#e76f51" : enc.state >= 1 ? "#f4a261" : "rgba(255,255,255,0.3)" }}>
+              {enc.weightDisplay ?? enc.weight}/{enc.maxWeight}
+            </span>
+          </div>
+          <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.04)", overflow: "hidden" }}>
+            <div style={{
+              height: "100%",
+              width: `${Math.min(100, ((enc.weightDisplay ?? enc.weight) / enc.maxWeight) * 100)}%`,
+              backgroundColor: enc.state >= 3 ? "#e76f51" : enc.state >= 2 ? "#f4a261" : enc.state >= 1 ? "rgba(255,255,255,0.4)" : "rgba(120,180,255,0.5)",
+              borderRadius: 2, transition: "width 0.4s ease",
+            }} />
+          </div>
+        </div>
+      )}
+      {/* Expanded: mini character sheet */}
+      {expanded && (
+        <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 6, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          {/* Level + AC + Prof */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+            {char.level != null && <span style={pill("rgba(120,180,255,0.8)")}>Lv {char.level}</span>}
+            {char.armorClass != null && <span style={pill("rgba(255,255,255,0.4)")}>AC {char.armorClass}</span>}
+            {char.proficiencyBonus != null && <span style={pill("rgba(255,255,255,0.4)")}>+{char.proficiencyBonus}</span>}
+            {char.initiative != null && <span style={pill("rgba(255,215,0,0.6)")}>Init +{char.initiative}</span>}
+          </div>
+          {/* Ability Scores 2x3 */}
+          {char.abilityScores && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, marginBottom: 4 }}>
+              {[{ key: "str", label: "STR" },{ key: "dex", label: "DEX" },{ key: "con", label: "CON" },
+                { key: "int", label: "INT" },{ key: "wis", label: "WIS" },{ key: "cha", label: "CHA" }]
+                .map((abi: any) => {
+                  const score = char.abilityScores[abi.key];
+                  const mod = char.abilityModifiers?.[abi.key];
+                  return score != null ? (
+                    <div key={abi.key} style={{ textAlign: "center", padding: "2px 0", borderRadius: 3, background: "rgba(255,255,255,0.02)" }}>
+                      <span style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>{abi.label} </span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{score}</span>
+                      {mod != null && <span style={{ fontSize: 8, marginLeft: 2, color: mod >= 0 ? "#52b788" : "#e76f51" }}>({mod >= 0 ? "+" : ""}{mod})</span>}
+                    </div>
+                  ) : null;
+                })}
+            </div>
+          )}
+          {/* Conditions */}
+          {char.conditions?.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 4 }}>
+              {char.conditions.map((c: string, i: number) => (
+                <span key={i} style={pill("rgba(255,255,255,0.4)")}>{c}</span>
+              ))}
+            </div>
+          )}
+          {/* Death saves if downed */}
+          {char.deathSaves && (
+            <div style={{ display: "flex", gap: 6, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>
+              <span>💀 Saves: <span style={{ color: "#52b788" }}>{char.deathSaves.successes || 0}</span> / <span style={{ color: "#e76f51" }}>{char.deathSaves.failures || 0}</span></span>
+              {char.approval != null && <span>❤️ {char.approval}</span>}
+            </div>
+          )}
+          {/* Spell slots pips */}
+          {char.spellSlots && (() => {
+            const levels = ["level1","level2","level3","level4","level5","level6","level7","level8","level9"];
+            const slots = levels.map((l, idx) => {
+              const sl = char.spellSlots[l];
+              return sl && sl.max > 0 ? { level: idx + 1, current: sl.current || 0, max: sl.max } : null;
+            }).filter(Boolean);
+            if (slots.length === 0) return null;
+            return (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                {slots.map((sl: any) => (
+                  <div key={sl.level} style={{ display: "flex", alignItems: "center", gap: 2, padding: "1px 5px", borderRadius: 4, background: "rgba(120,180,255,0.06)", border: "1px solid rgba(120,180,255,0.1)" }}>
+                    <span style={{ fontSize: 8, color: "rgba(120,180,255,0.6)" }}>{sl.level}</span>
+                    <div style={{ display: "flex", gap: 1 }}>
+                      {Array.from({ length: sl.max }).map((_, pi: number) => (
+                        <div key={pi} style={{ width: 4, height: 4, borderRadius: "50%", backgroundColor: pi < sl.current ? "rgba(120,180,255,0.9)" : "rgba(120,180,255,0.15)" }} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 };
 
 function hpColor(pct: number): string {
   return pct > 0.6 ? "#52b788" : pct > 0.3 ? "#f4a261" : "#e76f51";
+}
+
+function pill(color: string): React.CSSProperties {
+  return {
+    display: "inline-block", padding: "2px 8px", borderRadius: 10,
+    fontSize: 10, fontWeight: 700, color,
+    background: `${color}15`, border: `1px solid ${color}25`,
+  };
 }
 
 // ---------------------------------------------------------------------------
